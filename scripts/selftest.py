@@ -783,6 +783,14 @@ def v8_tests(tmp, cfg):
     rc, out, err = run([E / "session.py", "deliver", "study", "new work"], env=envs)
     check("v8 item 10: delivering to a stopped topic resumes the SAME conversation (claude --resume <id> --bg), not a second empty one",
           "--resume 11111111-aaaa-bbbb-cccc-000000000001" in out and "--bg" in out and "-n study" not in out.split("--resume")[0], out + err)
+    msgf = base / "msg.txt"
+    msgf.write_text('﻿he said "send it"\nsecond line', encoding="utf-8")
+    rc, out, err = run([E / "session.py", "deliver", "study", "--file", msgf], env=envs)
+    inbox_s = (hs / "inbox" / "study.md").read_text(encoding="utf-8")
+    check("deliver --file: the text comes from a UTF-8 file (quotes and line breaks of a script's message survive)",
+          rc == 0 and 'he said "send it"' in inbox_s and "second line" in inbox_s and "﻿" not in inbox_s, out + err + inbox_s[-300:])
+    rc, out, err = run([E / "session.py", "deliver", "study", "--file", base / "nope.txt"], env=envs)
+    check("deliver --file: a file that cannot be read is an error, nothing is delivered", rc != 0 and "cannot read" in out + err, out + err)
     jl(base / "ps.jsonl", [user("hi"), {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "ok"}],
                                                                            "usage": {"input_tokens": 10, "cache_read_input_tokens": 160000,
                                                                                      "cache_creation_input_tokens": 5, "output_tokens": 5}}}])

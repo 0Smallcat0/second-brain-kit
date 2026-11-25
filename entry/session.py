@@ -10,6 +10,8 @@
     session.py deliver NAME "text" [--ledger L0003] [--scheduled]
                                             inbox line + tracker first; then push if NAME runs, else continue its
                                             stopped conversation, else open a new one
+    session.py deliver NAME --file PATH     the same, the text read from a UTF-8 file (for scripts: quotes and
+                                            line breaks do not survive every command line)
     session.py stop NAME                    stop NAME; its conversation is kept, its state is its task.md
     session.py trust                        mark the kit folder as trusted, so background sessions can start there
 
@@ -707,6 +709,17 @@ def main():
             rest = rest[:k] + rest[k + 2:]
         sched = "--scheduled" in rest
         rest = [x for x in rest if x != "--scheduled"]
+        if "--file" in rest:  # the text from a UTF-8 file: a script's message with quotes or line breaks survives
+            k = rest.index("--file")
+            if k + 1 >= len(rest):
+                sys.exit("deliver: --file needs a path")
+            try:
+                body = Path(rest[k + 1]).read_text(encoding="utf-8-sig").strip()
+            except Exception as e:
+                sys.exit("deliver: cannot read %s: %r" % (rest[k + 1], e))
+            rest = rest[:k] + rest[k + 2:] + [body]
+        if len(rest) < 2 or not " ".join(rest[1:]).strip():
+            sys.exit("deliver: no text")
         print("%s: %s" % (rest[0], deliver(rest[0], " ".join(rest[1:]), lid, sched)))
     elif cmd == "stop" and len(a) >= 2:
         stop(a[1])
