@@ -200,6 +200,33 @@ def drain(now):
             session.count_wake(st, name, now)
 
 
+def keep_entry(now):
+    """config.json "keep_entry": true (live routing): the entry is the conversation the user talks to, also
+    from another device, and the supervisor may stop an idle one (low memory, a restart of the computer).
+    When no entry is running, the tick starts it again; the stopped conversation continues. At most one
+    try every 10 minutes, outside the daily wake limit (that limit is for scheduled work)."""
+    c = session.cfg()
+    if not c.get("keep_entry") or (c.get("routing") != "live" and not session.dry()):
+        return ""
+    if session.find("entry"):
+        return ""
+    mark = send.home() / "state" / "keep-entry.json"
+    try:
+        last = datetime.datetime.strptime(json.loads(mark.read_text(encoding="utf-8"))["last"], "%Y-%m-%dT%H:%M")
+    except Exception:
+        last = None
+    if last and abs(now - last) < datetime.timedelta(minutes=10):
+        return ""
+    try:
+        mark.parent.mkdir(parents=True, exist_ok=True)
+        mark.write_text(json.dumps({"last": now.strftime("%Y-%m-%dT%H:%M")}), encoding="utf-8")
+    except Exception:
+        pass
+    rc = session.open_session("entry", "Started again by the alarm tick: the entry was not running. "
+                                       "Read task.md and the tracker (status.py), then wait for the user.")
+    return "entry: started again" if rc == 0 else "entry: not running and could not be started (rc %s)" % rc
+
+
 def report_file():
     return send.home() / "state" / "report.json"
 
@@ -283,6 +310,9 @@ def tick(now):
         print("%s: %s" % (row["id"], fire(row, late=now - sched > LATE, now=now)))
         st[row["id"]] = key
     save_state(st)
+    kept = keep_entry(now)
+    if kept:
+        print(kept)
     drain(now)
     told = report(now)
     if told:

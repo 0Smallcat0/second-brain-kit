@@ -1274,6 +1274,15 @@ def main():
         check("routing: background sessions never wait at a permission prompt (dontAsk; python allowed in Bash and PowerShell)",
               "--permission-mode dontAsk" in out and "acceptEdits" not in out
               and "PowerShell(python:*)" in S.read_text(encoding="utf-8"), out + err)
+        (hw / "config.json").write_text(json.dumps(dict(tcfg, routing="live", vault=str(vault), keep_entry=True,
+                                                         wake_limits={"per_day": 2, "min_gap_min": 120})), encoding="utf-8")
+        (hw / "entry").mkdir(exist_ok=True)
+        rc, out, err = run([A, "--tick", "--now", "2026-12-21T09:20"], env=envl)
+        rc2, out2, err2 = run([A, "--tick", "--now", "2026-12-21T09:22"], env=envl)
+        check("keep_entry: the tick starts the entry again when it is not running, outside the daily limit, and not twice within 10 minutes",
+              "claude --bg -n entry" in out and "entry: started again" in out and "-n entry" not in out2, out + err + out2 + err2)
+        (hw / "config.json").write_text(json.dumps(dict(tcfg, routing="live", vault=str(vault),
+                                                         wake_limits={"per_day": 2, "min_gap_min": 120})), encoding="utf-8")
         rc, out, err = run([A, "--tick", "--now", "2026-12-21T09:30"], env=envl)
         check("wake limits: the daily cap stops further starts; the work waits in the inbox",
               "study waits: daily limit 2 reached" in out and "claude --bg" not in out, out + err)
