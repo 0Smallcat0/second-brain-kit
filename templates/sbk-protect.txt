@@ -1,0 +1,7 @@
+# Paths (relative to the vault root) that commits may not delete or rename, and that
+# vault_guard asks about before editing. A trailing slash means "everything under".
+# Installed as <vault>/.sbk-protect. One per line.
+AGENTS.md
+CLAUDE.md
+00-09 系統與索引/01 規則/
+scripts/

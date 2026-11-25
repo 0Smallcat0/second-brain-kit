@@ -1,0 +1,25 @@
+#!/bin/sh
+# Git pre-commit hook for the vault. Install:  git config core.hooksPath scripts
+# 1) refuse commits that wipe out notes, 2) lint the notes exactly as they will be committed.
+root=$(git rev-parse --show-toplevel) || exit 0
+dir="$root/scripts"
+py=""
+for c in python3 python py; do
+  if command -v "$c" >/dev/null 2>&1 && "$c" -c "import sys; sys.exit(0 if sys.version_info[0] == 3 else 1)" >/dev/null 2>&1; then
+    py="$c"; break
+  fi
+done
+[ -n "$py" ] || { echo "pre-commit: no Python 3 found, skipping checks" >&2; exit 0; }
+
+"$py" "$dir/check_overwrite.py" || exit 1
+
+# Lint a snapshot of the index so unstaged edits cannot hide a problem.
+snap=$(mktemp -d 2>/dev/null) || exit 0
+trap 'rm -rf "$snap"' EXIT
+git ls-files -z --cached | git -C "$root" checkout-index --prefix="$snap/" -z --stdin 2>/dev/null
+[ -f "$root/.sbk-vault" ] && : > "$snap/.sbk-vault"
+"$py" "$dir/vault_lint.py" --root "$snap" --errors-only || {
+  echo "pre-commit: fix the ERROR lines above, then commit again" >&2
+  exit 1
+}
+exit 0

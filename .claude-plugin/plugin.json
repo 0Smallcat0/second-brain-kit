@@ -1,0 +1,7 @@
+{
+  "name": "second-brain-kit",
+  "version": "0.1.0",
+  "description": "A working method for Claude Code: a numbered notes vault with lint, an entry session that routes work to topic sessions with a ledger and alarms, evidence-before-done checks, and guard hooks. One Claude account is enough; extra tools are optional.",
+  "author": {"name": "second-brain-kit contributors"},
+  "license": "MIT"
+}

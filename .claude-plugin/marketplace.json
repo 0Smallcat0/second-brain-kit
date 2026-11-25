@@ -1,0 +1,12 @@
+{
+  "name": "second-brain-kit",
+  "owner": {"name": "second-brain-kit contributors"},
+  "description": "A working method for Claude Code: notes vault, entry and topic sessions, ledger, evidence checks and guard hooks.",
+  "plugins": [
+    {
+      "name": "second-brain-kit",
+      "source": "./",
+      "description": "Numbered notes vault with lint, entry + topic sessions with a ledger and alarms, evidence-before-done checks, and guard hooks. Claude sets it up for you."
+    }
+  ]
+}

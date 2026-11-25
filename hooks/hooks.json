@@ -1,0 +1,49 @@
+{
+  "description": "second-brain-kit guard hooks. Each one fails open and has a mode (off/log/warn/ask/deny) you can set in ~/.claude/sbk/config.json.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" requests_reinject.py", "timeout": 10}
+        ]
+      },
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" inbox_notice.py", "timeout": 10}
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" usage_warn.py", "timeout": 10},
+          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" inbox_notice.py", "timeout": 10}
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" read_whole.py", "timeout": 10},
+          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" vault_guard.py", "timeout": 10}
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" vault_guard.py", "timeout": 10}
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" stop_evidence.py", "timeout": 15}
+        ]
+      }
+    ]
+  }
+}
