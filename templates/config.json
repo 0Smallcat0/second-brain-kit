@@ -1,5 +1,6 @@
 {
   "level": "basic",
+  "level_reason": "",
   "vault": "",
   "language": "",
   "uses": "",
@@ -10,6 +11,7 @@
     "requests_reinject": "warn",
     "stop_evidence": "log",
     "usage_warn": "off",
-    "inbox_notice": "off"
+    "inbox_notice": "off",
+    "level_notice": "warn"
   }
 }

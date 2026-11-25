@@ -13,7 +13,7 @@
 
 ## 工作清單（帳本）
 一份清單記下使用者交代、還沒做完的事，換了對話也找得回來。檔案在 `~/.claude/sbk/ledger.md`，只用下面的指令改，使用者不用自己打任何指令。
-- 交代的事這次做不完、或之後要接著做：`python ~/.claude/sbk/bin/ledger.py add "使用者原話或一句摘要"`，把拿到的編號（例如 L0003）告訴他。一問就答完的不用記。
+- 交代的事這次做不完、或之後要接著做：`python ~/.claude/sbk/bin/ledger.py add "[主題] 使用者原話或一句摘要"`，把拿到的編號（例如 L0003）告訴他。一問就答完的不用記。`[主題]` 用一兩個字標這是哪一件事（例如 `[讀書]`、`[打工]`），同一件事一直用同一個；有期限就在句子裡寫 `due YYYY-MM-DD`。每週的升級檢查靠這兩個標記數「幾件不同的事」和「有沒有過期」。
 - 做完：先看過實際結果，再 `python ~/.claude/sbk/bin/ledger.py done L0003 --evidence "看了什麼、看到什麼"`。沒有證據就不關。
 - 使用者說不做了：`python ~/.claude/sbk/bin/ledger.py drop L0003 --evidence "使用者說不做"`。
 - 使用者問「還有什麼沒做完」：跑 `python ~/.claude/sbk/bin/status.py`，照輸出回答，不憑記憶。

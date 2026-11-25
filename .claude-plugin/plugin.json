@@ -1,7 +1,7 @@
 {
   "name": "second-brain-kit",
-  "version": "0.2.0",
-  "description": "A working method for Claude Code, set up by Claude. Basic (default): one main session in a numbered notes folder, a work list Claude keeps, evidence-before-done checks and safety hooks. Advanced (switched on later): topic sessions, reminders, usage warning, stricter checks, other AI tools. One Claude account is enough.",
+  "version": "0.2.1",
+  "description": "A working method for Claude Code, set up by Claude. Claude picks the level at install: Basic (one main session in a numbered notes folder, a work list Claude keeps, evidence-before-done checks and safety hooks) or Full (Basic + only the topic sessions, reminders or other-tool guide your answers and history call for). A weekly check offers more parts when measured numbers show they would help, only with your yes. One Claude account is enough.",
   "author": {"name": "second-brain-kit contributors"},
   "license": "MIT"
 }

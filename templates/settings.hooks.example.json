@@ -3,7 +3,10 @@
   "hooks": {
     "SessionStart": [
       {"matcher": "compact", "hooks": [{"type": "command", "command": "sh \"__KIT__/run.sh\" requests_reinject.py", "timeout": 10}]},
-      {"matcher": "startup|resume", "hooks": [{"type": "command", "command": "sh \"__KIT__/run.sh\" inbox_notice.py", "timeout": 10}]}
+      {"matcher": "startup|resume", "hooks": [
+        {"type": "command", "command": "sh \"__KIT__/run.sh\" inbox_notice.py", "timeout": 10},
+        {"type": "command", "command": "sh \"__KIT__/run.sh\" level_notice.py", "timeout": 15}
+      ]}
     ],
     "UserPromptSubmit": [
       {"hooks": [

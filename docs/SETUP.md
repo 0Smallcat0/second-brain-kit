@@ -1,8 +1,12 @@
 # SETUP - instructions for the configuring Claude
 
-This file is written **for you, Claude**, not for the user. The user asked you to set up second-brain-kit. They may not be technical: you do the work; they answer three short questions and say yes or no to changes on their system. This is the only place that lists the questions and steps (`/sbk-setup` and the `setup-second-brain` skill just point here); `docs/zh-TW/SETUP.md` has the same steps in Traditional Chinese.
+This file is written **for you, Claude**, not for the user. The user asked you to set up second-brain-kit. They may not be technical: you do the work; they answer four short questions and say yes or no to changes on their system. This is the only place that lists the questions and steps (`/sbk-setup` and the `setup-second-brain` skill just point here); `docs/zh-TW/SETUP.md` has the same steps in Traditional Chinese.
 
-You install **Basic**. Basic is: one main Claude session that works directly in the notes folder; the notes folder with only the areas the user needs; one work list (the ledger), used by you, never typed by the user; safety checks; short general principles. Everything else (topic sessions, reminders, usage warning, blocking checks, extra AI tools) is **Advanced**: included in the kit, switched on later from [ADVANCED.md](ADVANCED.md) when the user asks or agrees.
+**You decide whether to install Basic or Full** (Step 0.4), from one question and what this computer shows; you say the choice and the reason in one line, and the user may override it.
+- **Basic**: one main Claude session that works directly in the notes folder; the notes folder with only the areas the user needs; one work list (the ledger), used by you, never typed by the user; safety checks; short general principles.
+- **Full** = Basic + only the Advanced parts the facts call for (topic sessions, reminders, the other-tool guide), switched on in Step 5b with the steps in [ADVANCED.md](ADVANCED.md).
+
+Everything else stays off. After setup, a weekly check (`level_check.py`) measures whether another part would help; you then offer it as one yes/no question.
 
 Words used below:
 - `KIT` - the folder that contains `.claude-plugin/plugin.json` with `"name": "second-brain-kit"`. Installed as a plugin it is `${CLAUDE_PLUGIN_ROOT}` (set inside plugin hooks and commands; in this session search the plugin cache under `~/.claude/plugins` for that file). Cloned by hand it is the clone folder.
@@ -28,7 +32,7 @@ The user may have pasted only the sentence from the README ("Install second-brai
 
 **Check:** `KIT/.claude-plugin/plugin.json` exists and says `second-brain-kit`; `claude plugin list` shows second-brain-kit (clone route: write down that you used it).
 
-## Step 0 - Check the computer, then ask three things
+## Step 0 - Check the computer, ask four things, decide Basic or Full
 
 1. Run `python --version` (or `python3` / `py`), `git --version`, `claude --version`. Python 3.8+ and git are needed.
    If one is missing, offer to install it ("OK if I install Python?") and after a yes do it: Windows `winget install -e --id Python.Python.3.12` / `winget install -e --id Git.Git`; macOS `xcode-select --install` (gives git and python3) or `brew install python git` if Homebrew exists; Linux the package manager. If it needs an administrator password or a click in an installer window, that part is **needs you**: tell the user exactly which window or command, then continue.
@@ -36,17 +40,26 @@ The user may have pasted only the sentence from the README ("Install second-brai
    1. "Where should your notes live? I suggest `~/second-brain` (press Enter / say OK to accept)."
    2. "Which language should I use for notes and replies?"
    3. "What do you mainly want to use Claude for? For example studying, coding, a side project. 'Not sure yet' is fine."
-   4. Optional, in the same message: "If you also use other AI tools (for example ChatGPT or Gemini), tell me in one sentence. If not, skip this: one Claude account is enough."
-   Do not ask anything else here: no profile questions, no tool-by-tool list.
+   4. "How many different things are you working on at the same time right now (for example a course, a job, a project)? Any deadlines you want to be reminded of on time?"
+   5. Optional, in the same message: "If you also use other AI tools (for example ChatGPT or Gemini), tell me in one sentence. If not, skip this: one Claude account is enough."
+   Do not ask anything else, here or later in the setup (asking permission for a change on their system is not an extra question): no profile questions, no tool-by-tool list, no "Basic or Full?".
 3. Create `SBK_HOME`. If `SBK_HOME/config.json` does not exist, copy `KIT/templates/config.json` there and fill `vault` (absolute path), `language`, `uses` (their words), `other_tools` (their sentence or empty). If it exists (a repair or second run), keep every value it has and only add missing keys from the template.
-   Other tools are only recorded: nothing is connected now. Tell the user in one line that you can connect one later when there is a job for it (ADVANCED.md, A5).
+4. **Decide Basic or Full yourself.** Run `python KIT/scripts/level_check.py --install`. It only counts, on this computer: project folders in `~/.claude/projects` used in the last 14 days, and whether one conversation was summarised (compacted) two or more times in that time. It reads nothing else and changes nothing. Then:
+   - **topic sessions** (ADVANCED A1) if the user named 3 or more ongoing things, or `active_projects_14d` is 3 or more, or `session_compacted_2plus_14d` is 1;
+   - **reminders** (A2) if they mentioned a deadline or wanting to be reminded;
+   - **the other-tool guide** (A5) only for tools they said they have;
+   - none of these: **Basic**. Any of them: **Full** = Basic + exactly those parts.
+   Disk space, operating system or the number of git commits decide whether a part *can* run, not whether it is needed: they are not reasons.
+   Tell the user in **one line**, in their language, the choice, the reason with its numbers, and that they can say otherwise. For example: "I'll install Full (Basic + topic sessions + reminders): you are working on 4 things and have exam dates, and 5 project folders were used here in the last two weeks. Say 'just Basic' if you prefer." or "I'll install Basic: one main thing, no deadlines, no earlier Claude use here. I'll suggest more when the numbers show it would help." Then go on without waiting; if the user overrides, now or later in the setup, follow them.
+   Write `level` (`basic` or `full`) and `level_reason` (that line) into `SBK_HOME/config.json`. If the user chose Basic although the facts called for parts, run `python KIT/scripts/level_check.py --decline <ids>` with those parts (`multi_session`, `alarms`, `multi_tool`) so the weekly check does not ask again for 4 weeks. If the output says `"partial": true`, the count stopped after 30 seconds: decide from what it found and the answers.
+   Tools named in question 5 are recorded; they are connected only in Full (A5).
 
-**Check:** `python -c "import json,os;c=json.load(open(os.path.expanduser('~/.claude/sbk/config.json'),encoding='utf-8'));print(c['level'],c['vault'],c['modes'])"` prints `basic`, the vault path, and the modes from the template (or the user's earlier modes on a repair).
+**Check:** `python -c "import json,os;c=json.load(open(os.path.expanduser('~/.claude/sbk/config.json'),encoding='utf-8'));print(c['level'],c['vault'],c['modes'])"` prints `basic` or `full` (the choice you told the user), the vault path, and the modes from the template (or the user's earlier modes on a repair).
 
 ## Step 1 - The work list tools
 
 1. Create `SBK_HOME/bin` and `SBK_HOME/logs`.
-2. Copy `KIT/entry/ledger.py`, `status.py`, `send.py` and `alarm.py` into `SBK_HOME/bin/` (`status.py` imports the other two). Copy `KIT/templates/task.md` to `SBK_HOME/task-template.md`. Always copy; do not point at the plugin cache, whose path changes on update.
+2. Copy `KIT/entry/ledger.py`, `status.py`, `send.py`, `alarm.py` and `KIT/scripts/level_check.py` into `SBK_HOME/bin/` (`status.py` imports `ledger.py` and `send.py`; `/sbk-status` and the weekly check run `level_check.py`). Copy `KIT/templates/task.md` to `SBK_HOME/task-template.md`. Always copy; do not point at the plugin cache, whose path changes on update.
 
 **Check** (works on a new or an existing work list):
 1. `python SBK_HOME/bin/ledger.py list` - write the output down.
@@ -116,6 +129,7 @@ Every hook reads its mode from `SBK_HOME/config.json` -> `modes` (values: off, l
 | `stop_evidence` | Notes in `~/.claude/sbk/logs/stop_evidence.log` when Claude said "done" after an edit without looking at the result; it does not interrupt | log |
 | `usage_warn` | nothing (Advanced) | off |
 | `inbox_notice` | nothing (Advanced, for topic sessions) | off |
+| `level_notice` | At most once a week, in a session in the notes folder: if the measured numbers say another part would help (table in ADVANCED.md), Claude asks one yes/no question and quotes the numbers. Nothing changes without a yes | warn |
 
 Replay, only with consent: ask "OK to test the done-check on your last few Claude conversations? It runs only on this computer and changes nothing." After a yes, run `python KIT/hooks/stop_evidence.py --replay <file>` on the newest five `~/.claude/projects/*/*.jsonl` (skip this setup conversation) and tell the user in one line how many turns it would have flagged. If there are no old conversations, skip quietly (**n.a.**). A no is **not enabled**. The check stays in `log` either way; blocking is Advanced (A4).
 
@@ -145,6 +159,15 @@ Also tell the user the plain way: open a terminal, `cd` into the notes folder, t
 
 **Check:** the launcher file exists and contains the vault path; and Claude Code runs from that folder: Windows `cmd /c "cd /d "<VAULT>" && claude --version"`, macOS/Linux `sh -c 'cd "<VAULT>" && claude --version'` prints a version. Opening the launcher itself is **not verified** until the user does it in Step 7.
 
+## Step 5b - Full only: the parts the decision called for
+
+Basic: **n.a.** Full: follow [ADVANCED.md](ADVANCED.md) for each part in the Step 0 decision, in the order A1, A2, A5. Install-time rules:
+- A1: the topics are the things the user named in question 4 (two to four topics). If they gave only a number, use what they said in question 3 plus one `general` topic for the rest. Do not ask A1's "which two subjects" question.
+- A2: its scheduler question asks permission and is still asked; a no is **not enabled** for the scheduler only.
+- A5: only the tools from question 5.
+
+Each part gets its own status word and its own Check from ADVANCED.md.
+
 ## Step 6 - End-to-end test: a new session finds what this one saved
 
 Technical checks passing does not prove the second brain works. Prove it with test data, then remove the test data.
@@ -163,18 +186,19 @@ Technical checks passing does not prove the second brain works. Prove it with te
 
 1. `python KIT/scripts/selftest.py` -> `0 failed`; `vault_lint.py` -> `RESULT: PASS`; `python SBK_HOME/bin/status.py` runs.
 2. Write the start-here page `VAULT/README.md` (the checker allows this name in the vault root) in the user's language, under 30 lines, for the user (not for Claude). It covers only how to start, how to make Claude remember, how to see what is open, and how to get something fixed:
-   - how to start: the launcher name and where it is; the terminal way;
+   - how to start: the launcher name and where it is; the terminal way (Full: new requests go to the entry launcher; open a topic launcher to let that topic work);
    - four example sentences: "Remember this: ...", "Find my notes about ...", "What is still open?", "Continue where we stopped on ...";
    - "If something gets in the way, tell Claude, for example: the done-check is too strict, make it quieter";
    - where things live: notes in this folder; the work list and logs in `~/.claude/sbk/`; local git keeps the history of changes but is **not** a backup of the disk: copy this folder to another disk or a cloud drive you trust from time to time;
-   - "When you want more (topic sessions, reminders, other AI tools), ask Claude: turn on Advanced."
+   - "About once a week Claude checks whether more would help (topic sessions, reminders, other AI tools) and asks you first. You can also just ask, for example: turn on topic sessions."
 3. The final message, short, in the user's language:
+   - first line: Basic or Full and why (the line from Step 0.4);
    - one line per step with its status word (done / not enabled / n.a. / needs you / not verified);
    - what each safety check will do to them in practice;
    - what you did not do and why; what only they can do, as a numbered list (if anything);
    - **the two-minute first use**: (1) close this window and double-click the launcher; (2) say "Remember this: I want to finish chapter 3 this week" - Claude saves it; (3) say "What is still open?" - Claude shows the work list; (4) say "Find what I said about chapter 3" - Claude finds the note. That is the whole daily routine.
 
-**Check:** `VAULT/README.md` exists and lint still passes; the final message has a status word for Steps 00 to 7.
+**Check:** `VAULT/README.md` exists and lint still passes; the final message starts with the Basic/Full line and has a status word for Steps 00 to 7 (including 5b).
 
 ---
 
@@ -186,4 +210,4 @@ Technical checks passing does not prove the second brain works. Prove it with te
 
 ## Advanced
 
-Not part of this setup. When the user asks for more, or one of the moments in [ADVANCED.md](ADVANCED.md) "When Claude suggests it" happens, follow that file's steps A1-A5.
+Full installs only the parts Step 0.4 called for. Later, when the user asks for more, or the weekly check (`level_check.py`, run by the `level_notice` hook and by `/sbk-status`) finds one of the triggers in [ADVANCED.md](ADVANCED.md) "When Claude suggests it" and the user says yes, follow that file's steps A1-A5.

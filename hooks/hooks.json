@@ -1,5 +1,5 @@
 {
-  "description": "second-brain-kit guard hooks. Each one fails open and reads its mode (off/log/warn/ask/deny/block) from ~/.claude/sbk/config.json. Without that file the Basic defaults apply: vault_guard ask, read_whole deny (vault notes only), requests_reinject warn, stop_evidence log, usage_warn off, inbox_notice off.",
+  "description": "second-brain-kit guard hooks. Each one fails open and reads its mode (off/log/warn/ask/deny/block) from ~/.claude/sbk/config.json. Without that file the Basic defaults apply: vault_guard ask, read_whole deny (vault notes only), requests_reinject warn, stop_evidence log, usage_warn off, inbox_notice off, level_notice warn (weekly upgrade check, notes folder only).",
   "hooks": {
     "SessionStart": [
       {
@@ -11,7 +11,8 @@
       {
         "matcher": "startup|resume",
         "hooks": [
-          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" inbox_notice.py", "timeout": 10}
+          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" inbox_notice.py", "timeout": 10},
+          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" level_notice.py", "timeout": 15}
         ]
       }
     ],

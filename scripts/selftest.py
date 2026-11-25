@@ -52,6 +52,242 @@ def say(text):
     return {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": text}]}}
 
 
+def level_tests(tmp, cfg):
+    import re
+    from datetime import datetime, timedelta, timezone
+    LC = KIT / "scripts" / "level_check.py"
+    LN = KIT / "hooks" / "level_notice.py"
+    now = datetime.now().replace(microsecond=0)
+    N = now.strftime("%Y-%m-%dT%H:%M:%S")
+
+    def ago(days, fmt="%Y-%m-%dT%H:%M:%S"):
+        return (now - timedelta(days=days)).strftime(fmt)
+
+    def utc(days):  # transcript timestamps are UTC with a Z
+        return datetime.fromtimestamp((now - timedelta(days=days)).timestamp(), timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+    vault = tmp / "lvault"
+    vault.mkdir(exist_ok=True)
+    (vault / ".sbk-vault").write_text("", encoding="utf-8")
+    enc = re.sub(r"[^A-Za-z0-9]", "-", os.path.abspath(str(vault)))
+    count = [0]
+
+    def setup(ledger=None, extra_cfg=None, files=None, config=True):
+        count[0] += 1
+        h = tmp / ("lh%d" % count[0])
+        c = tmp / ("lc%d" % count[0])
+        h.mkdir()
+        c.mkdir()
+        if config:
+            (h / "config.json").write_text(json.dumps(dict(cfg, vault=str(vault), **(extra_cfg or {}))), encoding="utf-8")
+        if ledger:
+            (h / "ledger.md").write_text("# Ledger\n\n" + "".join(ledger), encoding="utf-8")
+        for rel, text in (files or {}).items():
+            p = h / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(text, encoding="utf-8")
+        return h, c
+
+    def env(h, c, **kw):
+        e = {"SBK_HOME": str(h), "SBK_VAULT": "", "CLAUDE_CONFIG_DIR": str(c), "ANTHROPIC_API_KEY": ""}
+        e.update(kw)
+        return e
+
+    def check_now(h, c, when=N):
+        rc, out, err = run([LC, "--now", when], None, env(h, c))
+        try:
+            return rc, json.loads(out.strip().splitlines()[-1])
+        except Exception:
+            return rc, {"triggers": None, "raw": out + err}
+
+    def item(i, text, st="open"):
+        return "- L%04d | %s | %s | %s | ev: \n" % (i, st, ago(20), text)
+
+    def transcript(c, recs, folder=None):
+        d = c / "projects" / (folder or enc)
+        d.mkdir(parents=True, exist_ok=True)
+        f = d / ("s%d.jsonl" % len(list(d.glob("*.jsonl"))))
+        jl(f, recs)
+        return f
+
+    def compact(days, cwd=None):
+        return {"type": "system", "subtype": "compact_boundary", "content": "Conversation compacted",
+                "timestamp": utc(days), "cwd": str(cwd or vault)}
+
+    def human(text, days=1):
+        return {"type": "user", "message": {"role": "user", "content": text}, "timestamp": utc(days), "cwd": str(vault)}
+
+    # no history at all
+    h, c = setup(config=False)
+    rc, r = check_now(h, c)
+    check("level: no history at all -> no trigger", rc == 0 and r.get("triggers") == [], r)
+    h, c = setup()
+    rc, r = check_now(h, c)
+    check("level: fresh Basic install -> no trigger", rc == 0 and r.get("triggers") == [], r)
+
+    # multi_session: open items >= 10 on two checks a week apart
+    many = [item(i, "thing %d" % i) for i in range(1, 13)]
+    h, c = setup(many)
+    check_now(h, c, ago(8))
+    rc, r = check_now(h, c)
+    check("level: 12 open items on two checks 8 days apart -> multi_session",
+          "multi_session" in (r.get("triggers") or []) and r["numbers"]["prev_open_items"] == 12, r)
+    h, c = setup(many)
+    rc, r = check_now(h, c)
+    check("level: 12 open items on one check only -> no trigger", r.get("triggers") == [], r)
+    h, c = setup(many)
+    check_now(h, c, ago(3))
+    rc, r = check_now(h, c)
+    check("level: two checks only 3 days apart -> no trigger (one busy week)", r.get("triggers") == [], r)
+    h, c = setup([item(i, "thing %d" % i) for i in range(1, 10)])
+    check_now(h, c, ago(8))
+    rc, r = check_now(h, c)
+    check("level: 9 open items -> no trigger", r.get("triggers") == [], r)
+
+    # multi_session: items in >= 3 topics
+    three = [item(1, "[study] read ch 3"), item(2, "[job] shift swap"), item(3, "poster", "dispatched:club")]
+    h, c = setup(three)
+    check_now(h, c, ago(9))
+    rc, r = check_now(h, c)
+    check("level: open items in 3 topics on two checks -> multi_session",
+          "multi_session" in (r.get("triggers") or []) and r["numbers"]["open_topics"] == 3, r)
+    h, c = setup(three[:2] + [item(3, "[study] ch 4")])
+    check_now(h, c, ago(9))
+    rc, r = check_now(h, c)
+    check("level: open items in 2 topics -> no trigger", r.get("triggers") == [], r)
+
+    # multi_session: compactions of the notes-folder session
+    h, c = setup()
+    transcript(c, [human("hi", 3), compact(3), compact(1)])
+    rc, r = check_now(h, c)
+    check("level: notes session compacted 2 times in 7 days -> multi_session",
+          "multi_session" in (r.get("triggers") or []) and r["numbers"]["compactions_7d"] == 2, r)
+    h, c = setup()
+    transcript(c, [human("hi", 3), compact(2)])
+    rc, r = check_now(h, c)
+    check("level: compacted once -> no trigger", r.get("triggers") == [], r)
+    h, c = setup()
+    transcript(c, [human("hi", 12), compact(12), compact(10)])
+    rc, r = check_now(h, c)
+    check("level: 2 compactions but 10+ days old -> no trigger", r.get("triggers") == [], r)
+    h, c = setup()
+    other = tmp / "elsewhere"
+    transcript(c, [compact(2, other), compact(1, other)], folder=re.sub(r"[^A-Za-z0-9]", "-", str(other)))
+    rc, r = check_now(h, c)
+    check("level: compactions in another project folder -> no trigger", r.get("triggers") == [], r)
+
+    # alarms
+    h, c = setup([item(1, "[study] report due %s" % ago(2, "%Y-%m-%d"))])
+    rc, r = check_now(h, c)
+    check("level: open item past its due date -> alarms", "alarms" in (r.get("triggers") or []), r)
+    h, c = setup([item(1, "[study] report due %s" % ago(2, "%Y-%m-%d"), "done")])
+    rc, r = check_now(h, c)
+    check("level: past due date but item closed -> no trigger", r.get("triggers") == [], r)
+    h, c = setup([item(1, "[study] report due %s" % ago(-5, "%Y-%m-%d"))])
+    rc, r = check_now(h, c)
+    check("level: due date still ahead -> no trigger", r.get("triggers") == [], r)
+    h, c = setup()
+    transcript(c, [human("週五要交報告，到時候提醒我", 2)])
+    rc, r = check_now(h, c)
+    check("level: user asked to be reminded -> alarms", "alarms" in (r.get("triggers") or []), r)
+    h, c = setup(files={"alarms.md": "| id | when | to | text |\n"})
+    transcript(c, [human("remind me on Friday", 2)])
+    rc, r = check_now(h, c)
+    check("level: reminders already on -> not offered again", r.get("triggers") == [], r)
+
+    # block_mode: stop_evidence log for 2+ weeks, < 25% false alarms
+    def flagged(next_msgs, days_old):
+        hh, cc = setup()
+        recs = [user("task 0")]
+        for m in next_msgs:
+            recs += [tool("Write", {"file_path": "a.txt", "content": "x"}), result(), say("Done."), user(m)]
+        t = tmp / ("flag%d.jsonl" % count[0])
+        jl(t, recs)
+        log = "".join("%s log: turn %d of %s: You said the work is done\n" % (ago(days_old), i + 1, t)
+                      for i in range(len(next_msgs)))
+        (hh / "logs").mkdir()
+        (hh / "logs" / "stop_evidence.log").write_text(log, encoding="utf-8")
+        return hh, cc
+    h, c = flagged(["還是不行，沒改到", "it still fails", "wrong file", "沒有改"], 20)
+    rc, r = check_now(h, c)
+    check("level: 4 flags, all followed by a complaint, 20 days of log -> block_mode",
+          "block_mode" in (r.get("triggers") or []) and r["numbers"]["stop_false_alarm_pct"] == 0, r)
+    h, c = flagged(["thanks", "great", "next please", "還是不行"], 20)
+    rc, r = check_now(h, c)
+    check("level: 75% false alarms -> no trigger", r.get("triggers") == [], r)
+    h, c = flagged(["還是不行，沒改到", "it still fails", "wrong file", "沒有改"], 3)
+    rc, r = check_now(h, c)
+    check("level: good flags but only 3 days of log -> no trigger", r.get("triggers") == [], r)
+    h, c = flagged(["還是不行", "wrong file"], 20)
+    rc, r = check_now(h, c)
+    check("level: only 2 judged flags -> no trigger", r.get("triggers") == [], r)
+
+    # multi_tool
+    h, c = setup(extra_cfg={"other_tools": "I also use ChatGPT"})
+    rc, r = check_now(h, c)
+    check("level: other tool named at setup -> multi_tool", r.get("triggers") == ["multi_tool"], r)
+    h, c = setup()
+    transcript(c, [human("Gemini 可以幫忙讀這份 PDF 嗎", 4)])
+    rc, r = check_now(h, c)
+    check("level: other tool mentioned in a notes session -> multi_tool", "multi_tool" in (r.get("triggers") or []), r)
+    h, c = setup(extra_cfg={"other_tools": "ChatGPT"}, files={"channels.md": "| tool |\n"})
+    rc, r = check_now(h, c)
+    check("level: tool guide already on -> no trigger", r.get("triggers") == [], r)
+    rc, out, _ = run([LC, "--decline", "multi_tool", "--now", N], None, env(*setup(extra_cfg={"other_tools": "x"})))
+    hd, cd = tmp / ("lh%d" % count[0]), tmp / ("lc%d" % count[0])
+    rc, r = check_now(hd, cd)
+    check("level: declined trigger is not offered again for 28 days", "multi_tool" not in (r.get("triggers") or []), r)
+    rc, r = check_now(hd, cd, (now + timedelta(days=29)).strftime("%Y-%m-%dT%H:%M:%S"))
+    check("level: declined trigger comes back after 28 days", "multi_tool" in (r.get("triggers") or []), r)
+
+    # the SessionStart hook: 7-day throttle, notes folder only
+    h, c = setup(extra_cfg={"other_tools": "ChatGPT"})
+    cfg_before = (h / "config.json").read_bytes()
+    rc, out, _ = run([LN], {"cwd": str(tmp), "hook_event_name": "SessionStart"}, env(h, c, SBK_NOW=N))
+    check("hook level_notice: outside the notes folder -> silent", rc == 0 and out.strip() == "", out)
+    rc, out, _ = run([LN], {"cwd": str(vault), "hook_event_name": "SessionStart"}, env(h, c, SBK_NOW=N))
+    ctx = json.loads(out)["hookSpecificOutput"]["additionalContext"] if out.strip() else ""
+    check("hook level_notice: trigger -> one line asking for one yes/no with the numbers",
+          "multi_tool" in ctx and "yes/no" in ctx and "chatgpt" in ctx.lower() and "\n" not in ctx, out)
+    rc, out, _ = run([LN], {"cwd": str(vault), "hook_event_name": "SessionStart"},
+                     env(h, c, SBK_NOW=(now + timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%S")))
+    check("hook level_notice: 3 days later -> throttled, silent", rc == 0 and out.strip() == "", out)
+    rc, out, _ = run([LN], {"cwd": str(vault), "hook_event_name": "SessionStart"},
+                     env(h, c, SBK_NOW=(now + timedelta(days=8)).strftime("%Y-%m-%dT%H:%M:%S")))
+    check("hook level_notice: 8 days later -> runs again", "multi_tool" in out, out)
+    check("level: config.json never changed", (h / "config.json").read_bytes() == cfg_before)
+    h, c = setup(extra_cfg={"other_tools": "ChatGPT"})
+    rc, out, _ = run([LN], {"cwd": str(vault)}, env(h, c, SBK_NOW=N, SBK_MODE_LEVEL_NOTICE="off"))
+    check("hook level_notice: mode off -> silent", rc == 0 and out.strip() == "", out)
+    h, c = setup(config=False)
+    rc, out, _ = run([LN], {"cwd": str(vault)}, env(h, c, SBK_NOW=N))
+    check("hook level_notice: no setup yet -> silent", rc == 0 and out.strip() == "", out)
+
+    # fail-open
+    h, c = setup()
+    (h / "state").mkdir()
+    (h / "state" / "level_check.json").write_text("{{{ not json", encoding="utf-8")
+    rc, r = check_now(h, c)
+    check("level: broken state file -> still answers, exit 0", rc == 0 and r.get("triggers") == [], r)
+    r2 = subprocess.run([PY, str(LN)], input="not json at all", capture_output=True, text=True,
+                        env=dict(os.environ, **env(h, c, SBK_NOW=N)))
+    check("hook level_notice: garbage input -> exit 0", r2.returncode == 0, r2.stderr)
+
+    # install facts (Step 0 of SETUP)
+    h, c = setup()
+    for i in range(3):
+        transcript(c, [human("hi", 1)], folder="proj%d" % i)
+    rc, out, _ = run([LC, "--install", "--now", N], None, env(h, c))
+    inst = json.loads(out)["install"] if out.strip() else {}
+    check("level --install: 3 active project folders -> evidence for Full",
+          inst.get("active_projects_14d") == 3 and inst.get("multi_session_evidence") is True, out)
+    h, c = setup()
+    rc, out, _ = run([LC, "--install", "--now", N], None, env(h, c))
+    inst = json.loads(out)["install"] if out.strip() else {}
+    check("level --install: no history -> no evidence (Basic)",
+          inst.get("active_projects_14d") == 0 and inst.get("multi_session_evidence") is False, out)
+
+
 def main():
     keep = "--keep" in sys.argv
     tmp = Path(tempfile.mkdtemp(prefix="sbk-selftest-"))
@@ -204,7 +440,7 @@ def main():
         cfg = json.loads((KIT / "templates" / "config.json").read_text(encoding="utf-8"))
         check("config template: Basic level and modes", cfg.get("level") == "basic" and cfg["modes"] == {
             "vault_guard": "ask", "read_whole": "deny", "requests_reinject": "warn",
-            "stop_evidence": "log", "usage_warn": "off", "inbox_notice": "off"}, cfg)
+            "stop_evidence": "log", "usage_warn": "off", "inbox_notice": "off", "level_notice": "warn"}, cfg)
         home2 = tmp / "home2"
         (home2 / "managers" / "study").mkdir(parents=True)
         (home2 / "inbox").mkdir()
@@ -222,16 +458,19 @@ def main():
         rc, out, _ = run([H / "vault_guard.py"], {"tool_name": "Bash", "cwd": str(vault),
                                                   "tool_input": {"command": "git push"}}, envc)
         check("config Basic: vault_guard asks", '"permissionDecision": "ask"' in out, out)
-        adv = dict(cfg, vault=str(vault), level="advanced",
+        adv = dict(cfg, vault=str(vault), level="full",
                    modes=dict(cfg["modes"], stop_evidence="block", inbox_notice="warn", usage_warn="warn"))
         (home2 / "config.json").write_text(json.dumps(adv), encoding="utf-8")
         rc, out, _ = run([H / "stop_evidence.py"], {"transcript_path": str(t)}, envc)
-        check("config Advanced: stop_evidence block read from config.json", '"decision": "block"' in out, out)
+        check("config Full: stop_evidence block read from config.json", '"decision": "block"' in out, out)
         rc, out, _ = run([H / "inbox_notice.py"], {"cwd": str(home2 / "managers" / "study"),
                                                    "hook_event_name": "SessionStart"}, envc)
-        check("config Advanced: inbox_notice read from config.json", "something sent" in out, out)
+        check("config Full: inbox_notice read from config.json", "something sent" in out, out)
         rc, out, _ = run([H / "usage_warn.py"], {"session_id": "c2"}, dict(envc, SBK_USAGE_FAKE=fake))
-        check("config Advanced: usage_warn read from config.json", "91%" in out, out)
+        check("config Full: usage_warn read from config.json", "91%" in out, out)
+
+        # ---- weekly level check (scripts/level_check.py, hooks/level_notice.py) ----
+        level_tests(tmp, cfg)
 
         # ---- vault tools ----
         rc, out, _ = run([KIT / "scripts" / "gen_jdex.py", "--root", vault], env=env)

@@ -1,8 +1,12 @@
 # SETUP：給負責安裝的 Claude 的步驟
 
-這份是寫給**你（Claude）**看的，不是給使用者看的。使用者請你幫他安裝 second-brain-kit，他可能完全不懂技術：事情由你做，他只要回答三個簡單問題，並對會動到他電腦設定的地方說同意或不同意。安裝的問題和步驟只寫在這裡（`/sbk-setup` 指令和 `setup-second-brain` 技能都指到這份）；英文版 `docs/SETUP.md` 是同樣的步驟。
+這份是寫給**你（Claude）**看的，不是給使用者看的。使用者請你幫他安裝 second-brain-kit，他可能完全不懂技術：事情由你做，他只要回答四個簡單問題，並對會動到他電腦設定的地方說同意或不同意。安裝的問題和步驟只寫在這裡（`/sbk-setup` 指令和 `setup-second-brain` 技能都指到這份）；英文版 `docs/SETUP.md` 是同樣的步驟。
 
-這次只裝**基本版**：一個在筆記資料夾裡工作的主對話；只放使用者用得到的區的筆記資料夾；一份工作清單（帳本，由你使用，使用者不用打指令）；安全檢查；簡短的通用原則。其他功能（主題對話、提醒、用量提醒、會擋下的檢查、其他 AI 工具）屬於**進階功能**：已經在套件裡，等使用者要、或同意你的提議時，照[進階功能.md](進階功能.md)開啟。
+**裝基本款還是完整款由你決定**（步驟 0 第 4 點）：根據一個問題的回答和這台電腦上看得到的使用紀錄；用一句話說出你的選擇和理由，使用者可以改。
+- **基本款**：一個在筆記資料夾裡工作的主對話；只放使用者用得到的區的筆記資料夾；一份工作清單（帳本，由你使用，使用者不用打指令）；安全檢查；簡短的通用原則。
+- **完整款**＝基本款＋事實顯示用得到的那幾項進階功能（主題對話、提醒、其他 AI 工具的分工參考），在步驟 5b 照[進階功能.md](進階功能.md)的步驟開啟。
+
+其他的一律先關著。裝好之後，每週的檢查（`level_check.py`）會量看看還有哪一項用得到；用得到時由你問使用者一個要不要的問題。
 
 下面用到的代號：
 - `KIT`：裡面有 `.claude-plugin/plugin.json`、且寫著 `"name": "second-brain-kit"` 的那個資料夾。用外掛（plugin，Claude Code 的擴充套件）安裝時就是 `${CLAUDE_PLUGIN_ROOT}`（外掛的 hook 和指令裡才有這個值；在這個對話裡請到 `~/.claude/plugins` 底下的外掛快取找那個檔案）。手動 clone 時就是 clone 下來的資料夾。
@@ -28,7 +32,7 @@
 
 **檢查：** `KIT/.claude-plugin/plugin.json` 存在且寫著 `second-brain-kit`；`claude plugin list` 列出 second-brain-kit（走 clone 的話，記下你用的是 clone）。
 
-## 步驟 0：檢查電腦，再問三件事
+## 步驟 0：檢查電腦、問四件事、決定基本款或完整款
 
 1. 執行 `python --version`（或 `python3`／`py`）、`git --version`、`claude --version`。需要 Python 3.8 以上和 git。
    缺哪個就提議幫他裝（「我幫你裝 Python 好嗎？」），他同意就裝：Windows 用 `winget install -e --id Python.Python.3.12`／`winget install -e --id Git.Git`；macOS 用 `xcode-select --install`（會裝好 git 和 python3），有 Homebrew 的話也可以 `brew install python git`；Linux 用套件管理員。要輸入管理員密碼、或要在安裝視窗按按鈕的部分算**要你做**：告訴使用者是哪個視窗、哪個指令，然後繼續。
@@ -36,17 +40,26 @@
    1. 「筆記要放在哪裡？我建議 `~/second-brain`（直接說好就用這個）。」
    2. 「筆記和回覆要用哪種語言？」
    3. 「你主要想用 Claude 做什麼？例如讀書、寫程式、做自己的專案。還不確定也可以。」
-   4. 同一則訊息裡加一句，可以不答：「如果你也有用其他 AI 工具（例如 ChatGPT、Gemini），用一句話告訴我。沒有就跳過：只有一個 Claude 帳號就夠了。」
-   這裡不要問別的：不做個人資料訪談，也不逐一列工具問。
+   4. 「你現在同時在推幾件不同的事？（例如一門課、打工、一個專案）有沒有要準時提醒的期限？」
+   5. 同一則訊息裡加一句，可以不答：「如果你也有用其他 AI 工具（例如 ChatGPT、Gemini），用一句話告訴我。沒有就跳過：只有一個 Claude 帳號就夠了。」
+   這裡和之後的安裝過程都不要再問別的（要改他電腦設定前問同意不算多問）：不做個人資料訪談、不逐一列工具問、不問「要基本款還是完整款？」。
 3. 建立 `SBK_HOME`。如果 `SBK_HOME/config.json` 不存在，把 `KIT/templates/config.json` 複製過去，填上 `vault`（絕對路徑）、`language`、`uses`（他的原話）、`other_tools`（他那句話，沒有就留空）。如果已經存在（修復或第二次安裝），保留裡面所有的值，只補模板有、檔案缺的欄位。
-   其他工具只記下來，現在不接。用一句話告訴使用者：之後有適合的工作時，可以再幫他接上（進階功能.md 的 A5）。
+4. **自己決定基本款或完整款。** 執行 `python KIT/scripts/level_check.py --install`。它只在這台電腦上數兩件事：`~/.claude/projects` 裡近 14 天有在用的專案資料夾有幾個，以及這段時間有沒有哪個對話被自動摘要（compact）兩次以上。其他內容都不讀，也不改任何東西。接著：
+   - **主題對話**（進階功能 A1）：使用者說同時在推 3 件以上、或 `active_projects_14d` 是 3 以上、或 `session_compacted_2plus_14d` 是 1；
+   - **提醒**（A2）：他提到期限或想被提醒；
+   - **其他 AI 工具的分工參考**（A5）：只接他說他有的工具；
+   - 以上都沒有：**基本款**。有任何一項：**完整款**＝基本款＋剛好那幾項。
+   硬碟空間、作業系統、git 提交次數決定的是某一項*能不能*跑，不是需不需要，不能當理由。
+   用**一句話**、用他的語言，說出你的選擇、附數字的理由，以及他可以改。例如：「我會裝完整款（基本款＋主題對話＋提醒）：你說同時在推 4 件事、有考試日期，這台電腦近兩週也有 5 個專案資料夾在用。想先用基本款就說一聲。」或「我會裝基本款：你主要只做一件事、沒有期限，這台電腦之前也沒用過 Claude。之後數字顯示用得到時，我再問你要不要加。」說完直接繼續，不用等他回；他不管現在還是安裝途中說要改，都照他的。
+   把 `level`（`basic` 或 `full`）和 `level_reason`（那一句）寫進 `SBK_HOME/config.json`。如果事實顯示用得到某幾項、他卻選了基本款，執行 `python KIT/scripts/level_check.py --decline <代號>`（`multi_session`、`alarms`、`multi_tool` 中對應的），每週檢查四週內就不會再問。輸出有 `"partial": true` 表示數了 30 秒就停：照它數到的和他的回答決定。
+   第 5 題提到的工具只記下來；完整款才會接上（A5）。
 
-**檢查：** `python -c "import json,os;c=json.load(open(os.path.expanduser('~/.claude/sbk/config.json'),encoding='utf-8'));print(c['level'],c['vault'],c['modes'])"` 印出 `basic`、筆記資料夾路徑、模板裡的模式（修復時是他原本的模式）。
+**檢查：** `python -c "import json,os;c=json.load(open(os.path.expanduser('~/.claude/sbk/config.json'),encoding='utf-8'));print(c['level'],c['vault'],c['modes'])"` 印出 `basic` 或 `full`（和你告訴他的一樣）、筆記資料夾路徑、模板裡的模式（修復時是他原本的模式）。
 
 ## 步驟 1：工作清單的工具
 
 1. 建立 `SBK_HOME/bin` 和 `SBK_HOME/logs`。
-2. 把 `KIT/entry/ledger.py`、`status.py`、`send.py`、`alarm.py` 複製到 `SBK_HOME/bin/`（`status.py` 會用到另外兩個）。把 `KIT/templates/task.md` 複製成 `SBK_HOME/task-template.md`。一律用複製的，不要直接指到外掛快取：更新時那個路徑會變。
+2. 把 `KIT/entry/ledger.py`、`status.py`、`send.py`、`alarm.py` 和 `KIT/scripts/level_check.py` 複製到 `SBK_HOME/bin/`（`status.py` 會用到 `ledger.py`、`send.py`；`/sbk-status` 和每週檢查會跑 `level_check.py`）。把 `KIT/templates/task.md` 複製成 `SBK_HOME/task-template.md`。一律用複製的，不要直接指到外掛快取：更新時那個路徑會變。
 
 **檢查**（新的或已有的工作清單都適用）：
 1. `python SBK_HOME/bin/ledger.py list`，記下輸出。
@@ -106,9 +119,9 @@ hook 是 Claude Code 在特定時刻（執行指令前、Claude 說做完時）�
 - **用外掛安裝：** `KIT/hooks/hooks.json` 從下一個對話開始生效。用 `claude plugin list` 確認 second-brain-kit 是啟用的。
 - **用 clone 安裝：** 把 `KIT/hooks/*.py` 和 `run.sh` 複製到 `SBK_HOME/hooks/`；使用者同意後（會改設定），把 `KIT/templates/settings.hooks.example.json` 的 `hooks` 區塊合併進 `~/.claude/settings.json`，`__KIT__` 換成 `SBK_HOME/hooks` 的路徑。是合併不是取代：使用者原有的 hook 一個都不能少。
 
-每個 hook 的模式都從 `SBK_HOME/config.json` 的 `modes` 讀（可用值：off、log、warn、ask、deny、block）。基本版就是模板裡那組；每個 hook 用一句白話告訴使用者：
+每個 hook 的模式都從 `SBK_HOME/config.json` 的 `modes` 讀（可用值：off、log、warn、ask、deny、block）。基本款就是模板裡那組；每個 hook 用一句白話告訴使用者：
 
-| Hook | 使用者會感覺到什麼 | 基本版模式 |
+| Hook | 使用者會感覺到什麼 | 基本款模式 |
 |---|---|---|
 | `vault_guard` | Claude 在 `git push`、跳過 git 檢查、丟掉 git 裡的修改、刪整個資料夾、改受保護的規則檔、把筆記砍到剩一小部分之前，會先問你 | ask |
 | `read_whole` | 在筆記資料夾裡，Claude 會把筆記整張讀完，不只看前幾行（筆記資料夾以外不影響） | deny |
@@ -116,12 +129,13 @@ hook 是 Claude Code 在特定時刻（執行指令前、Claude 說做完時）�
 | `stop_evidence` | Claude 改了東西、沒看結果就說「做完」時，記到 `~/.claude/sbk/logs/stop_evidence.log`；不會打斷 | log |
 | `usage_warn` | 沒有作用（進階功能） | off |
 | `inbox_notice` | 沒有作用（進階功能，給主題對話用） | off |
+| `level_notice` | 最多一週一次、只在筆記資料夾裡的對話：量到的數字顯示某一項進階功能用得到時（表在進階功能.md），Claude 會附上數字問你一個要不要的問題。你沒說好就什麼都不改 | warn |
 
 重播測試，要先同意：問「要不要用你最近幾次的 Claude 對話，測一下『做完檢查』會不會太嚴？只在這台電腦上跑，不會改任何東西。」同意後，對最新的五個 `~/.claude/projects/*/*.jsonl`（跳過這次安裝的對話）跑 `python KIT/hooks/stop_evidence.py --replay <檔案>`，用一句話告訴他會有幾輪被標出來。沒有舊對話就安靜跳過（**不適用**）。他說不要就是**沒開啟**。不管結果如何這個檢查都維持 `log`；要它擋下是進階功能（A4）。
 
 接著執行 `python KIT/scripts/selftest.py`。
 
-**檢查：** `selftest.py` 印出 `0 failed`；步驟 0 檢查印出的模式是基本版那組（修復時是他原本的模式）；下面這行會印出含 `"permissionDecision": "ask"` 的內容：
+**檢查：** `selftest.py` 印出 `0 failed`；步驟 0 檢查印出的模式是基本款那組（修復時是他原本的模式）；下面這行會印出含 `"permissionDecision": "ask"` 的內容：
 `echo '{"tool_name":"Bash","tool_input":{"command":"git push"},"cwd":"VAULT"}' | python KIT/hooks/vault_guard.py`（`VAULT` 換成實際路徑）。
 
 ## 步驟 5：主對話的啟動捷徑
@@ -145,6 +159,15 @@ hook 是 Claude Code 在特定時刻（執行指令前、Claude 說做完時）�
 
 **檢查：** 捷徑檔存在、裡面有筆記資料夾的路徑；而且從那個資料夾跑得起 Claude Code：Windows `cmd /c "cd /d "<VAULT>" && claude --version"`，macOS／Linux `sh -c 'cd "<VAULT>" && claude --version'` 印出版本。點兩下開捷徑本身在使用者於步驟 7 做之前都是**沒驗證**。
 
+## 步驟 5b：只有完整款：開啟決定要的那幾項
+
+基本款：**不適用**。完整款：照步驟 0 的決定，依 A1、A2、A5 的順序，照[進階功能.md](進階功能.md)開每一項。安裝時的規則：
+- A1：主題就是他在第 4 題說的那幾件事（二到四個主題）。如果他只說了數字，用他第 3 題的回答，其他的歸到一個 `general` 主題。不要問 A1 的「哪兩件事要各有自己的對話？」。
+- A2：要不要加系統排程的那一題是問同意，照樣要問；他說不要的話，只有排程是**沒開啟**。
+- A5：只接第 5 題說的工具。
+
+每一項各自用狀態詞回報，各自跑進階功能.md 裡的檢查。
+
 ## 步驟 6：端到端測試：新對話找得到這次存的東西
 
 技術檢查都過，不代表第二大腦真的能用。用測試資料證明一次，再把測試資料清掉。
@@ -163,18 +186,19 @@ hook 是 Claude Code 在特定時刻（執行指令前、Claude 說做完時）�
 
 1. `python KIT/scripts/selftest.py` → `0 failed`；`vault_lint.py` → `RESULT: PASS`；`python SBK_HOME/bin/status.py` 跑得起來。
 2. 寫入口說明頁 `VAULT/README.md`（檢查程式允許筆記資料夾最上層有這個檔名），用使用者的語言、30 行以內、給使用者看（不是給 Claude）。只寫怎麼開始、怎麼讓 Claude 記住、怎麼看還有什麼沒做完、怎麼請它修：
-   - 怎麼開始：捷徑的名稱和位置；終端機的方法；
+   - 怎麼開始：捷徑的名稱和位置；終端機的方法（完整款：新的需求交給入口對話的捷徑；要某個主題動工就打開它的捷徑）；
    - 四句範例：「記住：……」「找我之前記的……」「還有什麼沒做完？」「接著上次的……繼續」；
    - 「哪裡卡卡的就跟 Claude 說，例如：『做完檢查太嚴了，調鬆一點』」；
    - 東西放在哪：筆記在這個資料夾；工作清單和紀錄在 `~/.claude/sbk/`；本機 git 記下修改的歷史，但**不是**硬碟的備份：要不時把這個資料夾複製到另一顆硬碟或你信任的雲端硬碟；
-   - 「想要更多功能（主題對話、提醒、其他 AI 工具），跟 Claude 說：開進階功能。」
+   - 「Claude 大約每週會看一次還有沒有哪一項用得到（主題對話、提醒、其他 AI 工具），會先問你。你也可以直接說，例如：幫我開主題對話。」
 3. 最後一則訊息，簡短、用使用者的語言：
+   - 第一行：裝的是基本款還是完整款、為什麼（步驟 0 第 4 點那一句）；
    - 每一步一行，附狀態詞（完成／沒開啟／不適用／要你做／沒驗證）；
    - 每個安全檢查實際上會對他做什麼；
    - 你沒做的事和原因；只有他能做的事寫成編號清單（有的話）；
    - **兩分鐘上手**：（1）關掉這個視窗，點兩下捷徑；（2）說「記住：我這週要讀完第三章」，Claude 會存起來；（3）說「還有什麼沒做完？」，Claude 會列出工作清單；（4）說「找我之前說的第三章」，Claude 會找到那張筆記。每天就是這樣用。
 
-**檢查：** `VAULT/README.md` 存在、lint 仍然通過；最後一則訊息裡步驟 00 到 7 每一步都有狀態詞。
+**檢查：** `VAULT/README.md` 存在、lint 仍然通過；最後一則訊息第一行是基本款／完整款那一句，步驟 00 到 7（含 5b）每一步都有狀態詞。
 
 ---
 
@@ -186,4 +210,4 @@ hook 是 Claude Code 在特定時刻（執行指令前、Claude 說做完時）�
 
 ## 進階功能
 
-不在這次安裝裡。使用者要更多功能，或[進階功能.md](進階功能.md)〈Claude 什麼時候會提議〉列的情況出現時，照那份的 A1–A5 做。
+完整款只開步驟 0 第 4 點決定要的那幾項。之後使用者要更多功能，或每週檢查（`level_check.py`，由 `level_notice` 這個 hook 和 `/sbk-status` 執行）量到[進階功能.md](進階功能.md)〈Claude 什麼時候會提議〉表裡的情況、而且使用者說好時，照那份的 A1–A5 做。

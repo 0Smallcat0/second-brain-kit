@@ -101,7 +101,8 @@ def main():
     reason = verdict(turns[-1], data.get("last_assistant_message") or None)
     if not reason:
         return
-    log("stop_evidence", "%s: %s" % (m, reason[:80]))
+    # "turn N of <transcript>" lets scripts/level_check.py read the user's next message later
+    log("stop_evidence", "%s: turn %d of %s: %s" % (m, len(turns), path, reason[:60]))
     if m == "block":
         emit({"decision": "block", "reason": reason})
 

@@ -6,8 +6,8 @@
     {
       "name": "second-brain-kit",
       "source": "./",
-      "version": "0.2.0",
-      "description": "Basic by default: one main session in a numbered notes folder, a work list Claude keeps, evidence-before-done checks and safety hooks. Advanced parts are included and switched on later. Claude sets it up for you."
+      "version": "0.2.1",
+      "description": "Claude sets it up and picks Basic or Full for you: one main session in a numbered notes folder, a work list Claude keeps, evidence-before-done checks and safety hooks, plus only the Advanced parts you need. A weekly check offers more, with your yes."
     }
   ]
 }

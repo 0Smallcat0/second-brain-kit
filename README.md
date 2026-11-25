@@ -2,12 +2,15 @@
 
 A ready-made way of working with Claude Code: Claude keeps your notes and your unfinished work, and looks at its results before it says "done". [繁體中文](README.zh-TW.md)
 
-## What you get
+## What Basic does for you
 
-- **A notes folder that Claude keeps tidy.** Say "remember this" today and "find what I said about it" next month.
-- **A work list.** Claude writes down what is still open, so a new conversation can pick it up where the last one stopped.
-- **"Done" means checked.** Claude opens the result before it tells you a job is finished, and says so when it could not check.
-- **Safety first.** Claude asks before deleting things, publishing anything, or changing your settings.
+Compared with Claude Code on its own:
+
+- **Your notes are found again in a new conversation.** Say "remember this" today; next month a brand-new conversation finds it.
+- **One work list that closes only with proof.** Claude writes down what is still open, and an item is closed only when Claude can say what result it looked at.
+- **Claude opens the result before it says "done",** and says so plainly when it could not check.
+- **It asks before deleting, publishing or overwriting.** Before deleting things, pushing anything to the internet, or replacing a whole note, Claude stops and asks you.
+- **Your own words come back after a long conversation is summarised.** Long conversations get shortened automatically; the kit puts your own messages back word for word, so your requests are not lost or reworded.
 
 ## What you need
 
@@ -24,10 +27,11 @@ Install second-brain-kit from https://github.com/0Smallcat0/second-brain-kit and
 
 ## What happens next
 
-1. Claude asks you three short things: where to keep your notes, which language to use, and what you mainly use Claude for ("not sure yet" is fine).
-2. It sets everything up and asks before anything that changes your settings.
-3. It runs a short check: a brand-new conversation has to find a test note and continue a test item. Then the test data is removed.
-4. It shows you how to start: a shortcut on your desktop, and a two-minute first try.
+1. Claude asks you four short things: where to keep your notes, which language to use, what you mainly use Claude for ("not sure yet" is fine), and how many different things you are working on at once (and any deadlines).
+2. **Claude picks the level for you** and tells you why in one line: Basic, or Full = Basic plus only what your answers and your earlier Claude use on this computer call for (one conversation per subject, reminders, a guide for an AI tool you already have). Say so if you want the other one.
+3. It sets everything up and asks before anything that changes your settings.
+4. It runs a short check: a brand-new conversation has to find a test note and continue a test item. Then the test data is removed.
+5. It shows you how to start: a shortcut on your desktop, and a two-minute first try.
 
 ## How to use it after
 
@@ -66,6 +70,7 @@ You talk to one Claude conversation that starts inside your notes folder. It rea
 - **Your notes:** the folder you chose (suggested: `second-brain` in your home folder). Plain text files you can open with any editor.
 - **The work list, logs and settings:** `~/.claude/sbk/` (`~` is your home folder).
 - **Your own words, kept for long conversations:** when a long conversation gets summarised, the kit puts your own messages back word for word. It keeps a copy in `~/.claude/sbk/requests/` on this computer.
+- **The level check:** at install, and about once a week after, a small script counts things on this computer only: open items on the work list, the done-check's log, and in your Claude conversations how often they were summarised, whether you asked for a reminder and whether you named another AI tool (at install: how many project folders you used in the last two weeks). It changes no settings and keeps its numbers in `~/.claude/sbk/state/`.
 - **History:** the notes folder uses git, a tool that records every change on this computer, so an older version can be brought back. It is **not a backup**: if the disk dies, the history dies with it. Copy the notes folder to another disk or a cloud drive you trust from time to time.
 
 Nothing is pushed to GitHub or sent anywhere by the kit, and nothing is handed to other AI tools. Claude itself is an online service, as always.
@@ -80,9 +85,17 @@ Nothing is pushed to GitHub or sent anywhere by the kit, and nothing is handed t
 
 **How do I remove it?** Say "Remove second-brain-kit". Claude removes the plugin, its settings block and the shortcut, and asks before deleting any of your notes.
 
-## When you want more
+## When Claude suggests an upgrade
 
-Topic conversations (one per subject), reminders, a usage warning, a stricter done-check and other AI tools are included but switched off. Claude may suggest one when it would help, or you ask for it. See [docs/ADVANCED.md](docs/ADVANCED.md); it also has six pictures of how the parts fit together.
+Claude never adds a part on its own. About once a week a small script counts the things below on your computer. When one holds, Claude asks you one question, "Turn on X?", with the numbers; it does it only after your yes. Say no and it will not ask about that again for four weeks.
+
+- 10 or more unfinished things, or unfinished things from 3 or more different subjects, and still so a week later -> one conversation per subject (topic conversations).
+- The conversation in your notes folder got so long that it was summarised twice or more in one week -> topic conversations.
+- Something with a deadline passed while still unfinished, or you asked Claude to remind you -> reminders.
+- The done-check has been taking notes for two weeks, and at least 3 of every 4 replies it flagged were followed by you reporting a problem -> let it really stop Claude.
+- You mention another AI tool (for example ChatGPT or Gemini) -> a guide for splitting work with it.
+
+You can also ask for any of them at any time, and for a usage warning. Details in [docs/ADVANCED.md](docs/ADVANCED.md); it also has six pictures of how the parts fit together.
 
 ## Manual install
 
@@ -106,7 +119,7 @@ commands/         /sbk-setup, /sbk-status
 hooks/            the safety checks (Python 3, standard library only)
 entry/            work list, status, reminders, hand-over and worker tools
 templates/        rules for Claude, the notes folder guide, note format, settings, Advanced templates
-scripts/          note checker, index maker, overwrite guard, selftest
+scripts/          note checker, index maker, overwrite guard, level check, selftest
 docs/             SETUP, ADVANCED, PITFALLS, MULTI-TOOL (+ zh-TW); docs/diagrams = the pictures
 experimental/     pieces that are not proven yet
 ```

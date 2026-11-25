@@ -2,23 +2,24 @@
 
 [繁體中文](zh-TW/進階功能.md) · [Back to the README](../README.md)
 
-Basic (what [SETUP.md](SETUP.md) installs) is enough to start: one main Claude session in your notes folder, a work list Claude keeps for you, and safety checks. Everything on this page is already in the kit but **does nothing until it is switched on**. Starting with all of it at once is too heavy; add a part when you feel the need for it.
+Basic is one main Claude session in your notes folder, a work list Claude keeps for you, and safety checks. Everything on this page is already in the kit but **does nothing until it is switched on**. At install ([SETUP.md](SETUP.md)) Claude switches on only the parts your answers and your earlier Claude use call for (that is Full); the rest waits until the numbers below show it would help.
 
 To switch something on, tell Claude, for example: "Turn on topic sessions", "Remind me every Sunday to review", "Make the done-check stricter". Claude does it with the steps at the end of this page.
 
 ## When Claude suggests it
 
-Claude may propose a part when one of these happens. It proposes once, in one sentence, says what would change, and does it only after you say yes.
+At install Claude already switched on the parts your answers and your earlier Claude use called for (Full), or none (Basic). After that, a small script, `scripts/level_check.py`, measures the rows below on your computer. It runs at most once a week when you open Claude in your notes folder (the `level_notice` check) and every time you run `/sbk-status`. It never changes a setting. When a row holds, Claude asks you **one yes/no question** with the numbers and switches the part on only after a yes. After a no it does not ask about that part again for four weeks. A part that is already on is never offered.
 
-| What happens | What Claude proposes |
-|---|---|
-| First use | Nothing: Basic only |
-| Two subjects keep getting mixed up in one conversation (for example study notes and job tasks) | **Topic sessions** (A1): one conversation per subject |
-| Work handed from one conversation to another gets lost | **Entry session + inbox** (A1): one place that takes requests and passes them on |
-| You keep forgetting to look at what is still open | **Reminders** (A2) |
-| The same mechanical work comes back again and again, and you have another AI tool | **Other AI tools** (A5), only tools you already have |
-| Claude keeps saying "done" without checking | **Stricter done-check** (A4) |
-| You want to know before you run out of your weekly Claude limit | **Usage warning** (A3) |
+| Trigger (measured; id in the script's output) | What gets switched on | What Claude does to switch it on |
+|---|---|---|
+| 10 or more open work-list items, or open items in 3 or more topics, on two checks 7 to 21 days apart, so one busy day does not count (`multi_session`) | Entry session + topic sessions (A1) | A1 below: entry and one session per topic (topics = the `[topic]` tags of the open items), `routes.md`, `inbox_notice` -> warn, one launcher each |
+| The session in your notes folder was compacted (summarised because it got too long) 2 or more times in the last 7 days (`multi_session`) | Entry session + topic sessions (A1) | Same as the row above |
+| An open item with `due YYYY-MM-DD` passed that date, or you asked Claude to remind you in the last 14 days (`alarms`) | Reminders (A2) | A2 below: `alarms.md` with a row for that date; the computer's scheduler only after a separate yes |
+| The done-check has been logging for 14 days or more, at least 4 flagged replies could be judged, and fewer than 25% were false alarms; a false alarm is a flagged reply after which your next message did not report a problem (`block_mode`) | Stricter done-check (A4) | A4 below: `stop_evidence` -> block |
+| You named another AI tool, at setup or in a notes-folder conversation in the last 14 days (`multi_tool`) | The guide for splitting work with that tool (A5), only tools you have | A5 below: a row in `channels.md` and one tiny real job |
+| You ask for any part yourself, including the usage warning (A3) | That part | Its steps below |
+
+Saying no is recorded with `level_check.py --decline <id>`; the script writes only its own file `~/.claude/sbk/state/level_check.json`.
 
 ## The parts, in plain words
 
@@ -202,12 +203,12 @@ flowchart LR
 
 ## Steps for Claude (A1-A5)
 
-Written for the Claude that switches a part on. Words (`KIT`, `SBK_HOME`, `VAULT`), rules and status words are the same as in [SETUP.md](SETUP.md); Basic must already be installed. Do only the part the user agreed to. When the first part is switched on, set `"level": "advanced"` in `SBK_HOME/config.json`; change only the `modes` named in that part and keep every other value. Report each part with a status word.
+Written for the Claude that switches a part on. Words (`KIT`, `SBK_HOME`, `VAULT`), rules and status words are the same as in [SETUP.md](SETUP.md); Basic must already be installed (during setup, SETUP Step 5b runs these steps right after Basic). Do only the part the user agreed to or the setup decision called for. When the first part is switched on, set `"level": "full"` in `SBK_HOME/config.json`; change only the `modes` named in that part and keep every other value. Report each part with a status word.
 
 ### A1 - Entry session and topic sessions
 
 1. `SBK_HOME/entry/CLAUDE.md` <- `KIT/templates/entry-CLAUDE.md`, with `{{vault}}` replaced.
-2. Start with two topics (from what the user said they use Claude for, or ask "Which two subjects should get their own conversation?"). For each: a short ASCII id (`study`, `work`), `SBK_HOME/managers/<id>/CLAUDE.md` <- `templates/manager-CLAUDE.md` (fill `{{manager}}`, `{{vault}}`, `{{scope}}` with one line in the user's words), `SBK_HOME/managers/<id>/task.md` <- `templates/task.md` (fill `{{topic}}`). If `SBK_HOME/task.md` from Basic has open items, ask which topic it belongs to and move it there.
+2. Start with two to four topics: during setup, the things the user named (SETUP Step 5b, no question); after a weekly-check yes, the `[topic]` tags of the open work-list items; otherwise ask "Which two subjects should get their own conversation?". For each: a short ASCII id (`study`, `work`), `SBK_HOME/managers/<id>/CLAUDE.md` <- `templates/manager-CLAUDE.md` (fill `{{manager}}`, `{{vault}}`, `{{scope}}` with one line in the user's words), `SBK_HOME/managers/<id>/task.md` <- `templates/task.md` (fill `{{topic}}`). If `SBK_HOME/task.md` from Basic has open items, ask which topic it belongs to and move it there.
 3. `SBK_HOME/routes.md` <- `templates/routes.md`, one row per id with 5-10 words the user would really say.
 4. `config.json` -> `"modes": {"inbox_notice": "warn"}`.
 5. Launchers like SETUP Step 5, one per session: entry `cd "<SBK_HOME>/entry"` then `claude --add-dir "<VAULT>" -n entry`; topic `cd "<SBK_HOME>/managers/<id>"` then `claude --add-dir "<VAULT>" -n <id>`. Update the start section of `VAULT/README.md`: new requests go to the entry; open a topic session to let it work. The Basic launcher may stay for quick note questions.
@@ -235,7 +236,7 @@ Written for the Claude that switches a part on. Words (`KIT`, `SBK_HOME`, `VAULT
 ### A4 - Stricter done-check
 
 1. Replay first (with consent, as in SETUP Step 4): `python KIT/hooks/stop_evidence.py --replay <file>` on the five newest transcripts, and `SBK_HOME/logs/stop_evidence.log` if Basic has run for a while.
-2. If about one turn in four or more would be flagged, tell the user it would interrupt too often and keep `log`. Otherwise set `config.json` -> `"modes": {"stop_evidence": "block"}`. It stops Claude at most once per reply.
+2. If the weekly check brought you here, its numbers already show fewer than 25% false alarms: set block. If the user asked without that, and about one turn in four or more would be flagged in the replay, tell the user it would interrupt too often and keep `log`. Otherwise set `config.json` -> `"modes": {"stop_evidence": "block"}`. It stops Claude at most once per reply.
 
 **Check:** the replay ran on at least one transcript (or the log), and `config.json` shows the mode you chose.
 
