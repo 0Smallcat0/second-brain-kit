@@ -1091,6 +1091,18 @@ def main():
         rc, out, _ = run([H / "read_whole.py"], {"tool_name": "Bash", "cwd": str(tmp),
                                                  "tool_input": {"command": "head -n 5 README.md"}}, env)
         check("read_whole: outside the vault is left alone", out.strip() == "", out)
+        # an existing notes folder named in the config needs no marker file put into it
+        bare = tmp / "barevault"
+        (bare / "a").mkdir(parents=True)
+        (bare / "a" / "n.md").write_text("---\nstatus: active\n---\n\n" + "line\n" * 12, encoding="utf-8")
+        ev_bare = {"tool_name": "Bash", "cwd": str(bare), "tool_input": {"command": 'head -n 5 "a/n.md"'}}
+        rc, out, _ = run([H / "read_whole.py"], ev_bare, env)
+        check("vault: a folder with no marker and not named anywhere is not a vault", out.strip() == "", out)
+        rc, out, _ = run([H / "read_whole.py"], ev_bare, dict(env, SBK_VAULT=str(bare)))
+        check("vault: the folder named by the config or SBK_VAULT is the vault without a marker file",
+              '"permissionDecision": "deny"' in out, out)
+        rc, out, _ = run([H / "read_whole.py"], ev_bare, dict(env, SBK_VAULT=str(tmp / "no-such-folder")))
+        check("vault: a named folder that does not exist is ignored", out.strip() == "", out)
         for cmd, expect in [("git push origin main", True), ("git commit --no-verify -m x", True),
                             ("git reset --hard HEAD~1", True), ("rm -rf build", True),
                             ("git status && ls", False), ("git commit -m x", False)]:

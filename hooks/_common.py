@@ -124,10 +124,16 @@ def add_context(event, text):
 
 
 def find_vault(start=None):
-    """The vault is the folder holding a file named .sbk-vault."""
+    """The vault: the folder named by SBK_VAULT or config.json "vault" when it exists (the user named it,
+    so an existing notes folder needs no marker file added to it), else the nearest folder at or above
+    `start` holding a file named .sbk-vault."""
     env = os.environ.get("SBK_VAULT") or config().get("vault")
-    if env and (Path(env) / ".sbk-vault").exists():
-        return Path(env)
+    if env:
+        try:
+            if Path(env).is_dir():
+                return Path(env)
+        except Exception:
+            pass
     try:
         p = Path(start or os.getcwd()).resolve()
     except Exception:
