@@ -1525,6 +1525,53 @@ def main():
         (hl / "state" / "tick-loop.json").write_text(json.dumps({"pid": os.getpid(), "since": "x"}), encoding="utf-8")
         rc, out, err = run([AL, "--loop", "--every", "1"], env=envl)
         check("loop: a second loop for the same folder exits at once", rc == 0 and "already running" in out, out + err)
+        # import_existing.py: an existing tracker, reminders and topic files are brought in, nothing old is touched
+        hi = tmp / "home-import"
+        (hi / "managers" / "maintenance").mkdir(parents=True)
+        (hi / "config.json").write_text(json.dumps({"vault": "V:/notes"}), encoding="utf-8")
+        (hi / "ledger.md").write_text("# Ledger\n\n- L0001 | open | 2026-11-20T08:00:00 | there before | ev: \n", encoding="utf-8")
+        oldtask = tmp / "old-study-task.md"
+        oldtask.write_text("old state\n", encoding="utf-8")
+        plan = {"expect_rows": 3,
+                "topics": [{"name": "study", "keywords": "course, exam", "scope": "two courses", "old_task": str(oldtask)}],
+                "items": [{"old": "T12", "text": "hand in the report", "said": "記得交報告", "done_when": "upload page shows it", "ts": "2026-11-23T21:45:00"},
+                          {"old": "T13", "keep": False, "text": "done 11-24, receipt mail"},
+                          {"old": "T14", "text": "summarise chapter 9", "to": "study"}],
+                "alarms": [{"id": "A05", "when": "daily 08:10", "to": "study", "text": "[worker] check the course page"}]}
+        pf = tmp / "plan.json"
+        pf.write_text(json.dumps(plan, ensure_ascii=False), encoding="utf-8")
+        IMP = KIT / "scripts" / "import_existing.py"
+        envi = {"SBK_HOME": str(hi), "SBK_VAULT": "", "ANTHROPIC_API_KEY": ""}
+        rc, out, err = run([IMP, pf], env=envi)
+        check("import: the dry run says what would be written and writes nothing",
+              rc == 0 and "DRY RUN" in out and "2 new item(s) + 1 record(s)" in out and not (hi / "managers" / "study").exists()
+              and not (hi / "state" / "import-map.json").exists() and "T12" not in (hi / "ledger.md").read_text(encoding="utf-8"), out + err)
+        rc, out, err = run([IMP, pf, "--apply"], env=envi)
+        led = (hi / "ledger.md").read_text(encoding="utf-8")
+        imap = json.loads((hi / "state" / "import-map.json").read_text(encoding="utf-8")) if (hi / "state" / "import-map.json").exists() else {}
+        stask = (hi / "managers" / "study" / "task.md").read_text(encoding="utf-8") if (hi / "managers" / "study" / "task.md").exists() else ""
+        check("import: every old row is accounted for (item or record), with the user's words and the old date kept",
+              rc == 0 and imap == {"T12": {"new": "L0002"}, "T13": {"record": "done 11-24, receipt mail"}, "T14": {"new": "L0003"}}
+              and "- L0002 | open | 2026-11-23T21:45:00 | hand in the report (was T12); done when: upload page shows it; said: \"記得交報告\"" in led
+              and "- L0003 | dispatched:study |" in led and "there before" in led, out + err + led)
+        check("import: the topic gets its folder, a task.md that points at the old state, a route, its inbox line and the alarm row",
+              str(oldtask) in stask and "two courses" in (hi / "managers" / "study" / "CLAUDE.md").read_text(encoding="utf-8")
+              and "| course, exam | study | managers/study/task.md |" in (hi / "routes.md").read_text(encoding="utf-8")
+              and "{{manager" not in (hi / "routes.md").read_text(encoding="utf-8")
+              and "L0003" in (hi / "inbox" / "study.md").read_text(encoding="utf-8")
+              and "| A05 | daily 08:10 | study | [worker] check the course page |" in (hi / "alarms.md").read_text(encoding="utf-8")
+              and oldtask.read_text(encoding="utf-8") == "old state\n", out + err)
+        rc, out, err = run([IMP, pf, "--apply"], env=envi)
+        check("import: running it again adds nothing twice",
+              rc == 0 and "0 new item(s) + 0 record(s) + 3 imported before" in out and "alarms.md: 0 new row(s)" in out
+              and (hi / "ledger.md").read_text(encoding="utf-8") == led, out + err)
+        plan["expect_rows"] = 4
+        plan["alarms"][0]["when"] = "13 8 * * *"
+        pf.write_text(json.dumps(plan, ensure_ascii=False), encoding="utf-8")
+        rc, out, err = run([IMP, pf, "--apply"], env=envi)
+        check("import: a plan that drops a row or has an unreadable time is refused whole",
+              rc == 2 and "has 4 rows, the plan accounts for 3" in out and "when not readable" in out
+              and (hi / "ledger.md").read_text(encoding="utf-8") == led, out + err)
         # learning loop numbers (learn.py)
         LE = KIT / "entry" / "learn.py"
         lv = tmp / "lvault2"
