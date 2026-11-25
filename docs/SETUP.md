@@ -1,23 +1,23 @@
 # SETUP - instructions for the configuring Claude
 
-This file is written **for you, Claude**, not for the user. The user asked you to set up second-brain-kit. They may not be technical: you do the work; they answer five short questions, confirm what you suggest installing, and say yes or no to changes on their system. This is the only place that lists the questions and steps (`/sbk-setup` and the `setup-second-brain` skill just point here); `docs/zh-TW/SETUP.md` has the same steps in Traditional Chinese.
+This file is written **for you, Claude**, not for the user. The user asked you to set up second-brain-kit. They may not be technical: you do the work; they answer six short questions, confirm what you suggest installing, and say yes or no to changes on their system. This is the only place that lists the questions and steps (`/sbk-setup` and the `setup-second-brain` skill just point here); `docs/zh-TW/SETUP.md` has the same steps in Traditional Chinese.
 
 **You recommend the parts one by one and the user confirms** (Step 0.4): mainly from their answer to "Where do you get stuck most when using Claude?"; if they allow you to look at their Claude history on this computer, its numbers are supporting evidence. If they say no, or this computer has no history (a new user), go by the answer alone; if the answer points to no part, install Basic. Each part gets one line with your suggestion and the reason; the user may change any of it.
 - **Basic**: one main Claude session that works directly in the notes folder; the notes folder with only the areas the user needs; the tracker (`ledger.py`: open work items, one per line, each closed with a note of how it was checked), used by you, never typed by the user; safety checks; short general principles.
-- **Extra parts** (sessions: the fixed entry, supervisor and maintenance sessions plus one per subject; reminders; splitting work with another AI tool): suggested one by one; only the ones the user confirms are switched on in Step 5b with the steps in [ADVANCED.md](ADVANCED.md). With any extra part on, the config records `full` (Full). The comparison table is in ADVANCED.md, "Basic and Full".
+- **Extra parts** (sessions: the fixed entry and maintenance sessions, plus topic sessions the entry opens and sends work into; reminders; splitting work with outside resources): suggested one by one; only the ones the user confirms are switched on in Step 5b with the steps in [ADVANCED.md](ADVANCED.md). With any extra part on, the config records `full` (Full). The comparison table is in ADVANCED.md, "Basic and Full".
 
 Everything else stays off. After setup, a weekly check (`level_check.py`) measures whether another part would help; you then offer it as one yes/no question.
 
 Words used below:
 - `KIT` - the folder that contains `.claude-plugin/plugin.json` with `"name": "second-brain-kit"`. Installed as a plugin it is `${CLAUDE_PLUGIN_ROOT}` (set inside plugin hooks and commands; in this session search the plugin cache under `~/.claude/plugins` for that file). Cloned by hand it is the clone folder.
-- `SBK_HOME` - `~/.claude/sbk` (the tracker, logs, settings of the kit).
+- `SBK_HOME` - `~/.sbk` (the tracker, logs, settings of the kit). Not inside `~/.claude`: Claude Code asks before Claude's own file tools write there, so a background session could not write its task.md. An install from before 0.2.5 has `~/.claude/sbk`; the kit keeps using it while `~/.sbk` does not exist; with the user's yes, move the folder to `~/.sbk` and fix the paths in the scheduler task.
 - `VAULT` - the notes folder the user chooses (default `~/second-brain`).
 - `SURFACE` - how the user opens Claude: `app` (the Claude desktop app, its **Code** tab) or `terminal` (the `claude` command in a terminal window). Step 0.2 decides it; Steps 5, 6 and 7 differ by it.
 - Paths: use forward slashes or quoted paths on Windows. Python: `python3`, `python` or `py`, whichever runs Python 3.
 
 Rules while you work:
 - Ask before anything that edits `~/.claude/settings.json`, `~/.claude/CLAUDE.md`, the system scheduler, or any file the user already had. Never overwrite an existing file; show the difference and get a yes.
-- Nothing is pushed to a git remote, no message is sent, and no note is given to another AI tool. Do not tell the user it is "offline": Claude itself is an online service.
+- Nothing is pushed to a git remote, no message is sent, and no note is given to an outside resource the user did not tick. Do not tell the user it is "offline": Claude itself is an online service.
 - Small reversible choices are yours (folder names, test names, a placeholder git identity): pick one and say which in the report. Ask only what only the user knows or must allow.
 - Each step ends with a **Check**. Run it; continue only when it passes. If it fails, fix the cause and run it again; never report a step as done that you did not check.
 - Report every step with exactly one of these: **done** / **not enabled** (an option the user did not want) / **n.a.** (does not apply here) / **needs you** (only the user can do it; say exactly what) / **not verified** (could not be checked; say why).
@@ -33,54 +33,57 @@ The user may have pasted only the sentence from the README ("Install second-brai
 
 **Check:** `KIT/.claude-plugin/plugin.json` exists and says `second-brain-kit`; `claude plugin list` shows second-brain-kit (clone route: write down that you used it).
 
-## Step 0 - Check the computer, ask five things, suggest the parts
+## Step 0 - Check the computer, ask six things, suggest the parts
 
 1. Run `python --version` (or `python3` / `py`) and `git --version`; Python 3.8+ and git are needed. Terminal users also need `claude --version` to work; App users do not (the desktop app has Claude Code built in, and has no `claude -p`).
    If one is missing, offer to install it ("OK if I install Python?") and after a yes do it: Windows `winget install -e --id Python.Python.3.12` / `winget install -e --id Git.Git`; macOS `xcode-select --install` (gives git and python3) or `brew install python git` if Homebrew exists; Linux the package manager. If it needs an administrator password or a click in an installer window, that part is **needs you**: tell the user exactly which window or command, then continue.
 2. Find `SURFACE` first. Read the environment variable `CLAUDE_CODE_ENTRYPOINT` (`echo $CLAUDE_CODE_ENTRYPOINT`; PowerShell `$env:CLAUDE_CODE_ENTRYPOINT`): `claude-desktop` or `claude-desktop-3p` -> `app`; `cli` -> `terminal`. These are the values Anthropic's monitoring page lists for how a session was launched; the variable itself is not documented, so treat it as a hint. Any other value (`claude-vscode`, `sdk-cli`, ...) or none: you cannot tell, so add to question 1 below "Do you open Claude through the Claude app (the Code tab) or in a terminal window?" and use the answer. The user's own answer always wins over the variable.
-   Then ask these five in **one message**, in plain words, and wait:
+   Then ask these six in **one message**, in plain words, and wait:
    1. "Where should your notes live? I suggest `~/second-brain` (say OK to accept)."
    2. "Which language should I use for notes and replies?"
-   3. "Where do you get stuck most when using Claude? For example: several things at once get mixed up, you often forget deadlines, you keep having to explain the background again, or it's all fine? (If you also have an account for another AI such as ChatGPT or Gemini, mention it; if not, skip it - one Claude account is enough.)"
+   3. "What do you mainly use Claude for (school, a job, a side project, freelance work...), and where do you get stuck most? For example: several things at once get mixed up, you often forget deadlines, you keep having to explain the background again, or it's all fine?"
    4. "May I look at your Claude history on this computer to help decide? At install I only count how many project folders were used in the last two weeks and whether a conversation got so long it was summarised twice or more; after that, about once a week, I only look at conversations in your notes folder and count how often you asked me to remind you or said things got mixed up. It is counted on this computer only, nothing is uploaded or changed. 'No' is completely fine."
-   5. "Which Claude plan do you have: Pro, Max, Team, Enterprise, or API (pay per use)? 'Not sure' is fine. It only decides how often things may run by themselves, so they fit your usage limit."
-   Do not ask anything else, here or later in the setup. The only things that do not count as extra questions: the app-or-terminal question when the variable did not tell you, asking permission for a change on their system, and, when you suggest topic sessions in point 4, which things to split and the wake choice. No profile questions, no tool-by-tool list, no "Basic or Full?".
-3. Create `SBK_HOME`. If `SBK_HOME/config.json` does not exist, copy `KIT/templates/config.json` there and fill `vault` (absolute path), `language`, `uses` (their words for question 3), `other_tools` (only tools they said they **have an account** for; empty if none), `read_history` (question 4: yes `true`, no `false`), `plan` (question 5: `pro`, `max`, `team`, `enterprise` or `api`; empty if not sure). If it exists (a repair or second run), keep every value it has and only add missing keys from the template.
+   5. "Which Claude plan do you have: Pro, Max, Team, Enterprise, or API (pay per use)? 'Not sure' is fine. It sets how much may run by itself so it fits your usage limit: the reminder check every 5 minutes only reads files on this computer and uses none of your limit; only starting or messaging a Claude session does."
+   6. "Besides this Claude account, do you have any of these? Tick any, or none: (a) another AI account (ChatGPT, Gemini, a second Claude, Codex...), (b) Colab or Kaggle, (c) cloud or API credit (Azure, Google Cloud, AWS, an API key with credit), (d) a computer with a graphics card (GPU) for heavy jobs, (e) a student offer (Azure for Students, GitHub Copilot for students). None is completely fine: one Claude account is enough."
+   Do not ask anything else, here or later in the setup. The only things that do not count as extra questions: the app-or-terminal question when the variable did not tell you, asking permission for a change on their system, and, in point 4's message, which things to split into topic sessions and whether the suggested note areas fit. No profile questions, no "Basic or Full?". For question 6, only what they tick counts: nothing unticked is ever assumed. ChatGPT and Gemini web, Colab, Kaggle and the student offers are free to sign up: you may add one line "free to sign up (可免費申請): ..." with the ones that fit, and explain how only if they say they want to.
+3. Create `SBK_HOME`. If `SBK_HOME/config.json` does not exist, copy `KIT/templates/config.json` there and fill `vault` (absolute path), `language`, `uses` (their words for question 3), `outside_resources` (question 6: only what they ticked, in their words; empty if none), `read_history` (question 4: yes `true`, no `false`), `plan` (question 5: `pro`, `max`, `team`, `enterprise` or `api`; empty if not sure) and the plan's starting values from the table in point 4 (`max_sessions`, `wake_limits`, `review`). If it exists (a repair or second run), keep every value it has and only add missing keys from the template.
 4. **Suggest the parts one by one; the user confirms.**
    - Question 4 was yes: run `python KIT/scripts/level_check.py --install`. It only counts, on this computer: project folders in `~/.claude/projects` used in the last 14 days, and whether one conversation was summarised (compacted) two or more times. It reads no conversation content and changes nothing. If the output says `"partial": true`, the count stopped after 30 seconds: use what it found.
    - Question 4 was no: do not run it and do not look in `~/.claude/projects`. A yes with `active_projects_14d` = 0 (a new user, no history) is the same: go by the answer alone.
    - Each part follows the answer to question 3; history numbers are only supporting evidence and never switch on a part the answer did not point to:
-     - **topic sessions** (ADVANCED A1: the fixed entry, supervisor and maintenance sessions plus one conversation per subject): they said several things get mixed up; or they answered "not sure" and the history shows 3 or more project folders used in the last two weeks and `session_compacted_2plus_14d` is 1.
+     - **topic sessions** (ADVANCED A1: the fixed entry and maintenance sessions; the entry opens a conversation per subject and sends work into it): they said several things get mixed up; or they answered "not sure" and the history shows 3 or more project folders used in the last two weeks and `session_compacted_2plus_14d` is 1.
      - **reminders** (A2): they said they often forget deadlines, or want reminders.
-     - **splitting work with another AI tool** (A5): only if they said they have an account for that tool; naming it is not enough.
+     - **splitting work with outside resources** (A5): only if they ticked something in question 6.
      - "I keep explaining the background again": Basic already handles this (notes found again in a new conversation, the tracker, their own words put back after a long conversation is summarised), so no extra part; if they also said several things get mixed up, follow the topic-sessions line.
      - "It's all fine", no answer, or an answer that points to none of the above: **Basic**, nothing extra.
    Disk space, operating system or the number of git commits decide whether a part *can* run, not whether it is needed: they are not reasons.
-   - In **one message**, in their language, one line per part: switch it on or not now, plus one reason with its numbers; end with "Is that OK? Tell me anything to add or drop." When you suggest topic sessions, ask in the same message "Which things should each get their own conversation? (two to four)" and add one line for the **wake choice** below. For example:
+   - In **one message**, in their language, one line per part: switch it on or not now, plus one reason with its numbers; end with "Is that OK? Tell me anything to add or drop." Add one line with the note areas you suggest from question 3 (Step 3 has examples by role). When you suggest topic sessions, ask in the same message "Which things should each get their own conversation? (two to four)". For example:
      "Here is what I suggest:
      - Basic: always (notes, tracker, safety checks).
      - Reminders: on. You said you often forget deadlines.
      - Topic sessions: not now. You said things don't get mixed up; only 1 project folder was used here in the last two weeks.
-     - Splitting work with another AI: not now. You did not mention another AI account.
+     - Splitting work with outside resources: not now. You ticked none.
+     - Note areas: 20-29 學習與讀書 and 40-49 專案, since you use Claude for courses and a side project.
      Is that OK? Tell me anything to add or drop."
      Wait for the answer. What they confirm is the decision; if they change their mind later, follow them.
-   - **Wake choice (only with topic sessions).** Sessions never start by themselves unless the user chooses it. Two ways: **manual** - each session (supervisor, maintenance, topics) works only when the user opens it; **auto-wake** - the computer's scheduler starts a session in the background when its inbox has work (at most once an hour per session; it uses the user's quota). Suggest by plan, in one line, and let the user change it:
+   - **Plan starting values.** Written into `config.json` from question 5 whatever the parts; Full uses them. A topic session started in the background uses the plan's quota like any conversation, so the plan caps how many run at once and how often the scheduler may start or message one:
 
-     | Plan (question 5) | Suggested wake | Supervisor checks |
-     |---|---|---|
-     | Pro | all manual | weekly, Sunday 19:00 |
-     | Max, Team, Enterprise | supervisor auto, topics and maintenance manual (auto too only if the user wants) | daily, 21:00 |
-     | API (pay per use), or not sure | all manual (each wake is billed, or the limit is unknown) | weekly, Sunday 19:00 |
+     | Plan (question 5) | Topic sessions at once (`max_sessions`) | Starts per day / minutes between two for one session (`wake_limits`) | Maintenance's weekly review (`review`) |
+     |---|---|---|---|
+     | Pro | 2 | 4 / 120 | weekly, Sunday 20:00 |
+     | Max | 4 | 12 / 60 | twice a week, Wednesday and Sunday 20:00 |
+     | Team, Enterprise or higher | 6 | 24 / 30 | twice a week, Wednesday and Sunday 20:00 |
+     | API (pay per use), or not sure | 2 | 4 / 120 | weekly, Sunday 20:00 |
 
-     Auto-wake needs the `claude` command (`claude --version` runs; App-only users often do not have it) and the system scheduler (ADVANCED A2's question). Without them, suggest manual and say why. Example line: "Wake: on your Max plan I suggest the supervisor is started every evening at 21:00 to check for missed or unproven work (uses some of your limit); your topics start only when you open them. Or all manual?"
-   - Write `level` (`full` if any extra part is on, else `basic`), `level_reason` (those lines, joined into one) and, with topic sessions, `wake` (`{"supervisor": "auto" or "manual", "topics": "auto" or "manual"}`; `topics` covers maintenance and the user's topics; without topic sessions leave the template's all-manual) into `SBK_HOME/config.json`. For each part you suggested but they did not want, run `python KIT/scripts/level_check.py --decline <ids>` (`multi_session`, `alarms`, `multi_tool`) so the weekly check does not ask again for 4 weeks.
+     These are starting values: you (the user's Claude) may change them later in `config.json`, for example when the weekly review shows work waiting on the cap; tell the user in one line when you do. Say it plainly in the message: "The reminder check runs every 5 minutes on this computer and uses none of your limit; only starting or messaging a session does, at most N times a day."
+   - Write `level` (`full` if any extra part is on, else `basic`), `level_reason` (those lines, joined into one) and the confirmed note areas (`areas`, a list of folder names) into `SBK_HOME/config.json`. For each part you suggested but they did not want, run `python KIT/scripts/level_check.py --decline <ids>` (`multi_session`, `alarms`, `multi_tool`) so the weekly check does not ask again for 4 weeks.
 
-**Check:** `python -c "import json,os;c=json.load(open(os.path.expanduser('~/.claude/sbk/config.json'),encoding='utf-8'));print(c['level'],c['read_history'],c['vault'],c['plan'],c['wake'],c['modes'])"` prints `basic` or `full` (what the user confirmed), `True` or `False` (question 4), the vault path, the plan (question 5), the wake choice (all `manual` unless the user chose auto-wake), and the modes from the template (or the user's earlier modes on a repair).
+**Check:** `python -c "import json,os;c=json.load(open(os.path.expanduser('~/.sbk/config.json'),encoding='utf-8'));print(c['level'],c['read_history'],c['vault'],c['plan'],c['max_sessions'],c['wake_limits'],c['outside_resources'],c['modes'])"` prints `basic` or `full` (what the user confirmed), `True` or `False` (question 4), the vault path, the plan (question 5) with its starting values from the table, what they ticked in question 6 (or nothing), and the modes from the template (or the user's earlier modes on a repair).
 
 ## Step 1 - The tracker tools (ledger.py)
 
 1. Create `SBK_HOME/bin` and `SBK_HOME/logs`.
-2. Copy `KIT/entry/ledger.py`, `status.py`, `send.py`, `alarm.py` and `KIT/scripts/level_check.py` into `SBK_HOME/bin/` (`status.py` imports `ledger.py` and `send.py`; `/sbk-status` and the weekly check run `level_check.py`). Copy `KIT/templates/task.md` to `SBK_HOME/task-template.md`. Always copy; do not point at the plugin cache, whose path changes on update.
+2. Copy `KIT/entry/ledger.py`, `status.py`, `send.py`, `alarm.py`, `session.py`, `handover.py`, `learn.py`, `KIT/hooks/_common.py` and `KIT/scripts/level_check.py` into `SBK_HOME/bin/` (they import each other; `handover.py` reads conversation files with `_common.py`; `/sbk-status` and the weekly check run `level_check.py`). Copy `KIT/templates/task.md` to `SBK_HOME/task-template.md`. Always copy; do not point at the plugin cache, whose path changes on update.
 
 **Check** (works on a new or an existing tracker):
 1. `python SBK_HOME/bin/ledger.py list` - write the output down.
@@ -102,15 +105,16 @@ The user may have pasted only the sentence from the README ("Install second-brai
 
 ## Step 3 - The notes folder (`VAULT`)
 
-1. Create only these area folders (names from the table in `KIT/templates/筆記格式.md` section 1; keep the `NN-NN` numbers; translate the words only if the user wants another language):
-   - `00-09 系統與索引` with `00 索引`, `01 規則`, `02 收件匣`;
-   - if Step 0's answer (or the history they allowed) shows what they work on, the one or two matching areas (studying, coursework -> `20-29 學習與讀書`; coding or a side project -> `40-49 專案`; a job -> `30-39 工作與打工`; ...). If it does not show, no extra area; the first one is created when the first note needs it;
+1. Create only these area folders (numbers and names in the style of the **example** table in `KIT/templates/筆記格式.md` section 1; translate the words only if the user wants another language):
+   - `00-09 系統與索引` with `00 索引`, `01 規則`, `02 收件匣`, `03 和 AI 協作`;
+   - the one or two areas the user confirmed in Step 0.4. You proposed them from question 3 (and the history, if allowed); examples by role: a student -> `20-29 學習與讀書`; an office worker -> `30-39 工作`; a freelancer -> `30-39 接案` (clients and jobs) and `60-69 金錢與行政` (invoices); someone with a side project -> `40-49 專案`. These are examples, not a fixed list: name an area after what this user does. If the answer showed nothing, no extra area; the first one is created when the first note needs it;
    - `90-99 封存`.
-   Do not create empty category folders; categories are created when the first note needs one.
+   Do not create empty category folders; categories are created when the first note needs one. After copying `筆記格式.md` (next point), replace the rows of its example table with the user's areas and keep the word 範例 only on rows they did not take.
 2. Copy into the vault, replacing `{{date}}` with today (`YYYY-MM-DD`). If a file already exists, keep it and compare instead (repair):
    - `templates/AGENTS.md` -> `VAULT/AGENTS.md`; and `VAULT/CLAUDE.md` containing exactly one line: `@AGENTS.md`
    - `templates/筆記格式.md` -> `VAULT/00-09 系統與索引/01 規則/01-01 筆記格式.md`
    - `templates/todo-for-me.md` -> `VAULT/00-09 系統與索引/02 收件匣/02-02 我要做的事.md`
+   - `templates/和AI協作.md` -> `VAULT/00-09 系統與索引/03 和 AI 協作/03-01 和 AI 協作.md` (the learning loop's note: one line per correction or confirmation; Basic and Full)
    - an inbox note `VAULT/00-09 系統與索引/02 收件匣/02-01 收件匣.md` with valid frontmatter (`type: log`, `status: active`, a one-sentence summary, today's dates, `origin: agent-drafted`) and one line saying "Put anything not yet filed here."
    - `templates/sbk-protect.txt` -> `VAULT/.sbk-protect`; an empty file `VAULT/.sbk-vault`; `VAULT/.gitignore` with one line `__pycache__/` (Python leaves that folder next to the scripts)
    - `KIT/scripts/{vault_lint.py,gen_jdex.py,check_overwrite.py,pre-commit}` -> `VAULT/scripts/`; on macOS/Linux `chmod +x VAULT/scripts/pre-commit`.
@@ -146,8 +150,8 @@ Every hook reads its mode from `SBK_HOME/config.json` -> `modes` (values: off, l
 |---|---|---|
 | `vault_guard` | Claude asks before `git push`, skipping git checks, throwing away git work, deleting a whole folder, changing protected rule files, or shrinking a note to a fraction of it | ask |
 | `read_whole` | Inside the notes folder Claude reads a note whole, not just the first lines (no effect outside the notes folder) | deny |
-| `requests_reinject` | When a long conversation gets summarised, the user's own messages are put back word for word; a copy is kept in `~/.claude/sbk/requests/` on this computer | warn |
-| `stop_evidence` | Notes in `~/.claude/sbk/logs/stop_evidence.log` when Claude said "done" after an edit without looking at the result; it does not interrupt | log |
+| `requests_reinject` | When a long conversation gets summarised, the user's own messages are put back word for word; a copy is kept in `~/.sbk/requests/` on this computer. Above 150k tokens Claude writes a hand-over into task.md and asks the user to start a new conversation and say "continue" | warn |
+| `stop_evidence` | Notes in `~/.sbk/logs/stop_evidence.log` when Claude said "done" after an edit without looking at the result; it does not interrupt | log |
 | `usage_warn` | nothing (Advanced) | off |
 | `inbox_notice` | nothing (Advanced, for topic sessions) | off |
 | `level_notice` | At most once a week, in a session in the notes folder: if what happened to you shows another part would help (for example you asked Claude to remind you twice in a week; table in ADVANCED.md), Claude asks one yes/no question and quotes the numbers. Nothing changes without a yes; if you said no to question 4 it does not read your conversations | warn |
@@ -198,9 +202,10 @@ Also tell the user the plain way that needs no shortcut: open a terminal, `cd "<
 ## Step 5b - The extra parts the user confirmed
 
 No extra part: **n.a.** Otherwise follow [ADVANCED.md](ADVANCED.md) for each part the user confirmed in Step 0, in the order A1, A2, A5. Install-time rules:
-- A1: always the three fixed sessions (entry, supervisor, maintenance), plus the topics the user said to split in Step 0 (two to four); anything unclear goes to one `general` topic. Do not ask A1's "which two subjects" question again. Use the plan and wake choice from Step 0.4 for the supervisor's alarm row and `config.json` `"wake"`; the scheduler question is asked once (A1 or A2), since the supervisor's row and auto-wake need it.
+- A1: always the two fixed sessions (entry and maintenance), plus the topics the user said to split in Step 0 (two to four); anything unclear goes to one `general` topic. Do not ask A1's "which subjects" question again. Then live routing (A1 step 5): `python SBK_HOME/bin/session.py check` writes `routing` (`live` when this computer can start background sessions and pass messages, else `inbox`). With `live`, ask once "OK if I mark the folder `~/.sbk` as trusted for Claude Code, so the entry can start topic sessions there in the background?" and after a yes run `session.py trust`. With `inbox` (for example App only, no `claude` command), the entry tells the user which session to open; say so in one line.
+- The learning loop: Maintenance's weekly review (alarm rows M01, and M02 on Max or higher) needs the scheduler, so the scheduler question is asked once (A1 or A2).
 - A2: its scheduler question asks permission and is still asked; a no is **not enabled** for the scheduler only.
-- A5: only the tools they said they have an account for.
+- A5: only what the user ticked in question 6.
 
 Each part gets its own status word and its own Check from ADVANCED.md.
 
@@ -222,11 +227,12 @@ Technical checks passing does not prove the second brain works. Prove it with te
 
 1. `python KIT/scripts/selftest.py` -> `0 failed`; `vault_lint.py` -> `RESULT: PASS`; `python SBK_HOME/bin/status.py` runs.
 2. Write the start-here page `VAULT/README.md` (the checker allows this name in the vault root) in the user's language, under 30 lines, for the user (not for Claude). It covers only how to start, how to make Claude remember, how to see what is open, and how to get something fixed:
-   - how to start, by `SURFACE`: app - the Step 5 steps (Code tab, **Open folder…**, click the session in the sidebar next time); terminal - the launcher name and where it is, or `cd` into the notes folder and type `claude`. Full: new requests go to the entry session; a topic session works only when you open it (or, if you chose auto-wake for it, when the scheduler starts it); you get results from the entry, the checking happens between the sessions;
+   - how to start, by `SURFACE`: app - the Step 5 steps (Code tab, **Open folder…**, click the session in the sidebar next time); terminal - the launcher name and where it is, or `cd` into the notes folder and type `claude`. Full: new requests go to the entry session; it sends them into the topic session that owns them, or starts one (if this computer cannot, it tells you which one to open), and you get one result from the entry after it has checked the evidence;
    - four example sentences: "Remember this: ...", "Find my notes about ...", "What is still open?", "Continue where we stopped on ...";
    - "If something gets in the way, tell Claude, for example: the done-check is too strict, make it quieter";
-   - where things live: notes in this folder; the tracker and logs in `~/.claude/sbk/`; local git keeps the history of changes but is **not** a backup of the disk: copy this folder to another disk or a cloud drive you trust from time to time;
-   - "About once a week Claude checks whether more would help (topic sessions, reminders, other AI tools) and asks you first. You can also just ask, for example: turn on topic sessions."
+   - where things live: notes in this folder; the tracker and logs in `~/.sbk/`; local git keeps the history of changes but is **not** a backup of the disk: copy this folder to another disk or a cloud drive you trust from time to time;
+   - "Claude learns from you: when you correct it, or say 'yes, like that', it writes one line in the note 和 AI 協作 and reads it before it starts work."
+   - "About once a week Claude checks whether more would help (topic sessions, reminders, outside resources) and asks you first. You can also just ask, for example: turn on topic sessions."
 3. The final message, short, in the user's language:
    - first line: what was installed (Basic + the parts they confirmed) and why (the lines from Step 0.4, joined);
    - one line per step with its status word (done / not enabled / n.a. / needs you / not verified);
@@ -240,7 +246,7 @@ Technical checks passing does not prove the second brain works. Prove it with te
 
 ## Updating, repairing, removing
 
-- **Repair or second run:** run the steps again in order. Each step keeps what exists: config values, notes, the tracker (`ledger.md`), `task.md` files, `requests/`, `logs/` and, in Advanced, `routes.md`, `alarms.md` and `state/alarms.json` are never deleted or reset. Only missing pieces are added; changed kit files are shown to the user before they replace anything.
+- **Repair or second run:** run the steps again in order. Each step keeps what exists: config values, notes (the 和 AI 協作 note too), the tracker (`ledger.md`), `task.md` files, `requests/`, `logs/` and, in Advanced, `routes.md`, `alarms.md` and `state/` are never deleted or reset. An older config with `wake` and no `routing`: drop `wake` and add the plan's starting values (point 4 of Step 0); an older `other_tools` becomes `outside_resources`. Only missing pieces are added; changed kit files are shown to the user before they replace anything.
 - **Update:** update the plugin (`claude plugin update second-brain-kit@second-brain-kit`) or `git pull` the clone; then redo Step 1's copy and, for a clone install, Step 4's copy. Do not touch the user's notes or tracker.
 - **Remove:** remove the block between the `sbk` markers in `~/.claude/CLAUDE.md`, uninstall the plugin (or remove the hook entries from `settings.json`), delete the launcher if one was made (terminal users only), and in Advanced the scheduler entry. The vault and `SBK_HOME` (tracker, logs) are kept by default; ask before deleting either: they hold the user's data. End by telling the user what was kept and where.
 

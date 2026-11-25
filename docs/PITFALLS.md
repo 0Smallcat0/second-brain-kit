@@ -8,7 +8,7 @@ A rule in `CLAUDE.md` ("always verify before saying done") was in context when t
 
 ## 2. Too many gates block finishing
 A completion gate that can refuse forever is worse than no gate: a counter ("2 items MISSING") that never reaches zero because the thing it counts cannot be produced; verifier rounds that fail the same way six times in a row; a second session whose approval is needed before a third can proceed.
-**Fix:** every gate must be able to let go. In Basic the Stop hook only logs; switched to block (Advanced) it blocks at most once per turn (`stop_hook_active` means "already asked, let it through"). Nothing waits on another session's approval; topic sessions close their own items in the tracker (ledger.py) by showing evidence; the supervisor checks them afterwards and sends back what does not hold, it does not hold anything up. If you add a gate, say in one line how it ends when the check cannot pass.
+**Fix:** every gate must be able to let go. In Basic the Stop hook only logs; switched to block (Advanced) it blocks at most once per turn (`stop_hook_active` means "already asked, let it through"). Nothing waits on another session's approval; topic sessions close their own items in the tracker (ledger.py) by showing evidence; the entry opens that evidence afterwards and sends back what does not hold, and maintenance's weekly review re-opens a sample; neither holds anything up. If you add a gate, say in one line how it ends when the check cannot pass.
 
 ## 3. Long approval chains
 Request -> entry -> manager -> reviewer -> entry -> user: every hop is a place for work to stall, and each hop re-reads everything.

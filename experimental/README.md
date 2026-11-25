@@ -4,7 +4,7 @@ Things that are not part of the default install, because they are not proven. On
 
 | Item | Why it is here |
 |---|---|
-| [`wake_session.py`](wake_session.py) | Sends a message to a *stopped* topic session through `claude --resume`; written from the documented flags but not run by the kit's tests (it needs a real session id and spends quota). Pushing text into a session that is currently open is not possible this way; the supported route is the inbox + `inbox_notice` hook. |
+| [`wake_session.py`](wake_session.py) | Superseded by `entry/session.py` (0.2.5), which starts background sessions with `claude --bg` and passes messages into running ones with Claude Code's cross-session messaging. Kept only as the older `claude --resume` route for a *stopped* session; not run by the kit's tests. |
 | [`completion_gate.md`](completion_gate.md) | Design notes for an independent "verifier" check before a deliverable is closed. A heavier version of this got stuck in real use (it kept failing and nothing could finish), so it ships as a design only, with the one rule that makes it safe to try. |
 
 To try something here, copy it out of this folder, run it by hand first, and put any hook it needs in `log` mode before letting it block.

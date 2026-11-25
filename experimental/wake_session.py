@@ -21,7 +21,7 @@ def main():
     if len(a) < 2:
         sys.exit(__doc__)
     sid, msg = a[0], a[1]
-    home = Path(os.environ.get("SBK_HOME") or Path.home() / ".claude" / "sbk")
+    home = Path(os.environ.get("SBK_HOME") or Path.home() / ".sbk")
     log = home / "logs" / ("wake-" + sid[:12] + ".log")
     cmd = ["claude", "-p", "--resume", sid, msg]
     env = dict(os.environ)

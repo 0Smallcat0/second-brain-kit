@@ -57,17 +57,25 @@ def main():
         if inbox:
             parts.append("Inbox from the entry (%d new). Move each into task.md, then tick it "
                          "in the inbox file:\n%s" % (len(inbox), "\n".join(inbox)))
-        parts.append("task.md has %d open items." % len(tasks))
+        parts.append("task.md has %d open items. Report results to the entry (ledger.py done ... --evidence, "
+                     "and SendMessage to \"entry\" if it is running), never to the user directly." % len(tasks))
     else:
         ledger = home() / "ledger.md"
-        n = 0
+        n, done = 0, []
         try:
-            n = sum(1 for l in ledger.read_text(encoding="utf-8").splitlines()
-                    if re.match(r"^- L\d+ \| (open|dispatched)", l))
+            for l in ledger.read_text(encoding="utf-8").splitlines():
+                if re.match(r"^- L\d+ \| (open|dispatched)", l):
+                    n += 1
+                elif re.match(r"^- L\d+ \| done \|", l):
+                    done.append(l.strip()[:200])
         except Exception:
             pass
-        parts.append("Tracker (ledger.md): %d items not closed. Run ledger.py list, route each to a manager, "
-                     "and close only with evidence." % n)
+        parts.append("Tracker (ledger.md): %d items not closed. Run ledger.py list, route each to a topic "
+                     "session, and close only with evidence." % n)
+        if done:
+            parts.append("Done by a topic session, waiting for your check (%d). Open the evidence itself; if it "
+                         "holds, ledger.py verify Lxxxx --evidence \"what you opened\" and send the user one result "
+                         "message (the result itself, not a report):\n%s" % (len(done), "\n".join(done[:10])))
     text = "\n".join(parts)
     sig = hashlib.md5(text.encode("utf-8")).hexdigest()
     state = home() / "state" / ("inbox_" + role + "_" + str(name) + ".txt")

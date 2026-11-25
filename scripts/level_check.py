@@ -18,7 +18,7 @@ Triggers (docs/ADVANCED.md, "When Claude suggests it") are pain signals, not vol
     block_mode     stop_evidence has been in log mode >= 14 days, >= 20 flagged turns could be
                    judged (small samples mislead), and < 25% of them were false alarms (false
                    alarm = the user's next message did not report a problem)
-    multi_tool     the user said they have another AI tool account (config other_tools, from setup
+    multi_tool     the user said they have an outside resource (config outside_resources, from setup
                    or later); a mere mention of a tool in a conversation does not count
 Volume (open items, topics, compactions) is still counted and reported as supporting numbers,
 but never fires a trigger on its own.
@@ -49,7 +49,7 @@ MIN_JUDGED = 20
 PARTS = {"multi_session": "A1", "alarms": "A2", "block_mode": "A4", "multi_tool": "A5"}
 NAMES = {"multi_session": "topic sessions (one conversation per subject)",
          "alarms": "reminders", "block_mode": "the stricter done-check",
-         "multi_tool": "the guide for splitting work with your other AI tool"}
+         "multi_tool": "the table for splitting work with your outside resources"}
 
 LEDGER_LINE = re.compile(r"^- (L\d{4}) \| ([^|]+?) \| ([^|]+?) \| (.*?) \| ev: (.*)$")
 TOPIC = re.compile(r"^\s*\[([^\]]{1,40})\]")
@@ -79,8 +79,12 @@ SKIP_PREFIXES = ("<system-reminder>", "<command-", "<local-command", "<task-noti
 # ---------- small helpers ----------
 
 def sbk_home():
+    """Same rule as hooks/_common.home(): SBK_HOME, else ~/.sbk, else the pre-0.2.5 ~/.sbk."""
     env = os.environ.get("SBK_HOME")
-    return Path(env) if env else Path.home() / ".claude" / "sbk"
+    if env:
+        return Path(env)
+    new, old = Path.home() / ".sbk", Path.home() / ".claude" / "sbk"
+    return old if (not new.exists() and old.exists()) else new
 
 
 def projects_dir():
@@ -229,7 +233,7 @@ def ledger_facts(home, now):
         pass
     open_items, topics, overdue = 0, set(), []
     for lid, st, ts, text, ev in items:
-        if st in ("done", "dropped"):
+        if st in ("done", "dropped", "verified"):
             continue
         open_items += 1
         if st.startswith("dispatched:"):
@@ -419,7 +423,7 @@ def compute(now, state):
     read_history = cfg.get("read_history", True) is not False
     comp, remind, mixup = transcript_facts(vault, now) if read_history else (0, 0, 0)
     tools = set()
-    said = str(cfg.get("other_tools") or "").strip()
+    said = str(cfg.get("outside_resources") or cfg.get("other_tools") or "").strip()
     if said and not NO_TOOL.match(said):  # the user said they have one (setup question, or told Claude later)
         for m in TOOLS.finditer(said):
             tools.add((m.group(1) or m.group(2)).lower())
@@ -502,7 +506,7 @@ def hook_line(trigs, numbers):
     return ("[second-brain-kit weekly check] An upgrade would help: %s. In your first reply ask the user ONE "
             "yes/no question in their language whether to switch this on, quoting these numbers in plain "
             "words. Yes: follow docs/ADVANCED.md for that part and keep everything else. No: run "
-            "`python ~/.claude/sbk/bin/level_check.py --decline %s` (it will not ask again for %d days). "
+            "`python ~/.sbk/bin/level_check.py --decline %s` (it will not ask again for %d days). "
             "Never switch anything on without a yes." % (parts, " ".join(trigs), DECLINE_DAYS))
 
 

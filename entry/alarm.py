@@ -8,47 +8,44 @@
 
 Table rows:   | A01 | daily 21:00 | entry | text |
               | A02 | weekly mon 09:00 | study | text |
+              | M01 | weekly sun 20:00 | maintenance | text |
               | A03 | monthly 1 10:00 | maintenance | text |   (day 1-31; a short month uses its last day)
               | A04 | once 2030-01-31 18:00 | entry | text |
-Firing means writing, never talking: to "entry" it adds a tracker item (ledger.md), to a session
-(supervisor, maintenance or a topic) it adds a line to that session's inbox. The same unfinished
-alarm is never added twice, so a missed reply cannot make alarms pile up. Recurring rows that are
-more than 3 hours late are skipped (you were away); one-time rows fire late, marked "(late)".
+              | H01 | daily 21:30 | handover | long conversations: hand over to a fresh one |
+Firing first writes: to "entry" a tracker item (ledger.md), to a session (maintenance or a topic) a
+line in its inbox. The same unfinished alarm is never added twice, so a missed reply cannot make
+alarms pile up. Then, with live routing (config "routing": "live"), the work goes in at once: into
+the running session, or the session is started in the background (session.py, same path as the
+entry's routing). "handover" runs handover.py check (long conversations hand over to fresh ones).
 
-Wake-up (Full plan): <SBK_HOME>/config.json "wake" says whether sessions are started by the
-scheduler. {"supervisor": "manual"|"auto", "topics": "manual"|"auto"} ("topics" covers the
-maintenance session and the user's topics; the entry is never started, the user talks to it).
-manual (the default): nothing starts by itself; the inbox waits until the user opens the session.
-auto: on a tick, a session whose inbox has unticked lines is started in the background with
-`claude -p` in its folder (this uses the user's quota), at most once per 60 minutes per session.
-SBK_WAKE_DRYRUN=1 prints the command instead of running it.
+Cost: the tick itself reads local files and uses no Claude quota. Only starting or messaging a
+session does, so those are limited by config "wake_limits" {"per_day": N, "min_gap_min": M}: at most
+N per day in total and M minutes between two for the same session; over the limit the work simply
+waits in the inbox and a later tick (or the user opening the session) picks it up.
 
-Run it from the OS scheduler, for example every 5 minutes:
-    Windows:  schtasks /Create /SC MINUTE /MO 5 /TN sbk-alarm /TR "python <bin>/alarm.py --tick"
+Computer off or asleep: nothing runs then. At the next tick a recurring row that was missed fires
+once, marked "(late)", however many periods were missed; a one-time row fires late too. A row seen
+for the first time (just added) only fires if it is due within the last 10 minutes.
+
+Run it from the OS scheduler every 5 minutes (docs/ADVANCED.md A2 has the exact commands):
+    Windows:  Register-ScheduledTask ... -RepetitionInterval 5 minutes, with "start when available"
     Linux/macOS crontab:  */5 * * * * python3 <bin>/alarm.py --tick
 """
 import datetime
 import json
-import os
 import re
-import shutil
-import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import ledger  # noqa: E402
 import send  # noqa: E402
+import session  # noqa: E402
 
 DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
-LATE_LIMIT = datetime.timedelta(hours=3)
+LATE = datetime.timedelta(minutes=20)     # fired this much after its time: marked (late)
+FIRST_SIGHT = datetime.timedelta(minutes=10)
 MAX_ROWS = 20
-WAKE_GAP = datetime.timedelta(minutes=60)
-WAKE_TOOLS = "Read,Grep,Glob,Edit,Write,Bash(python:*),Bash(python3:*),Bash(py:*)"
-WAKE_PROMPT = ("Scheduled wake-up: auto-wake is on for this session. Follow this folder's CLAUDE.md. "
-               "Check the notes first, then take the unticked lines of your inbox, do them, and close each "
-               "tracker item with evidence (ledger.py done ... --evidence). Ask no questions: write down "
-               "what only the user can do as CLAUDE.md says, then stop.")
 
 
 def alarms_file():
@@ -87,18 +84,25 @@ def save_state(st):
     state_file().write_text(json.dumps(st, indent=1), encoding="utf-8")
 
 
+def _month_before(now, day):
+    prev = now.replace(day=1) - datetime.timedelta(days=1)
+    return prev.replace(day=min(day, prev.day))
+
+
 def due_time(when, now):
-    """Return (scheduled datetime for the current period, kind) or None if unreadable."""
+    """Return (latest scheduled datetime <= now, kind), or None if unreadable. "once" returns its time."""
     w = when.lower().split()
     try:
         if w[0] == "daily":
             hh, mm = map(int, w[1].split(":"))
-            return now.replace(hour=hh, minute=mm, second=0, microsecond=0), "daily"
+            t = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+            return (t if t <= now else t - datetime.timedelta(days=1)), "daily"
         if w[0] == "weekly":
             hh, mm = map(int, w[2].split(":"))
             day = DAYS.index(w[1][:3])
             base = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
-            return base - datetime.timedelta(days=(now.weekday() - day) % 7), "weekly"
+            t = base - datetime.timedelta(days=(now.weekday() - day) % 7)
+            return (t if t <= now else t - datetime.timedelta(days=7)), "weekly"
         if w[0] == "monthly":
             day = int(w[1])
             hh, mm = map(int, w[2].split(":"))
@@ -106,7 +110,10 @@ def due_time(when, now):
                 return None
             nxt = (now.replace(day=28) + datetime.timedelta(days=4)).replace(day=1)
             last = (nxt - datetime.timedelta(days=1)).day
-            return now.replace(day=min(day, last), hour=hh, minute=mm, second=0, microsecond=0), "monthly"
+            t = now.replace(day=min(day, last), hour=hh, minute=mm, second=0, microsecond=0)
+            if t > now:
+                t = _month_before(now, day).replace(hour=hh, minute=mm, second=0, microsecond=0)
+            return t, "monthly"
         if w[0] == "once":
             return datetime.datetime.strptime(w[1] + " " + w[2], "%Y-%m-%d %H:%M"), "once"
     except Exception:
@@ -114,82 +121,56 @@ def due_time(when, now):
     return None
 
 
-def fire(row, late=False):
+def fire(row, late=False, now=None):
     text = row["text"] + (" (late)" if late else "")
     tag = "[alarm %s] %s" % (row["id"], text)
-    if row["to"].lower() == "entry":
+    to = row["to"].lower()
+    if to == "handover":
+        import handover
+        return handover.check_all()
+    if to == "entry":
         head, items = ledger.load()
-        if any(i[3] == ledger.clean(tag) and i[1] not in ("done", "dropped") for i in items):
+        mark = "[alarm %s]" % row["id"]
+        if any(i[3].startswith(mark) and i[1] not in ledger.CLOSED for i in items):
             return "skipped (same alarm still open)"
         nxt = max([int(i[0][1:]) for i in items] + [0]) + 1
         items.append(["L%04d" % nxt, "open", ledger.now(), ledger.clean(tag), ""])
         ledger.save(head, items)
-        return "ledger L%04d" % nxt
+        res = "ledger L%04d" % nxt
+        if session.cfg().get("routing") == "live" and session.find("entry"):
+            res += ", " + session.deliver("entry", tag, "L%04d" % nxt, scheduled=True, now=now)
+        return res
     if not (send.home() / "managers" / row["to"]).is_dir():
-        return "no manager folder: " + row["to"]
-    added = send.deliver(row["to"], tag, "ALARM")
-    return "inbox of " + row["to"] if added else "skipped (same alarm still unticked)"
-
-
-def config():
+        return "no session folder: " + row["to"]
     try:
-        return json.loads((send.home() / "config.json").read_text(encoding="utf-8"))
+        inbox = (send.home() / "inbox" / (row["to"] + ".md")).read_text(encoding="utf-8").splitlines()
     except Exception:
-        return {}
+        inbox = []
+    if any(l.startswith("- [ ]") and ("[alarm %s]" % row["id"]) in l for l in inbox):
+        return "skipped (same alarm still unticked in the inbox of %s)" % row["to"]
+    return "inbox of %s: %s" % (row["to"], session.deliver(row["to"], tag, "ALARM", scheduled=True, now=now))
 
 
-def wake_mode(target, cfg):
-    """auto or manual for one session; anything unreadable is manual."""
-    if target.lower() == "entry":
-        return "manual"
-    w = cfg.get("wake") if isinstance(cfg.get("wake"), dict) else {}
-    val = w.get("supervisor" if target == "supervisor" else "topics", "manual")
-    return "auto" if val == "auto" else "manual"
-
-
-def unticked(target):
-    try:
-        text = (send.home() / "inbox" / (target + ".md")).read_text(encoding="utf-8")
-    except Exception:
-        return 0
-    return sum(1 for l in text.splitlines() if l.startswith("- [ ]"))
-
-
-def wake(now, st):
-    """Start sessions whose wake mode is auto and whose inbox has unticked lines."""
-    cfg = config()
+def drain(now):
+    """Live routing: a session with unticked inbox lines that is not running is started (within limits)."""
+    c = session.cfg()
     managers = send.home() / "managers"
-    if not managers.is_dir():
+    if (c.get("routing") != "live" and not session.dry()) or not managers.is_dir():
         return
-    for d in sorted(p for p in managers.iterdir() if p.is_dir()):
-        target = d.name
-        if wake_mode(target, cfg) != "auto" or not unticked(target):
+    waiting = [d.name for d in sorted(managers.iterdir()) if d.is_dir() and session.unticked(d.name)]
+    if not waiting:
+        return  # nothing waits: no claude call, no quota
+    rows = session.running()
+    for name in waiting:
+        if session.find(name, rows):
             continue
-        key = "wake:" + target
-        try:
-            last = datetime.datetime.strptime(st.get(key, ""), "%Y-%m-%dT%H:%M")
-            if now - last < WAKE_GAP:
-                continue
-        except ValueError:
-            pass
-        exe = shutil.which("claude")
-        cmd = [exe or "claude", "-p", "--permission-mode", "acceptEdits", "--name", target]
-        if cfg.get("vault"):
-            cmd += ["--add-dir", cfg["vault"]]
-        cmd += ["--allowedTools", WAKE_TOOLS, "--", WAKE_PROMPT]
-        if os.environ.get("SBK_WAKE_DRYRUN") == "1":
-            print("wake %s (dry run): %s" % (target, " ".join(cmd[:-1]) + ' "..."'))
-        elif not exe:
-            print("wake %s: claude command not found, the session waits until the user opens it" % target)
+        ok, why, st = session.wake_ok(name, c, now)
+        if not ok:
+            print("%s waits: %s" % (name, why))
             continue
-        else:
-            log = send.home() / "logs" / ("wake-" + target + ".log")
-            log.parent.mkdir(parents=True, exist_ok=True)
-            out = open(log, "ab")
-            subprocess.Popen(cmd, cwd=str(d), stdout=out, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
-                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-            print("wake %s: started, log %s" % (target, log))
-        st[key] = now.strftime("%Y-%m-%dT%H:%M")
+        rc = session.open_session(name, "Scheduled start: your inbox has %d unticked line(s)." % session.unticked(name))
+        if rc == 0:
+            session.count_wake(st, name, now)
 
 
 def tick(now):
@@ -204,15 +185,13 @@ def tick(now):
         key = sched.strftime("%Y-%m-%dT%H:%M")
         if now < sched or st.get(row["id"]) == key:
             continue
-        late = now - sched
-        if kind != "once" and late > LATE_LIMIT:
-            st[row["id"]] = key  # skip this period, do not fire hours later
-            print("%s: skipped, %s late" % (row["id"], late))
+        if row["id"] not in st and kind != "once" and now - sched > FIRST_SIGHT:
+            st[row["id"]] = key  # a row just added: start from its next time, do not fire a past one
             continue
-        print("%s: %s" % (row["id"], fire(row, late=late > datetime.timedelta(minutes=20) and kind == "once")))
+        print("%s: %s" % (row["id"], fire(row, late=now - sched > LATE, now=now)))
         st[row["id"]] = key
-    wake(now, st)
     save_state(st)
+    drain(now)
     if len(rows) > MAX_ROWS:
         print("WARNING: %d alarm rows. Alarms multiply; delete the ones nobody acts on." % len(rows))
 
@@ -227,8 +206,10 @@ def listing(now):
         if not res:
             print("     ^ cannot read the schedule")
     print("%d rows" % len(rows))
-    cfg = config()
-    print("wake: supervisor=%s topics=%s" % (wake_mode("supervisor", cfg), wake_mode("topics", cfg)))
+    c = session.cfg()
+    lim = c.get("wake_limits") or {}
+    print("routing: %s  sessions at once: %s  wake limits: %s/day, %s min apart" % (
+        c.get("routing", "inbox"), c.get("max_sessions", 2), lim.get("per_day", 4), lim.get("min_gap_min", 120)))
     if len(rows) > MAX_ROWS:
         print("WARNING: more than %d rows" % MAX_ROWS)
 
@@ -264,7 +245,7 @@ def main():
     elif "--fire" in a:
         rid = a[a.index("--fire") + 1]
         row = next((r for r in read_rows() if r["id"] == rid), None)
-        print(fire(row) if row else "no such alarm: " + rid)
+        print(fire(row, now=now) if row else "no such alarm: " + rid)
     else:
         sys.exit(__doc__)
 

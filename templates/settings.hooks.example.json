@@ -1,5 +1,5 @@
 {
-  "_comment": "Manual install only (not needed when you installed the plugin). Merge the \"hooks\" block into ~/.claude/settings.json and replace __KIT__ with the folder where the hook files were copied, for example /home/me/.claude/sbk/hooks. The sh wrapper picks python3, python or py.",
+  "_comment": "Manual install only (not needed when you installed the plugin). Merge the \"hooks\" block into ~/.claude/settings.json and replace __KIT__ with the folder where the hook files were copied, for example /home/me/.sbk/hooks. The sh wrapper picks python3, python or py.",
   "hooks": {
     "SessionStart": [
       {"matcher": "compact", "hooks": [{"type": "command", "command": "sh \"__KIT__/run.sh\" requests_reinject.py", "timeout": 10}]},

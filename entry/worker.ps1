@@ -24,7 +24,8 @@ param(
 $ErrorActionPreference = "Stop"
 if (-not (Test-Path -LiteralPath $Brief)) { throw "Brief not found: $Brief" }
 
-$logDir = Join-Path $HOME ".claude\sbk\logs"
+$sbk = if ($env:SBK_HOME) { $env:SBK_HOME } elseif ((-not (Test-Path (Join-Path $HOME ".sbk"))) -and (Test-Path (Join-Path $HOME ".claude\sbk"))) { Join-Path $HOME ".claude\sbk" } else { Join-Path $HOME ".sbk" }
+$logDir = Join-Path $sbk "logs"
 $log = Join-Path $logDir ("worker-" + $Name + ".log")
 $prompt = "Read $Brief in full and carry it out to the end. Work autonomously."
 $cliArgs = @("-p", "--model", $Model, "--effort", $Effort, "--permission-mode", "acceptEdits",

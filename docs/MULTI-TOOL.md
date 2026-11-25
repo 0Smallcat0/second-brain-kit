@@ -1,21 +1,40 @@
-# Reference: working with several AI tools
+# Reference: outside resources
 
-> **For the configuring Claude to consult. Not mandatory.** The default setup is ONE Claude account and nothing else. This is part of the Full plan ([ADVANCED.md](ADVANCED.md), A5). **No tool has a fixed role here:** models get better and cheaper all the time, so the kit only gives rules by kind of work; which tool does which kind of work is the user's own table (`~/.claude/sbk/channels.md`), filled by their Claude at install from the accounts they have and re-checked every month or when a new model comes out. Read only the lesson sections for tools the user said they have. Every lesson was measured or went wrong in real use, in one person's setup in 2026; re-measure before relying on it.
+> **For the configuring Claude to consult. Not mandatory.** The default setup is ONE Claude account and nothing else. This is part of the Full plan ([ADVANCED.md](ADVANCED.md), A5). "Outside resources" means everything the user has besides this Claude account: other AI, compute, credits and services. **No resource has a fixed role here:** models get better and cheaper all the time, so the kit only gives one rule and the kinds of work; which resource does which kind of work is the user's own table (`~/.sbk/channels.md`), filled by their Claude at install from what the user ticked and re-tested every month or when a new model comes out. Read only the lesson sections for resources the user has. Every lesson was measured or went wrong in real use, in one person's setup in 2026; re-measure before relying on it.
 
-## Ground rules for every extra tool
+## Outside resources: one table
+
+Setup asks one question with this list to tick (SETUP Step 0.2). Only ticked items go into `channels.md`; nothing unticked is ever assumed. Items marked 可免費申請 (free to sign up) are offered as a note; Claude explains how to sign up only if the user says so.
+
+| 類型 (type) | Examples | What it adds | Free to sign up |
+|---|---|---|---|
+| Other AI | a second Claude account, Codex (ChatGPT plan), ChatGPT web, Gemini web, Antigravity, Gemini API, OpenRouter | another pot of quota; a model that has not seen your plan | ChatGPT web and Gemini web: 可免費申請 |
+| Compute | Colab, Kaggle notebooks, a local GPU | a GPU or runtime for heavy jobs, in parallel with your own computer | Colab and Kaggle: 可免費申請 |
+| Credits and services | Azure for Students, GitHub Copilot (student offer), API credit | cloud runtime, another coding model, pay-as-you-go calls | Azure for Students and Copilot for students: 可免費申請 if the user is a student |
+
+## The one rule
+
+**Pick by kind of work the best resource the user has that still has quota, send it a task file, get a file back, and open that file yourself.** Everything below follows from it:
 
 1. **Split by kind of work, never by failure.** Decide in advance which jobs go where. Do not build "when account A hits its limit, silently continue on B": consumer terms forbid getting around usage limits, and it hides how much you really use.
-2. **Show the state where work is assigned.** If a tool can be locked out by quota (see Antigravity, Codex), keep a one-line status in `~/.claude/sbk/channels.md` (tool, what it is for, locked until) and look at it before sending work. A queue that silently stops is worse than no queue.
-3. **Send a task file, get a file back.** Every job is a task file (goal, inputs with full paths, output path, "not doing", how you will check it). The result is a file you open yourself; you do not trust "done" from the other tool (see `evidence-before-done`).
-4. **Personal data stays on the tools you trust with it.** Free tiers and third-party routers are for work that contains no credentials, no private records, nothing you would not post publicly.
-5. **Pick by kind of work, then by "best right now and has quota".** Name the kind of work first (table below), then use the tool that is currently best for it among the ones the user has and that still has quota. Do not hard-wire a model to a job: when a better or cheaper model comes out, the table changes, not the rules.
-6. **Ask a second opinion blind.** When you want another model's view on a direction, send only the requirements and the facts, not your own plan or preference, then compare. Otherwise it tends to agree with you.
+2. **Show the state where work is assigned.** If a resource can be locked out by quota (see Antigravity, Codex), keep a one-line status in `~/.sbk/channels.md` (resource, what it is for, locked until) and look at it before sending work. A queue that silently stops is worse than no queue.
+3. **Send a task file, get a file back.** Every job is a task file (goal, inputs with full paths, output path, "not doing", how you will check it). The result is a file you open yourself; you do not trust "done" from the other side (see `evidence-before-done`).
+4. **Personal data stays on the resources you trust with it.** Free tiers and third-party routers are for work that contains no credentials, no private records, nothing you would not post publicly.
+5. **Best right now, not fixed.** Do not hard-wire a model to a job: when a better or cheaper model comes out, the table changes, not the rule.
+6. **Ask a second opinion blind.** Before deciding a direction, other models see only the requirements and the facts, never your plan or preference; then compare. A plan shown first already carries its blind spots into the review.
+
+## With one Claude account only
+
+No outside resources is the normal case. The same kinds of work are still split, inside the one account:
+- **Mechanical batch:** a subagent on a cheaper Claude model (for example Haiku) with low effort, given a task file.
+- **Independent review:** a fresh subagent that is given only the requirements, the facts and the finished work, never the original answer or the conversation that produced it.
+- **Heavy compute:** only what the user ticked (a local GPU, Colab, Kaggle); with none, say plainly that the job is too heavy for this computer and offer a smaller version.
 
 ## Kinds of work
 
 General rules only. The concrete "which tool now" goes in the user's `channels.md`.
 
-| Kind of work | Examples | What makes a tool the best choice right now |
+| Kind of work | Examples | What makes a resource the best choice right now |
 |---|---|---|
 | Mechanical batch | move or rename files, bulk edits, scan and compare, run scripts and wait, upload and read back | Reliable at following a task file exactly; cheapest per job; its own quota, so the main conversation is not slowed. Low reasoning effort. |
 | Judgement | decisions, anything other people will read, hard debugging, anything personal | The strongest model the user has, with the conversation's context, on an account trusted with private data. |
@@ -25,13 +44,13 @@ General rules only. The concrete "which tool now" goes in the user's `channels.m
 
 ## Filling and re-checking the table
 
-- **At install (A5):** for each kind of work, write in `channels.md` the tool the user has that is best for it now, with one line of why and today's date. A kind with no extra tool stays on Claude. Only accounts the user said they have.
-- **Every month (Full: alarm row `T01 | monthly 1 10:00 | maintenance | ...`) and whenever the user says a new model came out:** the maintenance session re-checks each row - what each of the user's tools offers now (the providers' own model and pricing pages), whether a newer model is better or cheaper for that kind of work, which accounts still exist and have quota - updates the rows that changed and closes the tracker item with what it looked at.
+- **At install (A5):** for each resource the user ticked, add a row to "What the user has" (類型, resource, plan, how to call, limits) and run one tiny real job to test it. Then for each kind of work, write in `channels.md` the resource that is best for it now, with one line of why and today's date. A kind with no outside resource stays on Claude (see "With one Claude account only"). Only what the user ticked.
+- **Every month (Full: alarm row `T01 | monthly 1 10:00 | maintenance | ...`) and whenever the user says a new model came out:** the maintenance session re-tests each resource with one tiny job and re-checks each row - what each of the user's resources offers now (the providers' own model and pricing pages), whether a newer model is better or cheaper for that kind of work, which accounts still exist and have quota - updates the rows that changed and closes the tracker item with what it looked at.
 - **When sending a job:** read the row for its kind, check "locked until"; if that tool is locked or out of quota, pick the next best one on purpose and say so. Never switch silently.
 
-## Lessons from specific tools
+## Lessons from specific resources
 
-Measured or seen in one setup in 2026. They are notes on how each tool behaves, not roles: what a tool is "good for" changes with every model release, so decide with the table above.
+Measured or seen in one setup in 2026. They are notes on how each resource behaves, not roles: what a resource is "good for" changes with every model release, so decide with the tables above.
 
 ## Second Claude account (quota pool)
 
@@ -72,13 +91,14 @@ Measured or seen in one setup in 2026. They are notes on how each tool behaves, 
   - One large table was sent again and again (7+ times) and used about half of a month's budget. Send only what changed since the last call; keep the stable part in a file and refer to it.
   - Set a spending cap on the account before the first call.
 
-## Colab or a local GPU
+## Colab, Kaggle or a local GPU
 
 - **What it adds:** a second GPU running in parallel with your own.
 - **Lessons:**
   - The free T4 was not faster than a laptop RTX 4060 for the same model (118 ms/step versus 103.5 ms/step). Colab's value is running a second job at the same time, not running one job faster.
   - An idle runtime disconnected after about 80 minutes and everything in `/content` was lost. Write checkpoints and outputs to Google Drive from the start, and copy results back before you walk away.
   - Keep the run script and the data on Drive so a new runtime can resume.
+  - Kaggle notebooks give a weekly GPU allowance; check the remaining hours on the account page before queuing a job (not measured in this setup).
 
 ## OpenRouter free models
 
@@ -94,10 +114,14 @@ Measured or seen in one setup in 2026. They are notes on how each tool behaves, 
 
 - Free, takes two minutes. Write the requirements and facts in a file, give no hint of your own answer, and ask for their approach. Compare with yours; where they differ, work out why before choosing. Use it for direction-setting, not for routine work.
 
-## Enabling a tool (for the configuring Claude)
+## Azure for Students, Copilot, API credit
 
-For each tool the user has, and only those:
-1. Add the account to `~/.claude/sbk/channels.md` ("Accounts the user has"): tool, account or plan, how to call it, "locked until" (empty at first).
-2. Fill "Kind of work -> tool now" for every kind (see "Filling and re-checking the table"); a kind with no better tool stays on Claude.
-3. Run one tiny real job end to end (a task file that asks for one line written to a file) and open the file. Only then tell the user it works.
-4. Full: add the monthly re-check row `| T01 | monthly 1 10:00 | maintenance | Re-check channels.md: best tool per kind of work, new models, quota |` to `alarms.md` (create it from the template if missing).
+- Not measured in this setup. Treat them like any other row: a tiny real job first, the remaining credit or limit written in `channels.md`, and a spending cap set before the first paid call.
+
+## Enabling a resource (for the configuring Claude)
+
+For each resource the user ticked, and only those:
+1. Add it to `~/.sbk/channels.md` ("What the user has"): 類型, resource, account or plan, how to call it, limits or "locked until" (empty at first).
+2. Fill "Kind of work -> resource now" for every kind (see "Filling and re-checking the table"); a kind with no better resource stays on Claude.
+3. Run one tiny real job end to end (a task file that asks for one line written to a file) and open the file. Only then tell the user it works, and write the date in "tested on".
+4. Full: keep the monthly re-check row `| T01 | monthly 1 10:00 | maintenance | Re-check the outside resources table (channels.md): only what the user has |` in `alarms.md` (create it from the template if missing).

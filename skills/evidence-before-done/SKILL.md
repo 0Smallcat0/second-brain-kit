@@ -7,7 +7,7 @@ description: Before telling the user that something is finished, fixed, sent, sa
 
 "Done" means the user can rely on it without checking. A tool saying "success" is not looking at the result.
 
-Who the evidence is for: the sessions that check the work, not the user. It goes into the tracker (`ledger.py done <id> --evidence "..."`), where a later session (in Basic) or the entry and the supervisor (in Full) open it and check it. The user sees only the result.
+Who the evidence is for: the sessions that check the work, not the user. It goes into the tracker (`ledger.py done <id> --evidence "..."`), where a later session (in Basic) or the entry (in Full, before it marks the item verified; Maintenance re-opens a sample each week) opens it and checks it. The user sees only the result.
 
 ## The check, by kind of work
 

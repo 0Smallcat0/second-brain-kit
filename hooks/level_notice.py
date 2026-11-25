@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """SessionStart hook: the weekly upgrade check (scripts/level_check.py --hook).
 
-At most once per 7 days, and only in a session inside the notes folder (or ~/.claude/sbk), it
+At most once per 7 days, and only in a session inside the notes folder (or ~/.sbk), it
 computes the pain-signal triggers in docs/ADVANCED.md. If one holds, it adds one line of context
 asking Claude to offer that part to the user as a single yes/no question with the numbers. It
 never switches anything on. Mode: config.json "modes": {"level_notice": "warn"} (default; "off"
 silences it). Fails open.
 
 level_check.py is looked for next to the kit's hooks (../scripts, plugin or clone) and then in
-~/.claude/sbk/bin (where setup copies it).
+~/.sbk/bin (where setup copies it).
 """
 import importlib.util
 import sys

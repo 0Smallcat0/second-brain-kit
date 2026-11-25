@@ -12,9 +12,15 @@ MODES = {"off", "log", "warn", "ask", "deny", "block"}
 
 
 def home():
-    """Runtime folder: tracker (ledger.md), alarms, routes, inbox, logs. Override with SBK_HOME."""
+    """Runtime folder: tracker (ledger.md), alarms, routes, inbox, logs. Override with SBK_HOME.
+    Default ~/.sbk. Before 0.2.5 it was ~/.claude/sbk; that folder is still used while ~/.sbk does not
+    exist. Claude Code does not let Claude's own file tools write inside a .claude folder without asking,
+    so a background session there could not even write its task.md."""
     env = os.environ.get("SBK_HOME")
-    return Path(env) if env else Path.home() / ".claude" / "sbk"
+    if env:
+        return Path(env)
+    new, old = Path.home() / ".sbk", Path.home() / ".claude" / "sbk"
+    return old if (not new.exists() and old.exists()) else new
 
 
 def read_input():
@@ -142,3 +148,14 @@ def assistant_blocks(rec):
         return []
     content = (rec.get("message") or {}).get("content")
     return [b for b in content if isinstance(b, dict)] if isinstance(content, list) else []
+
+
+def conversation_tokens(path):
+    """Tokens a conversation carries now: the usage of its last assistant reply (0 if unknown)."""
+    last = 0
+    for rec in iter_records(path):
+        u = (rec.get("message") or {}).get("usage") if rec.get("type") == "assistant" else None
+        if isinstance(u, dict):
+            last = sum(int(u.get(k) or 0) for k in ("input_tokens", "cache_read_input_tokens",
+                                                     "cache_creation_input_tokens", "output_tokens"))
+    return last

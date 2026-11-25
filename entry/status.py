@@ -3,7 +3,7 @@
 
     status.py [--all]     (--all also lists every open task line, not just the first 5 per file)
 
-Reads <SBK_HOME> (default ~/.claude/sbk): <SBK_HOME>/task.md (Basic: one large job), entry/ and
+Reads <SBK_HOME> (default ~/.sbk): <SBK_HOME>/task.md (Basic: one large job), entry/ and
 managers/*/task.md (Full). Extra task.md files can be listed in
 <SBK_HOME>/config.json as  {"task_files": ["/path/to/task.md"]}.
 """
@@ -33,7 +33,7 @@ def main():
     home = send.home()
     print("== Ledger ==")
     _, items = ledger.load()
-    live = [i for i in items if i[1] not in ("done", "dropped")]
+    live = [i for i in items if i[1] not in ledger.CLOSED]
     if not live:
         print("  nothing open")
     for lid, st, ts, text, _ in live:

@@ -12,7 +12,8 @@ brief="$1"; name="${2:-job}"; model="${3:-sonnet}"; effort="${4:-medium}"
 [ -f "$brief" ] || { echo "Brief not found: $brief" >&2; exit 1; }
 [ -n "$SBK_CONFIG_DIR" ] && export CLAUDE_CONFIG_DIR="$SBK_CONFIG_DIR"
 unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY   # they would override the chosen login
-logdir="${HOME}/.claude/sbk/logs"; log="$logdir/worker-$name.log"
+sbk="${SBK_HOME:-$HOME/.sbk}"; [ -z "$SBK_HOME" ] && [ ! -e "$HOME/.sbk" ] && [ -d "$HOME/.claude/sbk" ] && sbk="$HOME/.claude/sbk"
+logdir="$sbk/logs"; log="$logdir/worker-$name.log"
 chrome=""; [ "$SBK_CHROME" = "1" ] && chrome="--chrome"
 prompt="Read $brief in full and carry it out to the end. Work autonomously."
 if [ "$SBK_DRYRUN" = "1" ]; then

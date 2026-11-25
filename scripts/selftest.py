@@ -449,49 +449,183 @@ def main():
         rc, out, err = run([A, "--prune"], env=env)
         check("alarm: prune removes fired one-time rows", "removed 1" in out, out + err)
 
-        # ---- Full plan: monthly rows and the wake choice (config "wake", honoured by alarm.py) ----
+        # ---- Full plan: maintenance, monthly rows, computer off, live routing (session.py), wake limits ----
         hw = tmp / "home-wake"
-        for d in ("supervisor", "maintenance", "study"):
+        for d in ("maintenance", "study", "work"):
             (hw / "managers" / d).mkdir(parents=True)
         (hw / "alarms.md").write_text(
             "| id | when | to | text |\n|---|---|---|---|\n"
-            "| S01 | daily 21:00 | supervisor | check the entry and every topic |\n"
-            "| T01 | monthly 31 10:00 | maintenance | re-check the AI tool table |\n", encoding="utf-8")
+            "| M01 | weekly sun 20:00 | maintenance | weekly review: learning loop |\n"
+            "| T01 | monthly 31 10:00 | maintenance | re-check the outside resources table |\n"
+            "| H01 | daily 21:30 | handover | long conversations: hand over |\n", encoding="utf-8")
         tcfg = json.loads((KIT / "templates" / "config.json").read_text(encoding="utf-8"))
         (hw / "config.json").write_text(json.dumps(tcfg), encoding="utf-8")
-        envw = {"SBK_HOME": str(hw), "SBK_VAULT": "", "ANTHROPIC_API_KEY": "", "SBK_WAKE_DRYRUN": "1"}
-        rc, out, err = run([A, "--tick", "--now", "2026-11-29T21:01"], env=envw)
-        check("alarm: supervisor row lands in the supervisor inbox", "S01: inbox of supervisor" in out
-              and "check the entry" in (hw / "inbox" / "supervisor.md").read_text(encoding="utf-8"), out + err)
-        check("wake: template default is manual, nothing is started", rc == 0 and "wake" not in out, out + err)
-        rc, out, err = run([A, "--tick", "--now", "2026-11-29T10:05"], env=envw)
-        check("alarm: monthly 31 in a 30-day month waits for day 30", "T01" not in out, out + err)
+        agents = tmp / "agents.json"
+        agents.write_text("[]", encoding="utf-8")
+        cdir = tmp / "cfgdir"
+        (cdir / "projects" / "p").mkdir(parents=True)
+        envw = {"SBK_HOME": str(hw), "SBK_VAULT": "", "ANTHROPIC_API_KEY": "", "SBK_AGENTS_JSON": str(agents),
+                "CLAUDE_CONFIG_DIR": str(cdir)}
+        rc, out, err = run([A, "--tick", "--now", "2026-11-29T20:01"], env=envw)  # a Sunday
+        check("alarm: Sunday review row lands in the maintenance inbox (routing inbox: nothing started)",
+              "M01: inbox of maintenance: inbox only" in out
+              and "weekly review" in (hw / "inbox" / "maintenance.md").read_text(encoding="utf-8"), out + err)
+        check("alarm: rows seen for the first time with a past time wait for their next time",
+              "T01" not in out and "H01" not in out, out + err)
         rc, out, err = run([A, "--tick", "--now", "2026-11-30T10:05"], env=envw)
         check("alarm: monthly 31 fires on the last day of a 30-day month", "T01: inbox of maintenance" in out, out + err)
+        check("alarm: handover row runs handover.py check", "H01: no background sessions" in out, out + err)
         rc, out, err = run([A, "--tick", "--now", "2026-12-15T10:05"], env=envw)
         check("alarm: monthly row does not fire mid-month", "T01" not in out, out + err)
+        check("alarm: a missed weekly row with its line still unticked is not added again",
+              "M01: skipped (same alarm still unticked" in out, out + err)
+        mi = hw / "inbox" / "maintenance.md"
+        mi.write_text(mi.read_text(encoding="utf-8").replace("- [ ]", "- [x]"), encoding="utf-8")
+        # computer off from Tuesday 12-15 to Monday 12-21 08:00: the Sunday row fires once, late
+        rc, out, err = run([A, "--tick", "--now", "2026-12-21T08:00"], env=envw)
+        mtext = mi.read_text(encoding="utf-8")
+        check("alarm: computer off over Sunday -> the weekly row fires once at the next tick, marked late",
+              out.count("M01:") == 1 and "weekly review: learning loop (late)" in mtext
+              and mtext.count("- [ ]") == 1, out + err + mtext)
+        rc, out, err = run([A, "--tick", "--now", "2026-12-21T08:05"], env=envw)
+        check("alarm: ... and not again on the next tick", "M01" not in out, out + err)
+        # live routing, dry run: the tick starts sessions with waiting work, within the plan's limits
+        S = KIT / "entry" / "session.py"
+        envl = dict(envw, SBK_SESSION_DRYRUN="1")
+        (hw / "config.json").write_text(json.dumps(dict(tcfg, routing="live", vault=str(vault),
+                                                         wake_limits={"per_day": 2, "min_gap_min": 120})), encoding="utf-8")
         (hw / "inbox" / "study.md").write_text("- [ ] L0009 | x | read chapter 4\n", encoding="utf-8")
-        (hw / "config.json").write_text(json.dumps(dict(tcfg, plan="max", vault=str(vault),
-                                                         wake={"supervisor": "auto", "topics": "manual"})), encoding="utf-8")
-        rc, out, err = run([A, "--tick", "--now", "2026-12-15T10:10"], env=envw)
-        check("wake: supervisor auto -> started with claude -p in the background", "wake supervisor (dry run): " in out
-              and " -p " in out and "--add-dir" in out, out + err)
-        check("wake: topics manual -> topics with open inbox lines stay closed",
-              "wake study" not in out and "wake maintenance" not in out, out + err)
-        rc, out, err = run([A, "--tick", "--now", "2026-12-15T10:40"], env=envw)
-        check("wake: at most once per hour per session", "wake supervisor" not in out, out + err)
-        (hw / "config.json").write_text(json.dumps(dict(tcfg, wake={"supervisor": "auto", "topics": "auto"})), encoding="utf-8")
-        rc, out, err = run([A, "--tick", "--now", "2026-12-15T11:20"], env=envw)
-        check("wake: topics auto -> study and maintenance started too", "wake study" in out and "wake maintenance" in out
-              and "wake supervisor" in out, out + err)
+        rc, out, err = run([A, "--tick", "--now", "2026-12-21T09:00"], env=envl)
+        check("routing: tick starts a session with waiting work in the background (claude --bg, accepts messages)",
+              "claude --bg -n study" in out and "crossSessionInbound" in out and "--add-dir" in out
+              and "opened study" in out and "opened maintenance" in out, out + err)
+        check("routing: background sessions never wait at a permission prompt (dontAsk; python allowed in Bash and PowerShell)",
+              "--permission-mode dontAsk" in out and "acceptEdits" not in out
+              and "PowerShell(python:*)" in S.read_text(encoding="utf-8"), out + err)
+        rc, out, err = run([A, "--tick", "--now", "2026-12-21T09:30"], env=envl)
+        check("wake limits: the daily cap stops further starts; the work waits in the inbox",
+              "study waits: daily limit 2 reached" in out and "claude --bg" not in out, out + err)
+        rc, out, err = run([A, "--tick", "--now", "2026-12-22T09:05"], env=envl)
+        check("wake limits: a new day starts again", "opened study" in out, out + err)
+        (hw / "config.json").write_text(json.dumps(dict(tcfg, routing="live", vault=str(vault),
+                                                         wake_limits={"per_day": 20, "min_gap_min": 120})), encoding="utf-8")
+        rc, out, err = run([A, "--tick", "--now", "2026-12-22T10:00"], env=envl)
+        check("wake limits: at most one start per session per minimum gap",
+              "study waits: woken less than 120 minutes ago" in out and "claude --bg" not in out, out + err)
         (hw / "inbox" / "study.md").write_text("- [x] L0009 | x | read chapter 4\n", encoding="utf-8")
-        rc, out, err = run([A, "--tick", "--now", "2026-12-15T12:30"], env=envw)
-        check("wake: an inbox with nothing unticked is not started", "wake study" not in out, out + err)
-        (hw / "config.json").write_text(json.dumps(dict(tcfg, wake="garbage")), encoding="utf-8")
-        rc, out, err = run([A, "--tick", "--now", "2026-12-15T14:30"], env=envw)
-        check("wake: unreadable wake setting counts as manual", rc == 0 and "wake" not in out, out + err)
-        rc, out, err = run([A, "--list"], env=envw)
-        check("alarm --list shows the wake choice", "wake: supervisor=manual topics=manual" in out, out + err)
+        mi.write_text(mi.read_text(encoding="utf-8").replace("- [ ]", "- [x]"), encoding="utf-8")
+        rc, out, err = run([A, "--tick", "--now", "2026-12-22T14:00"], env=envl)
+        check("routing: nothing waiting -> nothing started (the tick uses no quota)", "claude" not in out, out + err)
+        rc, out, err = run([A, "--list"], env=envl)
+        check("alarm --list shows routing, session cap and wake limits",
+              "routing: live" in out and "sessions at once: 2" in out and "20/day, 120 min apart" in out, out + err)
+
+        def ag(*rows):
+            agents.write_text(json.dumps([{"pid": 100 + i, "id": "id%d" % i, "name": n, "status": st, "kind": "background",
+                                           "cwd": str(hw / "managers" / n), "startedAt": i, "sessionId": "sess-" + n}
+                                          for i, (n, st) in enumerate(rows)]), encoding="utf-8")
+        ag(("study", "idle"))
+        rc, out, err = run([S, "deliver", "study", "summarise chapter 5"], env=envl)
+        check("routing: work for a running session is pushed into it (inbox line first)",
+              "study: pushed" in out and "--model haiku" in out
+              and "summarise chapter 5" in (hw / "inbox" / "study.md").read_text(encoding="utf-8"), out + err)
+        ag(("study", "busy"), ("maintenance", "busy"))
+        rc, out, err = run([S, "open", "work"], env=envl)
+        check("session cap: Pro allows 2 at once; with both busy a third waits in its inbox (exit 3)",
+              rc == 3 and "CAP: 2 of 2" in out, out + err)
+        ag(("study", "busy"), ("maintenance", "idle"))
+        rc, out, err = run([S, "open", "work"], env=envl)
+        check("session cap: an idle session with nothing waiting is stopped to make room",
+              rc == 0 and "claude stop id1" in out and "claude --bg -n work" in out, out + err)
+        ag(("study", "idle"))
+        agents_other = json.loads(agents.read_text(encoding="utf-8"))
+        agents_other[0]["cwd"] = str(tmp)
+        agents.write_text(json.dumps(agents_other), encoding="utf-8")
+        rc, out, err = run([S, "list"], env=envl)
+        check("session list: a session with the same name outside the kit folder is not ours",
+              "no kit sessions running" in out, out + err)
+        (hw / "config.json").write_text(json.dumps(tcfg), encoding="utf-8")
+        rc, out, err = run([S, "deliver", "study", "outline essay"], env=envw)
+        check("routing inbox (fallback): the line waits in the inbox and says which session to open",
+              "inbox only (open study" in out and "outline essay" in (hw / "inbox" / "study.md").read_text(encoding="utf-8"), out + err)
+        # hand-over of long background conversations (handover.py), dry run
+        HO = KIT / "entry" / "handover.py"
+
+        def usage(n):
+            return {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "ok"}],
+                                                     "usage": {"input_tokens": 10, "cache_read_input_tokens": n - 20,
+                                                               "cache_creation_input_tokens": 5, "output_tokens": 5}}}
+        ag(("study", "idle"), ("work", "idle"))
+        jl(cdir / "projects" / "p" / "sess-study.jsonl", [user("plan my week, exams first"), usage(160000)])
+        jl(cdir / "projects" / "p" / "sess-work.jsonl", [user("hi"), usage(40000)])
+        rc, out, err = run([HO, "check"], env=envl)
+        check("handover: above 150k and idle -> handed over; under it -> left alone",
+              "RENEWED (dry run): study" in out and "work 40k (under 150k)" in out, out + err)
+        ag(("study", "busy"))
+        rc, out, err = run([HO, "check"], env=envl)
+        check("handover: a busy session is not interrupted (BUSY, retried later)", "BUSY: study" in out, out + err)
+        wf = tmp / "words.md"
+        peer = lambda body: {"type": "user", "isMeta": True, "origin": {"kind": "peer", "name": "state-49", "body": body},
+                             "message": {"role": "user", "content": "Another Claude session sent a message: <cross-session-message>"
+                                         + body + "</cross-session-message>"}}
+        jl(cdir / "projects" / "p" / "sess-study.jsonl", [user("You are the study session of second-brain-kit, started in the background. Follow"),
+                                                          user("plan my week, exams first"),
+                                                          peer("New work in your inbox (L0001): read chapter 5"),
+                                                          peer("Hand-over before this conversation is replaced by a fresh one (handover.py). x"),
+                                                          usage(160000)])
+        rc, out, err = run([HO, "words", cdir / "projects" / "p" / "sess-study.jsonl", wf], env=envl)
+        wt = wf.read_text(encoding="utf-8")
+        check("handover: the user's words are copied out verbatim; messages from the entry are kept apart (real peer format)",
+              "1. plan my week, exams first" in wt and "- New work in your inbox (L0001): read chapter 5" in wt
+              and "2. " not in wt and "Hand-over before" not in wt
+              and "- You are the study session of second-brain-kit" in wt and "1 user messages" in out, out + err + wt)
+        # hand-over notice for a conversation in a window (Basic main, entry)
+        tt = tmp / "long.jsonl"
+        jl(tt, [user("keep the budget under 200"), usage(170000)])
+        evh = {"session_id": "w1", "hook_event_name": "UserPromptSubmit", "transcript_path": str(tt)}
+        rc, out, _ = run([H / "requests_reinject.py"], evh, envw)
+        check("hook requests_reinject: above the threshold tells Claude to hand over and the user to say continue",
+              "hand over" in out and "continue" in out and "task.md" in out, out)
+        rc, out, _ = run([H / "requests_reinject.py"], evh, envw)
+        check("hook requests_reinject: the hand-over notice comes once per 50k", out.strip() == "", out)
+        jl(tt, [user("hi"), usage(20000)])
+        rc, out, _ = run([H / "requests_reinject.py"], dict(evh, session_id="w2"), envw)
+        check("hook requests_reinject: quiet below the threshold", out.strip() == "", out)
+        # learning loop numbers (learn.py)
+        LE = KIT / "entry" / "learn.py"
+        lv = tmp / "lvault2"
+        ln = lv / "00-09 系統與索引" / "03 和 AI 協作" / "03-01 和 AI 協作.md"
+        ln.parent.mkdir(parents=True)
+        ln.write_text((KIT / "templates" / "和AI協作.md").read_text(encoding="utf-8"), encoding="utf-8")
+        envle = dict(envw, SBK_VAULT=str(lv))
+        rc, out, err = run([LE, "add", "糾正", "沒驗證就說做完", "你根本沒打開檔案看", "--now", "2026-12-14"], env=envle)
+        check("learn: add writes one dated line with the user's words", rc == 0 and "- 2026-12-14 | 糾正 | 沒驗證就說做完 | 「你根本沒打開檔案看」" in ln.read_text(encoding="utf-8"), out + err)
+        with open(ln, "a", encoding="utf-8") as f:
+            f.write("- 2026-12-16 | 糾正 | 沒驗證就說做完 | 「又沒開」\n- 2026-12-18 | 糾正 | 回太長 | 「短一點」\n"
+                    "- 2026-12-19 | 糾正 | 沒驗證就說做完 | 「第三次」\n- 2026-12-19 | 做對 | 先查筆記再答 | 「對」\n")
+        rc, out, err = run([LE, "trend", "--now", "2026-12-21"], env=envle)
+        check("learn: trend line compares this week with last week and names kinds that came back",
+              "3 corrections (last week 1, up), 1 confirmations" in out and "沒驗證就說做完 x3" in out
+              and "被糾正 3 次（上週 1" in out and "hook candidates" in out, out + err)
+        # tracker: the entry's processing step and its check of the evidence
+        rc, out, err = run([L, "add", "summarise chapter 6", "--done-when", "one page in the notes", "--said", "幫我整理第六章"], env=env)
+        lid6 = out.strip()
+        lt = (home / "ledger.md").read_text(encoding="utf-8")
+        check("ledger: a line keeps the goal, done-when and the user's words verbatim",
+              "summarise chapter 6; done when: one page in the notes; said: \"幫我整理第六章\"" in lt, lt[-300:])
+        rc, out, err = run([L, "edit", lid6, "summarise chapters 6 and 7", "--done-when", "two pages", "--said", "還有第七章"], env=env)
+        lt = (home / "ledger.md").read_text(encoding="utf-8")
+        check("ledger: a correction edits the old line, keeping the earlier words and adding the new ones",
+              rc == 0 and "summarise chapters 6 and 7; done when: two pages; said: \"幫我整理第六章\" / \"還有第七章\"" in lt
+              and "summarise chapter 6;" not in lt, out + err + lt[-300:])
+        run([L, "done", lid6, "--evidence", "notes/21-06 chapter 6-7.md written, 2 pages"], env=env)
+        rc, out, _ = run([H / "inbox_notice.py"], {"cwd": str(home / "entry"), "hook_event_name": "SessionStart"},
+                         dict(env, SBK_MODE_INBOX_NOTICE="warn"))
+        check("inbox: the entry sees items a topic closed, waiting for its own check",
+              "waiting for your check (" in out and lid6 in out, out)
+        rc, out, err = run([L, "verify", lid6, "--evidence", "opened 21-06, both chapters there"], env=env)
+        check("ledger: verify closes it after the entry opened the evidence",
+              rc == 0 and ("- %s | verified |" % lid6) in (home / "ledger.md").read_text(encoding="utf-8"), out + err)
         (home / "task.md").write_text("# big job\n- [ ] step one\n- [ ] step two\n- [x] step zero\n", encoding="utf-8")
         rc, out, err = run([KIT / "entry" / "status.py", "--all"], env=env)
         check("status: lists ledger, tasks, inbox", "== Ledger ==" in out and "study: 1 open" in out and "study: 1" in out, out + err)
@@ -499,8 +633,10 @@ def main():
 
         # ---- the Basic config that setup writes (templates/config.json) ----
         cfg = json.loads((KIT / "templates" / "config.json").read_text(encoding="utf-8"))
-        check("config template: plan empty until asked, every session wakes manually by default",
-              cfg.get("plan") == "" and cfg.get("wake") == {"supervisor": "manual", "topics": "manual"}, cfg)
+        check("config template: plan empty until asked; Pro starting values for sessions, wakes and hand-over",
+              cfg.get("plan") == "" and "wake" not in cfg and cfg.get("routing") == "inbox" and cfg.get("max_sessions") == 2
+              and cfg.get("wake_limits") == {"per_day": 4, "min_gap_min": 120} and cfg.get("handover_tokens") == 150000
+              and "outside_resources" in cfg and "other_tools" not in cfg, cfg)
         check("config template: Basic level, history not read until the user says yes, modes", cfg.get("level") == "basic" and cfg.get("read_history") is False and cfg["modes"] == {
             "vault_guard": "ask", "read_whole": "deny", "requests_reinject": "warn",
             "stop_evidence": "log", "usage_warn": "off", "inbox_notice": "off", "level_notice": "warn"}, cfg)
@@ -596,6 +732,9 @@ def main():
             (v2 / "CLAUDE.md").write_text("@AGENTS.md\n", encoding="utf-8")
             put(T / "筆記格式.md", rules / "01-01 筆記格式.md")
             put(T / "todo-for-me.md", inbox / "02-02 我要做的事.md")
+            learn_dir = v2 / "00-09 系統與索引" / "03 和 AI 協作"
+            learn_dir.mkdir(parents=True, exist_ok=True)
+            put(T / "和AI協作.md", learn_dir / "03-01 和 AI 協作.md")
             (inbox / "02-01 收件匣.md").write_text(
                 "---\ntype: log\nstatus: active\nsummary: 還沒歸位的東西先放這裡\ncreated: %s\nmodified: %s\n"
                 "origin: agent-drafted\n---\n\n還沒歸位的東西先放這裡。\n" % (today, today), encoding="utf-8")
@@ -693,20 +832,43 @@ def main():
         check("readme: short Basic and Full table, linked to the full one",
               "| | Basic | Full |" in (KIT / "README.md").read_text(encoding="utf-8") and "ADVANCED.md#basic-and-full" in (KIT / "README.md").read_text(encoding="utf-8")
               and "| | 基本款 | 完整款 |" in (KIT / "README.zh-TW.md").read_text(encoding="utf-8") and "#基本款和完整款" in (KIT / "README.zh-TW.md").read_text(encoding="utf-8"))
-        check("full: three fixed sessions have templates and routes rows",
-              (KIT / "templates" / "supervisor-CLAUDE.md").exists() and (KIT / "templates" / "maintenance-CLAUDE.md").exists()
-              and all(w in (KIT / "templates" / "routes.md").read_text(encoding="utf-8") for w in ("supervisor", "maintenance"))
-              and all(w in (KIT / "templates" / "entry-CLAUDE.md").read_text(encoding="utf-8") for w in ("supervisor", "maintenance")))
+        check("full: two fixed sessions (entry, maintenance), no supervisor template",
+              not (KIT / "templates" / "supervisor-CLAUDE.md").exists() and (KIT / "templates" / "maintenance-CLAUDE.md").exists()
+              and (KIT / "templates" / "entry-CLAUDE.md").exists()
+              and "maintenance" in (KIT / "templates" / "routes.md").read_text(encoding="utf-8")
+              and "maintenance" in (KIT / "templates" / "entry-CLAUDE.md").read_text(encoding="utf-8"))
+        every = [KIT / "README.md", KIT / "README.zh-TW.md"] + sorted((KIT / "docs").rglob("*.md")) + sorted((KIT / "templates").glob("*")) \
+            + sorted((KIT / "skills").rglob("*.md")) + sorted((KIT / "commands").glob("*.md")) + sorted((KIT / "docs" / "diagrams").glob("*.svg")) \
+            + [KIT / ".claude-plugin" / "plugin.json", KIT / ".claude-plugin" / "marketplace.json"]
+        stale = []
+        for p in every:
+            t = p.read_text(encoding="utf-8").lower()
+            for w in ("supervisor", "監督", "外部模型", "auto-wake", "自動喚醒", "喚醒方式", "other ai tool", "其他 ai 工具"):
+                if w in t:
+                    stale.append("%s: %s" % (p.relative_to(KIT), w))
+        check("docs: no separate supervisor, no wake choice, 外部資源 not 外部模型", not stale, "; ".join(stale))
+        check("advanced: hooks vs weekly review in one sentence, both languages",
+              "hooks catch what a program can see at the moment Claude acts" in adv and "hook 擋的是 Claude 動手那一刻程式就看得出來的錯" in advz)
+        check("readme: a costs section saying the 5-minute check uses no quota, limits by plan, computer off",
+              "## Costs" in (KIT / "README.md").read_text(encoding="utf-8") and "uses **none** of your limit" in (KIT / "README.md").read_text(encoding="utf-8")
+              and "## 費用" in (KIT / "README.zh-TW.md").read_text(encoding="utf-8") and "**完全不用**額度" in (KIT / "README.zh-TW.md").read_text(encoding="utf-8")
+              and "asleep" in (KIT / "README.md").read_text(encoding="utf-8") and "睡眠" in (KIT / "README.zh-TW.md").read_text(encoding="utf-8"))
+        check("learning loop: the 和 AI 協作 note is in the templates and read before acting",
+              (KIT / "templates" / "和AI協作.md").exists() and "和 AI 協作" in (KIT / "templates" / "CLAUDE.md").read_text(encoding="utf-8")
+              and "和 AI 協作" in (KIT / "templates" / "AGENTS.md").read_text(encoding="utf-8")
+              and "learn.py trend" in (KIT / "templates" / "maintenance-CLAUDE.md").read_text(encoding="utf-8")
+              and "--replay" in (KIT / "templates" / "maintenance-CLAUDE.md").read_text(encoding="utf-8"))
         check("templates: checking the notes first is step one in CLAUDE.md and AGENTS.md",
               "動手前先查第二大腦" in (KIT / "templates" / "CLAUDE.md").read_text(encoding="utf-8")
               and "動手前先查第二大腦" in (KIT / "templates" / "AGENTS.md").read_text(encoding="utf-8"))
         se = (KIT / "docs" / "SETUP.md").read_text(encoding="utf-8")
         sz = (KIT / "docs" / "zh-TW" / "SETUP.md").read_text(encoding="utf-8")
-        check("setup: asks the Claude plan and offers the wake choice in both languages",
-              "ask five things" in se and "Which Claude plan" in se and "Wake choice" in se and "問五件事" in sz and "哪種方案" in sz and "喚醒方式" in sz)
-        check("docs: sessions do not start by themselves unless auto-wake",
-              "do not start by themselves" in (KIT / "README.md").read_text(encoding="utf-8") and "不會自己開工" in (KIT / "README.zh-TW.md").read_text(encoding="utf-8")
-              and "never start by themselves" in adv and "不會自己開工" in advz)
+        check("setup: six questions, the plan sets starting values, outside resources are ticked (both languages)",
+              "ask six things" in se and "Which Claude plan" in se and "Tick any, or none" in se and "max_sessions" in se and "可免費申請" in se
+              and "問六件事" in sz and "哪種方案" in sz and "有的都勾" in sz and "max_sessions" in sz and "可免費申請" in sz)
+        check("docs: the entry sends work into running sessions; inbox fallback is described",
+              "straight into the running session" in adv and "直接把事送進正在跑" in advz
+              and "session.py check" in se and "session.py check" in sz and "inbox" in se)
         mt = (KIT / "docs" / "MULTI-TOOL.md").read_text(encoding="utf-8")
         check("multi-tool: rules by kind of work, table filled by the user's Claude, monthly re-check",
               "## Kinds of work" in mt and "## Filling and re-checking the table" in mt
@@ -714,6 +876,31 @@ def main():
         ver = {json.loads((KIT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"],
                json.loads((KIT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))["plugins"][0]["version"]}
         check("plugin and marketplace versions match", len(ver) == 1, ver)
+        # default SBK_HOME: ~/.sbk (outside .claude, where Claude Code asks before Claude's file tools write);
+        # an install from before 0.2.5 keeps ~/.claude/sbk while ~/.sbk does not exist
+        with tempfile.TemporaryDirectory() as hd:
+            hd = Path(hd)
+            probe = ("import sys; sys.path[:0]=[%r,%r,%r]; import _common, send, ledger, level_check; "
+                     "print(_common.home(), send.home(), ledger.path().parent, level_check.sbk_home(), sep='|')"
+                     % (str(KIT / "hooks"), str(KIT / "entry"), str(KIT / "scripts")))
+            envh = {"HOME": str(hd), "USERPROFILE": str(hd), "SBK_HOME": "", "SBK_LEDGER": ""}
+
+            def homes():
+                e = dict(os.environ, **envh)
+                e.pop("SBK_HOME"); e.pop("SBK_LEDGER")
+                r = subprocess.run([PY, "-c", probe], capture_output=True, text=True, env=e)
+                return set(Path(x).resolve() for x in r.stdout.strip().split("|") if x) or {r.stderr}
+            fresh = homes()
+            (hd / ".claude" / "sbk").mkdir(parents=True)
+            legacy = homes()
+            (hd / ".sbk").mkdir()
+            both = homes()
+            check("home: new installs use ~/.sbk; an old ~/.claude/sbk is kept until ~/.sbk exists (all four readers agree)",
+                  fresh == {(hd / ".sbk").resolve()} and legacy == {(hd / ".claude" / "sbk").resolve()}
+                  and both == {(hd / ".sbk").resolve()}, (fresh, legacy, both))
+            rc, out, err = run([KIT / "entry" / "session.py", "check"], env={"SBK_HOME": str(hd / ".claude" / "sbk")})
+            check("routing: check says inbox while SBK_HOME is inside a .claude folder, and why",
+                  "routing: inbox" in out and "inside a .claude folder" in out, out + err)
 
         # ---- launcher wrapper ----
         sh = shutil.which("sh")
