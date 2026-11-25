@@ -446,15 +446,17 @@ def check():
     if not exe():
         return "inbox", "no claude command here (the desktop app alone cannot start background sessions)"
     try:
-        v = subprocess.run([exe(), "--version"], capture_output=True, text=True, timeout=60,
-                           stdin=subprocess.DEVNULL).stdout
+        v = subprocess.run([exe(), "--version"], capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           timeout=60, stdin=subprocess.DEVNULL).stdout
     except Exception as e:
         return "inbox", "claude --version failed: %r" % (e,)
     if not version_ok(v):
         return "inbox", "Claude Code %s is older than %s; run claude update" % (v.strip(), ".".join(map(str, MIN_VERSION)))
     try:
-        r = subprocess.run([exe(), "agents", "--json", "--all"], capture_output=True, text=True, timeout=60,
-                           stdin=subprocess.DEVNULL)
+        # utf-8 always: session names in the user's language made the system code page fail here, and a check
+        # run without -X utf8 (a session does that) then switched a working computer to "inbox"
+        r = subprocess.run([exe(), "agents", "--json", "--all"], capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=60, stdin=subprocess.DEVNULL)
         json.loads(r.stdout)
     except Exception:
         return "inbox", "claude agents --json --all did not answer (agent view unavailable here)"

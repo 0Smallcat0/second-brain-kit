@@ -791,6 +791,14 @@ def v8_tests(tmp, cfg):
           rc == 0 and 'he said "send it"' in inbox_s and "second line" in inbox_s and "﻿" not in inbox_s, out + err + inbox_s[-300:])
     rc, out, err = run([E / "session.py", "deliver", "study", "--file", base / "nope.txt"], env=envs)
     check("deliver --file: a file that cannot be read is an error, nothing is delivered", rc != 0 and "cannot read" in out + err, out + err)
+    bare = []
+    for pyf in sorted(E.glob("*.py")) + sorted(H.glob("*.py")):
+        src = pyf.read_text(encoding="utf-8")
+        for m in re.finditer(r"subprocess\.(?:run|Popen|check_output)\((?:[^()]|\([^()]*\))*\)", src):
+            if "text=True" in m.group(0) and "encoding=" not in m.group(0):
+                bare.append("%s: %s" % (pyf.name, m.group(0)[:70].replace("\n", " ")))
+    check("every command whose output is read as text names utf-8 (the system code page broke `session.py check` on "
+          "session names in the user's language and switched routing to inbox)", not bare, "; ".join(bare))
     jl(base / "ps.jsonl", [user("hi"), {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "ok"}],
                                                                            "usage": {"input_tokens": 10, "cache_read_input_tokens": 160000,
                                                                                      "cache_creation_input_tokens": 5, "output_tokens": 5}}}])
