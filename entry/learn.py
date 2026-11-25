@@ -3,6 +3,9 @@
 
     learn.py add 糾正|做對 "kind of mistake / way of working" "the user's own words"
     learn.py trend [--now 2000-01-31]       this week vs last week, kinds that came back, hook candidates
+    learn.py group [--since 2000-01-01]     lines since a date (default: 7 days) grouped by kind, most first
+    learn.py pref "kind" "one sentence"     add a sorted preference at the top (after the user agreed)
+    learn.py stats                          lines recorded, corrections this week, kinds that came back
     learn.py path                           where the note is
 
 The note is <vault>/00-09 系統與索引/03 和 AI 協作/03-01 和 AI 協作.md. Claude adds one line the moment
@@ -11,7 +14,10 @@ the user corrects it or confirms a way of working (Basic and Full alike):
     - 2000-01-31 | 做對 | 先查筆記再答 | 「對，就是這樣」
 "糾正" = correction, "做對" = confirmed (English "correction" / "confirmed" are read too). Before acting,
 "check the notes first" reads this note: the sorted preferences at the top and the recent lines.
-In Full, Maintenance's weekly review runs `trend`, groups the week's lines by kind and turns them into
+The learn_notice hook reminds Claude to add the line when the user's message looks like a correction or
+a confirmation. In Basic, the first session of the week in the notes folder gets a light review (level_check.py
+--hook): Claude runs `group`, drafts preferences and any skill or hook addition, and writes them (`pref`) only
+after the user agrees. In Full, Maintenance's weekly review runs `trend`, groups the week's lines by kind and turns them into
 preferences (written at the top of the note), ways of working (added to skills) and, only for a kind
 that came back a second time and that a program can see at the moment of action, a hook (started in
 log mode and replayed on past conversations before it may block; see PITFALLS 9-10).
@@ -94,15 +100,66 @@ def trend_line(t):
             % (t["week_start"], t["corrections"], t["last_week"], arrow_zh, t["confirmations"], rep_zh))
 
 
+def group(text, since):
+    """{kind: [(date, corr|good, words), ...]} for lines on or after `since`, biggest group first."""
+    out = {}
+    for d, what, kind, said in entries(text):
+        if d >= since:
+            out.setdefault(kind, []).append((d, what, said))
+    return dict(sorted(out.items(), key=lambda kv: (-len(kv[1]), kv[0])))
+
+
+def prefs(text):
+    """Lines of the sorted-preferences section (the first '## ' heading naming preferences)."""
+    lines, on, out = text.splitlines(), False, []
+    for l in lines:
+        if l.startswith("## "):
+            on = ("偏好" in l or "preference" in l.lower())
+            continue
+        if on and l.strip().startswith("- "):
+            out.append(l.strip()[2:])
+    return out
+
+
+def add_pref(kind, sentence, today=None):
+    p = note()
+    if not p or not p.exists():
+        sys.exit("no 和 AI 協作 note (%s)" % p)
+    today = today or datetime.date.today()
+    line = "- %s (%s; %s)" % (" ".join(sentence.split()), kind.replace("|", "/").strip(), today.isoformat())
+    lines = p.read_text(encoding="utf-8").splitlines()
+    head = next((i for i, l in enumerate(lines) if l.startswith("## ") and ("偏好" in l or "preference" in l.lower())), None)
+    if head is None:
+        sys.exit("no preferences section ('## ' heading with 偏好 or Preferences) in %s" % p)
+    end = next((i for i in range(head + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
+    while end > head + 1 and not lines[end - 1].strip():
+        end -= 1
+    lines.insert(end, line)
+    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(line)
+
+
+def stats(text, today):
+    rows = entries(text)
+    t = trend(text, today)
+    return {"lines": len(rows), "corrections": sum(1 for r in rows if r[1] == "corr"),
+            "confirmations": sum(1 for r in rows if r[1] == "good"), "corrections_this_week": t["corrections"],
+            "last_week": t["last_week"], "repeats": t["repeats"], "preferences": len(prefs(text))}
+
+
 def add(kind, what, said, today=None):
     p = note()
     if not p or not p.exists():
         sys.exit("no 和 AI 協作 note: create it from templates/和AI協作.md first (%s)" % p)
     today = today or datetime.date.today()
-    kind = "糾正" if kind.lower() in CORR else "做對" if kind.lower() in GOOD else sys.exit("kind: 糾正 or 做對")
-    said = said.strip().strip("「」")
-    line = "- %s | %s | %s | 「%s」" % (today.isoformat(), kind, what.replace("|", "/").strip(), said.replace("\n", " "))
     text = p.read_text(encoding="utf-8")
+    zh = "## 紀錄" in text  # the note is in the user's language; the kind word follows it
+    k = kind.lower()
+    if k not in CORR and k not in GOOD:
+        sys.exit("kind: correction (糾正) or confirmed (做對)")
+    kind = ("糾正" if zh else "correction") if k in CORR else ("做對" if zh else "confirmed")
+    said = " ".join(said.strip().strip("「」\"").split())
+    line = "- %s | %s | %s | 「%s」" % (today.isoformat(), kind, what.replace("|", "/").strip(), said)
     p.write_text(text.rstrip("\n") + "\n" + line + "\n", encoding="utf-8")
     print(line)
 
@@ -127,6 +184,28 @@ def main():
         if t["repeats"]:
             print("Second time or more (hook candidates if a program can see them at the moment of action): "
                   + ", ".join(t["repeats"]))
+    elif a[:1] == ["group"]:
+        p = note()
+        text = p.read_text(encoding="utf-8") if p and p.exists() else ""
+        since = today - datetime.timedelta(days=6)
+        if "--since" in a:
+            since = datetime.date.fromisoformat(a[a.index("--since") + 1][:10])
+        g = group(text, since)
+        print("Lines since %s grouped by kind (%d kinds):" % (since.isoformat(), len(g)))
+        for kind, rows in g.items():
+            nc = sum(1 for r in rows if r[1] == "corr")
+            print("- %s: %d (correction %d, confirmed %d)" % (kind, len(rows), nc, len(rows) - nc))
+            for d, what, said in rows:
+                print("    %s %s %s" % (d.isoformat(), "correction" if what == "corr" else "confirmed", said))
+        have = prefs(text)
+        if have:
+            print("Preferences already written (%d): " % len(have) + " / ".join(have))
+    elif a[:1] == ["pref"] and len(a) == 3:
+        add_pref(a[1], a[2], today)
+    elif a[:1] == ["stats"]:
+        p = note()
+        text = p.read_text(encoding="utf-8") if p and p.exists() else ""
+        print(json.dumps(stats(text, today), ensure_ascii=False))
     elif a[:1] == ["path"]:
         print(note())
     else:

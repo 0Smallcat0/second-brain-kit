@@ -23,6 +23,12 @@ Triggers (docs/ADVANCED.md, "When Claude suggests it") are pain signals, not vol
 Volume (open items, topics, compactions) is still counted and reported as supporting numbers,
 but never fires a trigger on its own.
 A trigger whose part is already on, or that the user declined in the last 28 days, is left out.
+
+The same weekly hook run also starts the Basic light review of the learning loop (Basic has no
+maintenance session): if the 和 AI 協作 note got new lines since the last review, one more line of
+context asks Claude to group them by kind, draft preferences and any skill or hook addition, and
+change nothing until the user agrees (entry/learn.py group / pref). Full leaves this to the
+maintenance session's weekly review.
 If config "read_history" is false the conversations are not read at all (tracker and log only).
 
 Reads SBK_HOME (ledger.md, task.md, config.json, logs/stop_evidence.log, alarms.md, routes.md,
@@ -387,6 +393,69 @@ def install_facts(now, budget=30.0):
             "multi_session_evidence": active >= 3 or heavy >= 1, "partial": partial}
 
 
+# ---------- the Basic light review of the learning loop ----------
+
+LEARN_REL = Path("00-09 系統與索引") / "03 和 AI 協作" / "03-01 和 AI 協作.md"
+LEARN_LINE = re.compile(r"^-\s*(\d{4}-\d{2}-\d{2})\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*(.+)$")
+CORR_WORDS = {"糾正", "correction", "corrected"}
+GOOD_WORDS = {"做對", "confirmed", "confirm"}
+
+
+def learn_cmd(home):
+    for p in (home / "bin" / "learn.py", Path(__file__).resolve().parent.parent / "entry" / "learn.py"):
+        if p.exists():
+            return 'python "%s"' % p.as_posix()
+    return "python ~/.sbk/bin/learn.py"
+
+
+def learn_review(cfg, home, now, state):
+    """One line of context for the light weekly review, or None. Basic only; sets last_learn_review."""
+    if cfg.get("level") == "full" and (home / "managers" / "maintenance").is_dir():
+        return None  # Full: the maintenance session's weekly review does this
+    vault = cfg.get("vault") or os.environ.get("SBK_VAULT")
+    if not vault:
+        return None
+    note = Path(vault) / LEARN_REL
+    try:
+        text = note.read_text(encoding="utf-8")
+    except Exception:
+        return None
+    since = state.get("last_learn_review") or day(now - timedelta(days=7))
+    total, new = {}, {}
+    nc = ng = 0
+    for l in text.splitlines():
+        m = LEARN_LINE.match(l.strip())
+        if not m:
+            continue
+        k = m.group(2).strip().lower()
+        if k not in CORR_WORDS and k not in GOOD_WORDS:
+            continue
+        kind = m.group(3).strip()
+        total[kind] = total.get(kind, 0) + 1
+        if since < m.group(1) <= day(now):
+            new[kind] = new.get(kind, 0) + 1
+            if k in CORR_WORDS:
+                nc += 1
+            else:
+                ng += 1
+    if not new:
+        return None
+    state["last_learn_review"] = day(now)
+    kinds = "; ".join("%s x%d%s" % (k, n, " (came back: x%d in all)" % total[k] if total[k] > n else "")
+                      for k, n in sorted(new.items(), key=lambda kv: -kv[1]))
+    cmd = learn_cmd(home)
+    return ("[second-brain-kit weekly light review] The 和 AI 協作 note (%s) has %d new line(s) since %s: "
+            "%d correction(s), %d confirmation(s). By kind: %s. In your first reply, after answering the user, "
+            "do the light review as ONE short message in the user's language: run `%s group --since %s`; for "
+            "each kind with 2 or more lines (and any clear single preference) draft one preference sentence "
+            "(what to do, not what went wrong); name any confirmed way of working worth adding to a skill or "
+            "the notes folder's AGENTS.md; propose a hook only for a correction kind that came back and that "
+            "a program can see at the moment of action (it would start in log mode). Ask one question: OK to "
+            "add these? Change nothing before the user says yes. On yes, write each preference with `%s pref "
+            "\"<kind>\" \"<sentence>\"` and make the other changes; on no, change nothing."
+            % (note.as_posix(), nc + ng, since, nc, ng, kinds, cmd, since, cmd))
+
+
 # ---------- the check ----------
 
 def state_path(home):
@@ -537,10 +606,12 @@ def run_hook(data, now):
         pass
     state["last_hook_run"] = day(now)
     trigs, numbers, _, _ = compute(now, state)
+    review = learn_review(cfg, home, now, state) if m != "log" else None
     save_state(home, state)
-    if not trigs or m == "log":
-        return None
-    return hook_line(trigs, numbers)
+    lines = [hook_line(trigs, numbers)] if trigs and m != "log" else []
+    if review:
+        lines.append(review)
+    return "\n\n".join(lines) or None
 
 
 def emit(obj):

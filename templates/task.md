@@ -1,6 +1,6 @@
 # {{topic}} — task.md
 
-這份給 AI 自己看，用英文或使用者的語言都可以。這個對話的狀態只存在這裡（和交接時留下的 old-*-words.md）：對話隨時可能被換成新的，新的只讀這兩個檔。做完一項才勾一項。
+For the AI only, written in English; the user's words are copied verbatim in their language. This session's state lives only here (and in the old-*-words.md left at a hand-over): the session can be replaced by a new one at any time, and the new one reads only these two files. Tick an item only when it is done.
 
 ## Now (at most 40 lines; rewritten at every hand-over)
 - Goal: one sentence, what the user wants at the end, in their own words where possible.

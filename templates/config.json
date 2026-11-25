@@ -19,6 +19,7 @@
     "stop_evidence": "log",
     "usage_warn": "off",
     "inbox_notice": "off",
-    "level_notice": "warn"
+    "level_notice": "warn",
+    "learn_notice": "warn"
   }
 }

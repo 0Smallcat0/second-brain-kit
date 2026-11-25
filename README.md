@@ -11,7 +11,7 @@ Basic is the part that is always installed. Compared with Claude Code on its own
 - **Done-check: a reminder for Claude to look at the result before it says "done".** When it says done without looking, Basic writes that down but does not stop it (you can turn on stopping later).
 - **It asks before deleting, uploading or overwriting.** Before deleting things, uploading files to the internet, or replacing a whole note, Claude stops and asks you.
 - **Your own words come back when a chat gets long.** In a long conversation Claude Code automatically squeezes older parts into a summary, and details can get lost; the kit puts your own messages back word for word, which lowers the chance that a request gets lost. When a conversation gets very long, Claude writes a hand-over and tells you to start a fresh one and say "continue".
-- **Claude learns from you.** Every time you correct it, and every time you confirm it did something right, it writes one line in a note (和 AI 協作: date, your words, what kind of thing it was). Before the next similar task it reads that note.
+- **Claude learns from you (you give the skeleton, use grows the rest).** When you correct it or confirm it did something right, a small check (`learn_notice`) reminds it to write one line in a note (和 AI 協作: date, your words, what kind of thing it was). Once a week, at the first conversation of the week, it groups those lines by kind and proposes preferences (and, for a mistake that keeps coming back, a skill or a check); nothing is written until you say yes. Every new conversation starts with those preferences already in it (the same check puts them there), and before a task Claude also reads the recent lines.
 
 ## Basic and Full
 
@@ -19,7 +19,7 @@ Basic is the part that is always installed. Compared with Claude Code on its own
 |---|---|---|
 | Sessions | One, in your notes folder | Two fixed: **entry** (the only one you talk to) and **maintenance** (the kit itself and the weekly learning loop), plus one per subject of yours that the entry starts and sends work into |
 | Checking "done" | Claude closes items with evidence | Topic sessions report to the entry, which opens the evidence; you get one result message |
-| Learning from use | One line per correction or confirmation, read before similar tasks | The same, plus a weekly review that turns repeated lines into preferences, skills and (only for a mistake that came back) a new check; one trend line a week |
+| Learning from use | `learn_notice` reminds Claude to write one line per correction or confirmation; a light weekly review groups the lines and proposes preferences, written after your yes; preferences are read before every task | The same, run by the maintenance session: preferences, skills and (only for a mistake that came back) a new check, after your yes; one trend line a week |
 | Long conversations | Claude writes a hand-over; you start a fresh one | The same; long idle background sessions are replaced by a fresh one automatically |
 | Reminders | None | Weekly review, a monthly re-check of your outside resources, the daily hand-over check, your own |
 | Outside resources | Not used | Only what you ticked at install (other AI, Colab or Kaggle, credits), picked by kind of work |
@@ -85,7 +85,11 @@ flowchart LR
     Main["<b>Main Claude session</b><br/>opened in your notes folder<br/>Claude app: Code tab, Open folder<br/>or terminal: claude"]
   end
   Main <-->|check first, save| Notes[("<b>Notes folder</b><br/>your notes, numbered")]
-  Main -->|"each correction or confirmation:<br/>one line"| Learn["<b>和 AI 協作 note</b><br/>read before similar tasks"]
+  You -.->|correct, confirm| Hook["<b>learn_notice</b><br/>reminds: write one line"]
+  Hook --> Main
+  Main -->|"one line:<br/>date, your words, kind"| Learn["<b>和 AI 協作 note</b>"]
+  Learn -->|weekly light review| Prefs["<b>Preferences</b><br/>written after your yes"]
+  Prefs -->|read first, next task| Main
   Learn -.- Notes
   Main <-->|add, close with evidence| Work[("<b>Tracker</b><br/>ledger.md: what is still open")]
   Main -.->|later, if you want| Adv["Full plan<br/>see ADVANCED.md"]
@@ -105,7 +109,8 @@ You talk to one Claude conversation that starts inside your notes folder. It che
 - `read_whole` - in the notes folder, stops Claude from judging a note by its first lines; it reads the note to the end. Basic: on.
 - `requests_reinject` - when a long conversation is summarised, puts your own messages back word for word; when it gets too long, tells Claude to write a hand-over and you to start a fresh one. Basic: on.
 - `stop_evidence` - notices when Claude says "done" after a change without looking at the result. Basic: on, writes a log line only.
-- `level_notice` - about once a week, asks one yes/no question when what happened to you shows another part would help. Basic: on.
+- `level_notice` - about once a week, asks one yes/no question when what happened to you shows another part would help, and runs the light weekly review of the 和 AI 協作 lines (it proposes; nothing changes before your yes). Basic: on.
+- `learn_notice` - when your message reads like a correction or a confirmation, reminds Claude to write one line in the 和 AI 協作 note; when a conversation starts, puts your sorted preferences into it, so they are followed without Claude having to remember to look. Basic: on.
 - `inbox_notice` - shows the work waiting in a Full session's inbox, and in the entry the work done and waiting for its check. Basic: off (on with the Full sessions).
 - `usage_warn` - warns once when your weekly Claude usage passes 80%. Basic: off (on if you ask).
 
@@ -151,7 +156,7 @@ The sentence above makes Claude run these two commands. You can type them in Cla
 
 Then type `/sbk-setup` in Claude Code. Or clone (download a copy of) this repository (the folder of code), open Claude Code inside it, and say: "Read docs/SETUP.md and set up second-brain-kit for me."
 
-[docs/SETUP.md](docs/SETUP.md) ([繁體中文](docs/zh-TW/SETUP.md)) is written for Claude: ordered steps, each with a check.
+[docs/SETUP.md](docs/SETUP.md) is written for Claude: ordered steps, each with a check. Like every file only Claude reads (rules, templates, setup steps), it exists only in English; Claude still talks to you and writes your notes in your language.
 
 ## For the curious
 
@@ -163,7 +168,7 @@ hooks/            the safety checks (Python 3, standard library only)
 entry/            tracker (ledger.py), status, reminders, live routing (session.py), hand-over (handover.py), learning loop (learn.py), worker tools
 templates/        rules for Claude, the notes folder guide, note format, the 和 AI 協作 note, settings, Full templates (entry, maintenance, topics)
 scripts/          note checker, index maker, overwrite guard, level check, selftest
-docs/             SETUP, ADVANCED, PITFALLS, MULTI-TOOL = outside resources (+ zh-TW); docs/diagrams = the pictures
+docs/             SETUP, ADVANCED, PITFALLS, MULTI-TOOL = outside resources; zh-TW = the pages for readers in Chinese; docs/diagrams = the pictures
 experimental/     pieces that are not proven yet
 ```
 

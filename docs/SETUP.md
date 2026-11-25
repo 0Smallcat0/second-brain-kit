@@ -1,6 +1,6 @@
 # SETUP - instructions for the configuring Claude
 
-This file is written **for you, Claude**, not for the user. The user asked you to set up second-brain-kit. They may not be technical: you do the work; they answer six short questions, confirm what you suggest installing, and say yes or no to changes on their system. This is the only place that lists the questions and steps (`/sbk-setup` and the `setup-second-brain` skill just point here); `docs/zh-TW/SETUP.md` has the same steps in Traditional Chinese.
+This file is written **for you, Claude**, not for the user. The user asked you to set up second-brain-kit. They may not be technical: you do the work; they answer six short questions, confirm what you suggest installing, and say yes or no to changes on their system. This is the only place that lists the questions and steps (`/sbk-setup` and the `setup-second-brain` skill just point here). It exists only in English, like every file only Claude reads.
 
 **You recommend the parts one by one and the user confirms** (Step 0.4): mainly from their answer to "Where do you get stuck most when using Claude?"; if they allow you to look at their Claude history on this computer, its numbers are supporting evidence. If they say no, or this computer has no history (a new user), go by the answer alone; if the answer points to no part, install Basic. Each part gets one line with your suggestion and the reason; the user may change any of it.
 - **Basic**: one main Claude session that works directly in the notes folder; the notes folder with only the areas the user needs; the tracker (`ledger.py`: open work items, one per line, each closed with a note of how it was checked), used by you, never typed by the user; safety checks; short general principles.
@@ -16,6 +16,7 @@ Words used below:
 - Paths: use forward slashes or quoted paths on Windows. Python: `python3`, `python` or `py`, whichever runs Python 3.
 
 Rules while you work:
+- Language: everything the user sees (the questions as you ask them, your messages, the notes they read, `VAULT/README.md`, the final report) is in the user's language, from the first message on (the language they wrote the install request in; question 2 confirms it). Everything only Claude reads, the internal work, stays in English: the rules (`~/.claude/CLAUDE.md` block, `AGENTS.md`, the format note), task.md, tracker items, dispatches, hand-overs, prompts for subagents. The user's own words are always kept verbatim.
 - Ask before anything that edits `~/.claude/settings.json`, `~/.claude/CLAUDE.md`, the system scheduler, or any file the user already had. Never overwrite an existing file; show the difference and get a yes.
 - Nothing is pushed to a git remote, no message is sent, and no note is given to an outside resource the user did not tick. Do not tell the user it is "offline": Claude itself is an online service.
 - Small reversible choices are yours (folder names, test names, a placeholder git identity): pick one and say which in the report. Ask only what only the user knows or must allow.
@@ -94,7 +95,7 @@ The user may have pasted only the sentence from the README ("Install second-brai
 ## Step 2 - General principles in `~/.claude/CLAUDE.md` (with consent)
 
 `KIT/templates/CLAUDE.md` holds only general safety and evidence rules. It goes into the user's global `~/.claude/CLAUDE.md`, which affects every Claude session on this computer, so ask first: "OK to add a short block of general rules (check results before saying done, ask before deleting or publishing) to your Claude settings for all projects? The notes rules stay inside the notes folder."
-1. If the user's language is not Traditional Chinese, translate the template faithfully (same structure and meaning, under 100 lines).
+1. Copy the template as it is, in English, whatever the user's language: only Claude reads it, and it tells Claude to reply and write notes in the user's language (`language` in config.json).
 2. The block always sits between a line `<!-- sbk:begin -->` and a line `<!-- sbk:end -->`:
    - file missing: create it with just the block (markers included);
    - file exists, no markers: show the user the block, and after a yes append it at the end; never remove or reorder their text;
@@ -118,7 +119,7 @@ The user may have pasted only the sentence from the README ("Install second-brai
    - an inbox note `VAULT/00-09 系統與索引/02 收件匣/02-01 收件匣.md` with valid frontmatter (`type: log`, `status: active`, a one-sentence summary, today's dates, `origin: agent-drafted`) and one line saying "Put anything not yet filed here."
    - `templates/sbk-protect.txt` -> `VAULT/.sbk-protect`; an empty file `VAULT/.sbk-vault`; `VAULT/.gitignore` with one line `__pycache__/` (Python leaves that folder next to the scripts)
    - `KIT/scripts/{vault_lint.py,gen_jdex.py,check_overwrite.py,pre-commit}` -> `VAULT/scripts/`; on macOS/Linux `chmod +x VAULT/scripts/pre-commit`.
-3. If the user wants another language, translate the copied notes (keep field names and values such as `type: skill` exactly; the checker depends on them).
+3. `AGENTS.md` and `01-01 筆記格式.md` stay in English (rules only Claude reads). The notes the user reads (`02-01`, `02-02 我要做的事`, `03-01 和 AI 協作`) are in the user's language: the templates are written in Traditional Chinese; for another language translate their text, but keep field names and values such as `type: preference` exactly (the checker depends on them), keep the line format `- date | kind | ... | ...`, and keep a word for "preferences" (`偏好` or `Preferences`) in the heading of the sorted-preferences section (`learn.py pref` looks for it). Folder and file names stay as they are.
 4. `python VAULT/scripts/gen_jdex.py --root VAULT` creates the index.
 5. Git, local only (it keeps the history of changes; nothing is pushed):
    - `git init` in `VAULT` if `VAULT/.git` does not exist.
@@ -154,7 +155,8 @@ Every hook reads its mode from `SBK_HOME/config.json` -> `modes` (values: off, l
 | `stop_evidence` | Notes in `~/.sbk/logs/stop_evidence.log` when Claude said "done" after an edit without looking at the result; it does not interrupt | log |
 | `usage_warn` | nothing (Advanced) | off |
 | `inbox_notice` | nothing (Advanced, for topic sessions) | off |
-| `level_notice` | At most once a week, in a session in the notes folder: if what happened to you shows another part would help (for example you asked Claude to remind you twice in a week; table in ADVANCED.md), Claude asks one yes/no question and quotes the numbers. Nothing changes without a yes; if you said no to question 4 it does not read your conversations | warn |
+| `level_notice` | At most once a week, at the first session start in the notes folder: if what happened to you shows another part would help (for example you asked Claude to remind you twice in a week; table in ADVANCED.md), Claude asks one yes/no question and quotes the numbers. In Basic it also starts the light review of the learning loop: Claude groups the week's lines in the 和 AI 協作 note by kind, shows you the preferences (and any skill or check) it would add, and writes them only after your yes. Nothing changes without a yes; if you said no to question 4 it does not read your conversations | warn |
+| `learn_notice` | When your message looks like a correction ("that's wrong", "I told you", 不對, 我說過) or a confirmation ("that's it", 就是這樣), Claude is reminded to write one line in the 和 AI 協作 note: the date, your words, which kind. Nothing is blocked; if the message was not one, nothing is written. When a conversation starts (and after a summary), it puts the note's sorted preferences into the conversation | warn |
 
 Replay, only if question 4 of Step 0 was yes (already allowed; do not ask again): run `python KIT/hooks/stop_evidence.py --replay <file>` on the newest five `~/.claude/projects/*/*.jsonl` (skip this setup conversation) and tell the user in one line how many turns it would have flagged. If there are no old conversations, skip quietly (**n.a.**). If question 4 was no, this is **not enabled**. The check stays in `log` either way; blocking is Advanced (A4).
 
@@ -231,7 +233,7 @@ Technical checks passing does not prove the second brain works. Prove it with te
    - four example sentences: "Remember this: ...", "Find my notes about ...", "What is still open?", "Continue where we stopped on ...";
    - "If something gets in the way, tell Claude, for example: the done-check is too strict, make it quieter";
    - where things live: notes in this folder; the tracker and logs in `~/.sbk/`; local git keeps the history of changes but is **not** a backup of the disk: copy this folder to another disk or a cloud drive you trust from time to time;
-   - "Claude learns from you: when you correct it, or say 'yes, like that', it writes one line in the note 和 AI 協作 and reads it before it starts work."
+   - "Claude learns from you: when you correct it, or say 'yes, like that', it writes one line in the note 和 AI 協作 and reads it before it starts work. About once a week it groups those lines and asks you before writing any of them as a preference."
    - "About once a week Claude checks whether more would help (topic sessions, reminders, outside resources) and asks you first. You can also just ask, for example: turn on topic sessions."
 3. The final message, short, in the user's language:
    - first line: what was installed (Basic + the parts they confirmed) and why (the lines from Step 0.4, joined);

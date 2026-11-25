@@ -6,6 +6,7 @@ folder, and prints PASS / FAIL per case. Nothing outside the temp folder is touc
 """
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -303,6 +304,256 @@ def level_tests(tmp, cfg):
     inst = json.loads(out)["install"] if out.strip() else {}
     check("level --install: no history -> no evidence (answer alone, default Basic)",
           inst.get("active_projects_14d") == 0 and inst.get("multi_session_evidence") is False, out)
+
+
+# ---- learning loop: messages for learn_notice (normal ones must not fire; replayed in the selftest) ----
+LEARN_NORMAL = [
+    '幫我整理這週的筆記',
+    '我明天要交報告，先幫我列大綱',
+    '找我之前記的線性代數筆記',
+    '還有什麼沒做完？',
+    '接著上次的專案報告繼續',
+    '記住：我這週要讀完第三章',
+    '對了，下週三要考期中考，幫我記一下',
+    '這樣可以嗎？',
+    '這個對不對？',
+    '你覺得是不是這樣比較好？',
+    '幫我查一下 Python 的 list comprehension 怎麼寫',
+    '把這份 PDF 讀完，整理重點',
+    "這段程式碼有錯誤訊息，幫我看看：TypeError: 'NoneType' object is not subscriptable",
+    '幫我寫一封信給教授問期末考範圍',
+    '我想討論一下這個專案要用哪個資料庫',
+    '可以幫我把這三個檔案合併嗎',
+    '今天的會議記錄幫我存起來',
+    '下個月要搬家，幫我列一下要做的事',
+    '我需要一份履歷的範本',
+    '幫我翻譯這段英文',
+    '我又多了一個作業，要寫實驗報告',
+    '這題的答案是不是錯的？',
+    '課本上說這個公式是錯的，為什麼？',
+    '不要用太難的字，寫給小學生看的',
+    '請用表格整理',
+    '幫我把筆記裡的錯字找出來',
+    '這個 bug 為什麼會發生',
+    '幫我想三個專題題目',
+    '開一個新的筆記放讀書計畫',
+    '把上週的會議紀錄移到封存',
+    '幫我算一下這個月的開銷',
+    '提醒我週五交作業',
+    '我說的是第二版的檔案，在桌面上',
+    '這個字怎麼念',
+    '再跑一次測試',
+    '執行看看',
+    '你可以再解釋一次嗎',
+    '我剛剛上傳了一個檔案，幫我看',
+    '今天天氣好嗎',
+    '幫我把這個網頁存成筆記',
+    'Can you summarise this article for me?',
+    'What is still open?',
+    'Find my notes about chapter 3',
+    'Remember this: the meeting is on Friday',
+    'Can you run the tests again?',
+    "What's wrong with this code? It throws an error.",
+    'Please write a cover letter for this job',
+    'I want to discuss the database design first',
+    'Is this right?',
+    'Is that correct?',
+    'Draft an email to my landlord about the heater',
+    'Make a table of the expenses',
+    'Translate this into Spanish',
+    'Read the whole PDF and list the key points',
+    'Help me plan my week',
+    'Show me how to use git rebase',
+    'Why does this fail with a 404?',
+    'Can you do it again with a different color?',
+    'Open the notes folder',
+    'Add a reminder for Monday',
+    'I said in the meeting that we would ship on Friday, draft the follow-up',
+    'The error message says permission denied',
+    'Make it shorter',
+    "Let's continue where we stopped yesterday",
+    'Tell me the difference between TCP and UDP',
+    'How do I fix a broken pipe error in Python?',
+    'List my open tasks',
+    'Write a short story about a cat',
+    'Could you check if the link works?',
+    'Explain recursion simply',
+    'Rename the file to report-final',
+    'What did we decide last week about the logo?',
+    'Give me three options for the title',
+    'Look up the deadline for the scholarship',
+    'Merge these two notes',
+    'Delete the test file you created',
+    'Start a new note for the trip',
+    '這份報告第二段幫我改得口語一點',
+    '幫我把這個連結的影片摘要一下',
+    '幫我做一張比較表：Notion 和 Obsidian',
+    '我需要練習英文口說，給我幾個題目',
+    '把待辦依照截止日排序',
+    '幫我查最近的颱風消息',
+    '期末考考哪些範圍',
+    '我想學 SQL，從哪裡開始',
+    '幫我寫一個 Python 腳本把 CSV 轉成 Excel',
+    '這張圖幫我看一下有什麼問題',
+    '檢查一下我的程式有沒有漏掉的地方',
+    '我要買筆電，預算三萬，推薦一下',
+    '寫一段自我介紹，一百字',
+    '幫我把行程排進行事曆',
+    '這週的讀書進度做到哪了',
+    '上次說的那個網站叫什麼',
+    '你可以幫我把這份文件轉成 PDF 嗎',
+    '今天先到這裡，幫我記下進度',
+]
+LEARN_CORRECTIONS = [
+    '不對，我要的是第三章不是第二章',
+    '錯了，日期是週五',
+    '不是這樣，筆記標題要用英文',
+    '我說過筆記標題要用英文',
+    '你又沒看檔案就說做完',
+    '不要再把兩份報告搞混了',
+    '你根本沒打開檔案看',
+    '還是錯的',
+    "That's not what I asked for",
+    'I told you to use English titles',
+    "You didn't check the file",
+    "Don't add a summary at the end again",
+    'No, I meant the second version',
+    "That's wrong, the deadline is Friday",
+]
+LEARN_CONFIRMED = [
+    '很好，就是這樣',
+    '這樣可以',
+    '對，就是這樣',
+    '這次對了',
+    '完美',
+    "Perfect, that's it",
+    'Exactly what I wanted',
+    'Good job, this works',
+    'Looks good',
+    "That's right",
+]
+
+
+def learn_loop_tests(tmp, cfg):
+    """learn_notice (UserPromptSubmit), learn.py group/pref/stats, the Basic light review, /sbk-status."""
+    from datetime import datetime, timedelta
+    H = KIT / "hooks"
+    LE = KIT / "entry" / "learn.py"
+    LNH = H / "learn_notice.py"
+    # 1. phrase lists: replay the three sets
+    for name, msgs, want in (("normal", LEARN_NORMAL, None), ("corrections", LEARN_CORRECTIONS, "correction"),
+                             ("confirmations", LEARN_CONFIRMED, "confirmed")):
+        f = tmp / ("learn-%s.txt" % name)
+        f.write_text("\n".join(msgs) + "\n", encoding="utf-8")
+        rc, out, err = run([LNH, "--replay", f], env={"SBK_HOME": str(tmp / "nohome")})
+        hit_lines = [l for l in out.splitlines() if l.startswith("  ")]
+        if want is None:
+            check("learn_notice: %d ordinary messages (requests, questions, 對不對/是不是這樣 as questions) fire 0 times"
+                  % len(msgs), rc == 0 and "hits 0 " in out and not hit_lines, out + err)
+        else:
+            ok = len(hit_lines) == len(msgs) and all(l.strip().startswith(want + " ") for l in hit_lines)
+            check("learn_notice: all %d %s are recognised as %s" % (len(msgs), name, want), rc == 0 and ok, out + err)
+    # 2. the hook: a vault with the note, Basic config
+    v = tmp / "learnvault"
+    note = v / "00-09 系統與索引" / "03 和 AI 協作" / "03-01 和 AI 協作.md"
+    note.parent.mkdir(parents=True)
+    (v / ".sbk-vault").write_text("", encoding="utf-8")
+    note.write_text((KIT / "templates" / "和AI協作.md").read_text(encoding="utf-8").replace("{{date}}", "2026-12-01"),
+                    encoding="utf-8")
+    h = tmp / "learnhome"
+    h.mkdir()
+    (h / "config.json").write_text(json.dumps(dict(cfg, vault=str(v))), encoding="utf-8")
+    env = {"SBK_HOME": str(h), "SBK_VAULT": "", "ANTHROPIC_API_KEY": "", "CLAUDE_CONFIG_DIR": str(tmp / "learncc")}
+    ev = {"cwd": str(v), "hook_event_name": "UserPromptSubmit"}
+    rc, out, err = run([LNH], dict(ev, prompt="你又沒看檔案就說做完"), env)
+    check("learn_notice: a correction adds a reminder to write one line with learn.py add correction",
+          rc == 0 and "learning loop" in out and "add correction" in out and "03-01" in out, out + err)
+    rc, out, err = run([LNH], dict(ev, prompt="對，就是這樣"), env)
+    check("learn_notice: a confirmation reminds with learn.py add confirmed", rc == 0 and "add confirmed" in out, out + err)
+    rc, out, err = run([LNH], dict(ev, prompt="幫我整理這週的筆記"), env)
+    check("learn_notice: an ordinary request adds nothing", rc == 0 and out.strip() == "", out + err)
+    rc, out, err = run([LNH], dict(ev, prompt="他說「你又錯了」是什麼意思？"), env)
+    check("learn_notice: words inside quotes do not count", rc == 0 and out.strip() == "", out + err)
+    rc, out, err = run([LNH], dict(ev, prompt="你又沒看檔案就說做完"), dict(env, SBK_MODE_LEARN_NOTICE="log"))
+    lg = (h / "logs" / "learn_notice.log")
+    check("learn_notice: log mode only writes logs/learn_notice.log",
+          rc == 0 and out.strip() == "" and lg.exists() and "correction" in lg.read_text(encoding="utf-8"), out + err)
+    rc, out, err = run([LNH], dict(ev, prompt="你又沒看檔案就說做完"), dict(env, SBK_MODE_LEARN_NOTICE="off"))
+    check("learn_notice: off says nothing", rc == 0 and out.strip() == "", out + err)
+    h2 = tmp / "learnhome2"
+    h2.mkdir()
+    (h2 / "config.json").write_text(json.dumps(dict(cfg, vault=str(tmp / "no-such-vault"))), encoding="utf-8")
+    rc, out, err = run([LNH], {"cwd": str(tmp), "prompt": "你又沒看檔案就說做完"}, dict(env, SBK_HOME=str(h2)))
+    check("learn_notice: silent when there is no 和 AI 協作 note", rc == 0 and out.strip() == "", out + err)
+    # 3. three corrections of the same kind -> three lines -> grouped -> a preference after the yes
+    envl = dict(env, SBK_VAULT=str(v))
+    for d, said in (("2026-12-07", "你又沒看檔案就說做完"), ("2026-12-08", "你根本沒打開檔案看"), ("2026-12-09", "還是沒打開就說好了")):
+        run([LE, "add", "correction", "沒驗證就說做完", said, "--now", d], env=envl)
+    run([LE, "add", "confirmed", "先查筆記再答", "對，就是這樣", "--now", "2026-12-09"], env=envl)
+    t = note.read_text(encoding="utf-8")
+    check("learn: three corrections of one kind are three lines in the note's language (糾正), words verbatim",
+          t.count("| 糾正 | 沒驗證就說做完 |") == 3 and "「你根本沒打開檔案看」" in t and "| 做對 | 先查筆記再答 |" in t, t[-400:])
+    rc, out, err = run([LE, "group", "--since", "2026-12-07", "--now", "2026-12-10"], env=envl)
+    check("learn: group puts the three lines of one kind together, biggest first",
+          rc == 0 and "- 沒驗證就說做完: 3 (correction 3, confirmed 0)" in out
+          and out.find("沒驗證就說做完") < out.find("先查筆記再答"), out + err)
+    rc, out, err = run([LE, "pref", "沒驗證就說做完", "Open the result and look at it before saying done.", "--now", "2026-12-10"], env=envl)
+    t = note.read_text(encoding="utf-8")
+    pa, pb = t.find("## 已整理的偏好"), t.find("## 紀錄")
+    check("learn: pref writes the preference under the preferences heading, not among the lines",
+          rc == 0 and 0 <= pa < t.find("- Open the result and look at it before saying done. (沒驗證就說做完; 2026-12-10)") < pb, t)
+    rc, out, err = run([LE, "group", "--since", "2026-12-07", "--now", "2026-12-10"], env=envl)
+    check("learn: group shows the preferences already written", "Preferences already written (1)" in out, out + err)
+    ss = {"cwd": str(v), "hook_event_name": "SessionStart", "source": "startup"}
+    rc, out, err = run([LNH], ss, env)
+    check("learn_notice: at session start the sorted preferences are put into the conversation (E2E: a new session did not open the note)",
+          rc == 0 and "Open the result and look at it before saying done." in out and '"hookEventName": "SessionStart"' in out
+          and "沒驗證就說做完 | 「" not in out, out + err)
+    rc, out, err = run([LNH], ss, dict(env, SBK_MODE_LEARN_NOTICE="log"))
+    check("learn_notice: session start in log mode adds nothing", rc == 0 and out.strip() == "", out + err)
+    rc, out, err = run([LNH], {"cwd": str(tmp), "hook_event_name": "SessionStart"}, dict(env, SBK_HOME=str(h2)))
+    check("learn_notice: session start with no note adds nothing", rc == 0 and out.strip() == "", out + err)
+    rc, out, err = run([LE, "stats", "--now", "2026-12-10"], env=envl)
+    try:
+        st = json.loads(out)
+    except Exception:
+        st = {}
+    check("learn: stats counts lines, corrections this week, kinds that came back, preferences",
+          st.get("lines") == 4 and st.get("corrections") == 3 and st.get("confirmations") == 1
+          and st.get("corrections_this_week") == 3 and st.get("preferences") == 1 and "沒驗證就說做完" in str(st.get("repeats")),
+          out + err)
+    # 4. the Basic light review through level_notice, once a week, only with new lines
+    LC = KIT / "scripts" / "level_check.py"
+    note2 = note.read_text(encoding="utf-8")
+    cc = tmp / "learncc"
+    cc.mkdir(exist_ok=True)
+    rc, out, err = run([LC, "--hook", "--now", "2026-12-10T09:00:00"], {"cwd": str(v), "hook_event_name": "SessionStart"},
+                       dict(env, CLAUDE_CONFIG_DIR=str(cc)))
+    check("light review (Basic): the first session of the week gets the review with the new lines by kind",
+          rc == 0 and "weekly light review" in out and "沒驗證就說做完 x3" in out and "group --since" in out
+          and "learn.py" in out and note.read_text(encoding="utf-8") == note2, out + err)
+    rc, out, err = run([LC, "--hook", "--now", "2026-12-11T09:00:00"], {"cwd": str(v), "hook_event_name": "SessionStart"},
+                       dict(env, CLAUDE_CONFIG_DIR=str(cc)))
+    check("light review (Basic): not again in the same week", rc == 0 and "light review" not in out, out + err)
+    s = json.loads((h / "state" / "level_check.json").read_text(encoding="utf-8"))
+    s["last_hook_run"] = "2026-12-01"
+    (h / "state" / "level_check.json").write_text(json.dumps(s), encoding="utf-8")
+    rc, out, err = run([LC, "--hook", "--now", "2026-12-17T09:00:00"], {"cwd": str(v), "hook_event_name": "SessionStart"},
+                       dict(env, CLAUDE_CONFIG_DIR=str(cc)))
+    check("light review (Basic): a week with no new lines brings no review", rc == 0 and "light review" not in out, out + err)
+    hf = tmp / "learnhome-full"
+    (hf / "managers" / "maintenance").mkdir(parents=True)
+    (hf / "config.json").write_text(json.dumps(dict(cfg, vault=str(v), level="full")), encoding="utf-8")
+    rc, out, err = run([LC, "--hook", "--now", "2026-12-10T09:00:00"], {"cwd": str(v), "hook_event_name": "SessionStart"},
+                       dict(env, SBK_HOME=str(hf), CLAUDE_CONFIG_DIR=str(cc)))
+    check("light review: none in Full with a maintenance session (its weekly review does it)",
+          rc == 0 and "light review" not in out, out + err)
+    # 5. /sbk-status shows the learning numbers
+    (h / "bin").mkdir(exist_ok=True)
+    rc, out, err = run([KIT / "entry" / "status.py", "--all"], env=envl)
+    check("status: a learning section with lines recorded, preferences, corrections this week, same kind again",
+          "== Learning" in out and "lines recorded: 4 (corrections 3, confirmations 1)" in out
+          and "preferences written: 1" in out and "corrections this week:" in out and "same kind again" in out, out + err)
 
 
 def main():
@@ -639,7 +890,8 @@ def main():
               and "outside_resources" in cfg and "other_tools" not in cfg, cfg)
         check("config template: Basic level, history not read until the user says yes, modes", cfg.get("level") == "basic" and cfg.get("read_history") is False and cfg["modes"] == {
             "vault_guard": "ask", "read_whole": "deny", "requests_reinject": "warn",
-            "stop_evidence": "log", "usage_warn": "off", "inbox_notice": "off", "level_notice": "warn"}, cfg)
+            "stop_evidence": "log", "usage_warn": "off", "inbox_notice": "off", "level_notice": "warn",
+            "learn_notice": "warn"}, cfg)
         home2 = tmp / "home2"
         (home2 / "managers" / "study").mkdir(parents=True)
         (home2 / "inbox").mkdir()
@@ -670,6 +922,7 @@ def main():
 
         # ---- weekly level check (scripts/level_check.py, hooks/level_notice.py) ----
         level_tests(tmp, cfg)
+        learn_loop_tests(tmp, cfg)
 
         # ---- vault tools ----
         rc, out, _ = run([KIT / "scripts" / "gen_jdex.py", "--root", vault], env=env)
@@ -771,22 +1024,21 @@ def main():
             check("template vault: a broken link is refused by pre-commit", r.returncode != 0 and "broken-wikilink" in (r.stdout + r.stderr), r.stdout + r.stderr)
 
         # ---- how the user opens the notes folder: App users get steps, no shortcut file ----
-        for lang, setup, readme in (("en", KIT / "docs" / "SETUP.md", KIT / "README.md"),
-                                    ("zh", KIT / "docs" / "zh-TW" / "SETUP.md", KIT / "README.zh-TW.md")):
-            st = setup.read_text(encoding="utf-8")
-            a = st.find("### `SURFACE` = app")
-            b = st.find("### `SURFACE` = terminal")
-            app = st[a:b] if 0 <= a < b else ""
-            term = st[b:st.find("## Step 5b" if lang == "en" else "## 步驟 5b")] if b >= 0 else ""
-            check("setup %s: surface is detected from CLAUDE_CODE_ENTRYPOINT, user answer wins" % lang,
-                  "CLAUDE_CODE_ENTRYPOINT" in st and "claude-desktop" in st and "`cli`" in st)
-            check("setup %s: App branch gives the Code tab / Open folder steps and makes no shortcut file" % lang,
-                  "**Code**" in app and "**Open folder…**" in app and "**Local**" in app
-                  and not any(w in app for w in ("chmod", "@echo off", "#!/bin/sh")))
-            check("setup %s: terminal branch keeps the shortcut and the plain cd + claude way" % lang,
-                  "@echo off" in term and "#!/bin/sh" in term and "claude --continue" in term and "cd \"<VAULT>\"" in term)
-            check("setup %s: Step 6 and 7 do not assume a shortcut or claude -p for App users" % lang,
-                  "**+ New**" in st and st.count("**Open folder…**") >= 4)
+        st = (KIT / "docs" / "SETUP.md").read_text(encoding="utf-8")
+        a = st.find("### `SURFACE` = app")
+        b = st.find("### `SURFACE` = terminal")
+        app = st[a:b] if 0 <= a < b else ""
+        term = st[b:st.find("## Step 5b")] if b >= 0 else ""
+        check("setup: surface is detected from CLAUDE_CODE_ENTRYPOINT, user answer wins",
+              "CLAUDE_CODE_ENTRYPOINT" in st and "claude-desktop" in st and "`cli`" in st)
+        check("setup: App branch gives the Code tab / Open folder steps and makes no shortcut file",
+              "**Code**" in app and "**Open folder…**" in app and "**Local**" in app
+              and not any(w in app for w in ("chmod", "@echo off", "#!/bin/sh")))
+        check("setup: terminal branch keeps the shortcut and the plain cd + claude way",
+              "@echo off" in term and "#!/bin/sh" in term and "claude --continue" in term and "cd \"<VAULT>\"" in term)
+        check("setup: Step 6 and 7 do not assume a shortcut or claude -p for App users",
+              "**+ New**" in st and st.count("**Open folder…**") >= 4)
+        for lang, readme in (("en", KIT / "README.md"), ("zh", KIT / "README.zh-TW.md")):
             rd = readme.read_text(encoding="utf-8")
             mm = rd[rd.find("```mermaid"):rd.find("```", rd.find("```mermaid") + 10)]
             check("readme %s: both ways in (App steps + terminal), diagram names both" % lang,
@@ -818,13 +1070,22 @@ def main():
                 if not (head.lstrip().startswith("---") and any(w in head for w in ("Basic", "Full", "基本款", "完整款"))):
                     mm_untitled.append(p.name)
         check("docs: every Mermaid picture has a Basic/Full title", not mm_untitled, ", ".join(mm_untitled))
-        hooks7 = ("vault_guard", "read_whole", "requests_reinject", "stop_evidence", "level_notice", "inbox_notice", "usage_warn")
+        hooks8 = ("vault_guard", "read_whole", "requests_reinject", "stop_evidence", "level_notice", "learn_notice",
+                  "inbox_notice", "usage_warn")
         for p in (KIT / "README.md", KIT / "README.zh-TW.md", KIT / "docs" / "ADVANCED.md", KIT / "docs" / "zh-TW" / "進階功能.md"):
             t = p.read_text(encoding="utf-8")
-            listed = [h for h in hooks7 if ("- `%s`" % h) in t]
-            check("docs %s: one line per hook, all 7, with Basic on/off" % p.name, len(listed) == 7 and t.count("Basic: o") + t.count("基本款：") >= 7, listed)
-        check("hooks: the 7 hooks in the docs are the hooks the plugin runs",
-              all((H / (h + ".py")).exists() for h in hooks7))
+            listed = [h for h in hooks8 if ("- `%s`" % h) in t]
+            check("docs %s: one line per hook, all 8, with Basic on/off" % p.name, len(listed) == 8 and t.count("Basic: o") + t.count("基本款：") >= 8, listed)
+        hj = (H / "hooks.json").read_text(encoding="utf-8")
+        hjd = json.loads(hj)["hooks"]
+        check("hooks: learn_notice runs at session start (startup, resume, compact) and on every message",
+              all(any("learn_notice.py" in x["command"] for x in g["hooks"]) for g in hjd["SessionStart"])
+              and any("learn_notice.py" in x["command"] for g in hjd["UserPromptSubmit"] for x in g["hooks"]))
+        check("hooks: the 8 hooks in the docs are the hooks the plugin runs (hooks.json names each)",
+              all((H / (h + ".py")).exists() and (h + ".py") in hj for h in hooks8))
+        ex = (KIT / "templates" / "settings.hooks.example.json").read_text(encoding="utf-8")
+        check("hooks: the settings example for a manual install runs the same 8 hooks",
+              all((h + ".py") in ex for h in hooks8), [h for h in hooks8 if (h + ".py") not in ex])
         adv = (KIT / "docs" / "ADVANCED.md").read_text(encoding="utf-8")
         advz = (KIT / "docs" / "zh-TW" / "進階功能.md").read_text(encoding="utf-8")
         check("advanced: Basic and Full table in both languages",
@@ -857,18 +1118,56 @@ def main():
               (KIT / "templates" / "和AI協作.md").exists() and "和 AI 協作" in (KIT / "templates" / "CLAUDE.md").read_text(encoding="utf-8")
               and "和 AI 協作" in (KIT / "templates" / "AGENTS.md").read_text(encoding="utf-8")
               and "learn.py trend" in (KIT / "templates" / "maintenance-CLAUDE.md").read_text(encoding="utf-8")
+              and "learn.py group" in (KIT / "templates" / "maintenance-CLAUDE.md").read_text(encoding="utf-8")
               and "--replay" in (KIT / "templates" / "maintenance-CLAUDE.md").read_text(encoding="utf-8"))
-        check("templates: checking the notes first is step one in CLAUDE.md and AGENTS.md",
-              "動手前先查第二大腦" in (KIT / "templates" / "CLAUDE.md").read_text(encoding="utf-8")
-              and "動手前先查第二大腦" in (KIT / "templates" / "AGENTS.md").read_text(encoding="utf-8"))
+        firsts = {n: (KIT / "templates" / n).read_text(encoding="utf-8").lower()
+                  for n in ("CLAUDE.md", "AGENTS.md", "entry-CLAUDE.md", "manager-CLAUDE.md", "maintenance-CLAUDE.md")}
+        check("templates: checking the second brain first (preferences first) is step one in every rules template",
+              all("check the second brain first" in t or "check the notes first" in t for t in firsts.values())
+              and "step one of every task: check the second brain first" in firsts["CLAUDE.md"]
+              and "step one of every task: check the second brain first" in firsts["AGENTS.md"]
+              and "first its sorted preferences" in firsts["CLAUDE.md"] and "sorted preferences first" in firsts["AGENTS.md"],
+              [n for n, t in firsts.items() if "check the second brain first" not in t])
         se = (KIT / "docs" / "SETUP.md").read_text(encoding="utf-8")
-        sz = (KIT / "docs" / "zh-TW" / "SETUP.md").read_text(encoding="utf-8")
-        check("setup: six questions, the plan sets starting values, outside resources are ticked (both languages)",
-              "ask six things" in se and "Which Claude plan" in se and "Tick any, or none" in se and "max_sessions" in se and "可免費申請" in se
-              and "問六件事" in sz and "哪種方案" in sz and "有的都勾" in sz and "max_sessions" in sz and "可免費申請" in sz)
+        check("setup: six questions, the plan sets starting values, outside resources are ticked",
+              "ask six things" in se and "Which Claude plan" in se and "Tick any, or none" in se and "max_sessions" in se and "可免費申請" in se)
         check("docs: the entry sends work into running sessions; inbox fallback is described",
               "straight into the running session" in adv and "直接把事送進正在跑" in advz
-              and "session.py check" in se and "session.py check" in sz and "inbox" in se)
+              and "session.py check" in se and "inbox" in se)
+        # ---- language split: what Claude reads exists only in English; what the user sees is in their language ----
+        claude_only = [KIT / "docs" / "SETUP.md", KIT / "docs" / "MULTI-TOOL.md"] + [
+            KIT / "templates" / n for n in ("CLAUDE.md", "AGENTS.md", "entry-CLAUDE.md", "manager-CLAUDE.md",
+                                            "maintenance-CLAUDE.md", "task.md", "筆記格式.md")] \
+            + sorted((KIT / "skills").rglob("SKILL.md")) + sorted((KIT / "commands").glob("*.md"))
+        cjk = re.compile(r"[一-鿿]")
+        heavy = []
+        for p in claude_only:
+            t = p.read_text(encoding="utf-8")
+            prose = re.sub(r"`[^`]*`|「[^」]*」|\"[^\"]*\"|\([^)]*\)|（[^）]*）|\|[^\n]*\|", "", t)  # names, quotes, tables
+            n = sum(1 for l in prose.splitlines() if len(cjk.findall(l)) > 12)
+            if n:
+                heavy.append("%s: %d lines" % (p.relative_to(KIT), n))
+        check("language: files only Claude reads are written in English (folder names and quoted words aside)",
+              not heavy, "; ".join(heavy))
+        check("language: no Chinese copies of Claude-only docs (SETUP, MULTI-TOOL); the user-facing pages stay",
+              not (KIT / "docs" / "zh-TW" / "SETUP.md").exists() and not (KIT / "docs" / "zh-TW" / "參考-多工具分工.md").exists()
+              and (KIT / "README.zh-TW.md").exists() and (KIT / "docs" / "zh-TW" / "進階功能.md").exists())
+        check("language: SETUP and the rules template say replies and notes are in the user's language, internal work in English",
+              "user's language" in se and "internal" in se.lower()
+              and "user's language" in firsts["CLAUDE.md"].replace("’", "'") and "english" in firsts["CLAUDE.md"])
+        broken = []
+        for p in [KIT / "README.md", KIT / "README.zh-TW.md"] + sorted((KIT / "docs").rglob("*.md")) \
+                + sorted((KIT / "skills").rglob("*.md")) + sorted((KIT / "commands").glob("*.md")):
+            for link in re.findall(r"\]\(([^)\s]+)\)", p.read_text(encoding="utf-8")):
+                if re.match(r"[a-z]+:", link) or link.startswith("#"):
+                    continue
+                target = (p.parent / link.split("#")[0]).resolve()
+                if not target.exists():
+                    broken.append("%s -> %s" % (p.relative_to(KIT), link))
+        check("docs: every relative link points to a file that exists", not broken, "; ".join(broken))
+        zr = (KIT / "README.zh-TW.md").read_text(encoding="utf-8")
+        check("readme zh: the install sentence uses docs/SETUP.md and asks for Chinese replies",
+              "照 docs/SETUP.md 幫我設定" in zr and "zh-TW/SETUP" not in zr)
         mt = (KIT / "docs" / "MULTI-TOOL.md").read_text(encoding="utf-8")
         check("multi-tool: rules by kind of work, table filled by the user's Claude, monthly re-check",
               "## Kinds of work" in mt and "## Filling and re-checking the table" in mt

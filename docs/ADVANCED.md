@@ -15,7 +15,7 @@ Full is not one big switch: each part (A1-A5 below) is switched on by itself, an
 | Sessions | One main session in your notes folder | Two fixed sessions: **entry** (the only one you talk to) and **maintenance** (the kit, rules, hooks, reminders, and the weekly learning loop), plus one session per subject of yours that the entry starts and sends work into (A1) |
 | Tracker (`ledger.py`) | Claude adds and closes items, each with a note of how it was checked | The same file, shared by every session; topic sessions report to the entry, which opens the evidence. You get one result message |
 | Before every task | Claude checks the notes first, including the 和 AI 協作 note | Every session checks the notes first, including the 和 AI 協作 note |
-| Learning from use | Every correction and every "yes, that's right" becomes one line in the 和 AI 協作 note, read before the next similar task | The same, plus maintenance's weekly review: groups the lines into preferences, skills and (only for a mistake that came back and that a program can see) a new hook; one trend line per week |
+| Learning from use | `learn_notice` reminds Claude to write one line in the 和 AI 協作 note for every correction and every "yes, that's right"; a light weekly review (at the first session of the week) groups the lines by kind and proposes preferences, written only after your yes; the preferences are read first before every task | The same, run by maintenance's weekly review instead: preferences, skills and (only for a mistake that came back and that a program can see) a new hook, each after your yes; one trend line per week |
 | Long conversations | When it gets long, Claude writes a hand-over into task.md and tells you to start a new conversation and say "continue" | The same; background sessions over the limit (150k tokens) and idle are replaced by a fresh one automatically (`handover.py`) |
 | Notes folder, asking before delete/upload, your own words put back | Yes | Yes |
 | Done-check | Writes a log line only | Log, or stops Claude once to check first (A4, if you want) |
@@ -63,7 +63,7 @@ Saying no is recorded with `level_check.py --decline <id>`; the script writes on
   - **Maintenance:** the kit itself (rules, safety checks, reminders, the outside-resources table, updates) and the **learning loop** below.
   At most `max_sessions` topic sessions run at once (by plan); an idle one uses no quota. When the cap is reached, the entry stops the oldest idle session (its state is in its `task.md`) or the job waits in its inbox.
   Where background sessions cannot run (the desktop app alone, no `claude` command, an old version), the job waits in the session's *inbox* (a short text file) and the entry tells you which session to open; the session shows the waiting work when it starts.
-- **The learning loop.** Every time you correct Claude, and every time you confirm it did something right, it writes one line in the 和 AI 協作 note at once: date, your own words, which kind of mistake or which way of working (`learn.py add`). "Check the notes first" reads that note, so the next similar task sees it. Basic stops there. In Full, maintenance's weekly review (Pro weekly, Max and higher twice a week) reads the week's conversations and the tracker, groups lines of the same kind and turns them into: preferences written at the top of the note; ways that worked added to the matching skill; and a hook **only** when the same kind of mistake came a second time **and** a program can see it at the moment of action. A new hook starts in log mode and is replayed on past conversations before it may block. Each review reports one trend line: corrections this week, kinds that came back, against last week.
+- **The learning loop.** Every time you correct Claude, and every time you confirm it did something right, it writes one line in the 和 AI 協作 note at once: date, your own words, which kind of mistake or which way of working (`learn.py add`). The `learn_notice` hook spots messages that read like a correction or a confirmation (Chinese and English phrases; quoted text and code are ignored) and reminds Claude to write that line. At the start of every conversation (and after a summary) the same hook puts the sorted preferences into the conversation, and "check the notes first" reads the recent lines, so the next similar task sees both. (An end-to-end run showed why: a fresh session did not open the note by itself and broke a preference written the day before.) In Basic, `level_notice` also runs a light review at the first session of each week: `learn.py group` sorts the new lines by kind, Claude drafts a preference sentence for each kind seen twice or more (and proposes a skill addition or, for a repeated mistake a program can see, a hook), asks you once, and writes with `learn.py pref` only after your yes. In Full, maintenance's weekly review replaces the light one: it (Pro weekly, Max and higher twice a week) reads the week's conversations and the tracker, groups lines of the same kind and turns them into: preferences written at the top of the note; ways that worked added to the matching skill; and a hook **only** when the same kind of mistake came a second time **and** a program can see it at the moment of action. A new hook starts in log mode and is replayed on past conversations before it may block. Each review reports one trend line: corrections this week, kinds that came back, against last week.
 - **Long conversations hand over by themselves.** A session's state lives only in its `task.md` and a file of your words. When a background session passes 150k tokens (`handover_tokens`) and is idle, the daily check asks it to write its hand-over into `task.md`, copies your words out, stops it and starts a fresh one with the same name that reads both first. A conversation in a window (Basic's main one, or the entry you type into) cannot be replaced by a script: Claude writes the hand-over and tells you to start a new conversation and say "continue".
 - **Evidence is for the sessions, not for you.** A topic closes its tracker item with what it looked at; the entry opens it. You hear only the result.
 - **Reminders.** A small table (`alarms.md`): daily, weekly, monthly or once. The computer's scheduler checks it every five minutes. A due reminder writes an item or an inbox line first, then (with live routing) goes straight into the running session or starts it, within the plan's limits.
@@ -77,7 +77,7 @@ Each picture is a Mermaid diagram that GitHub draws; open "Drawn version" for th
 
 ### 1. Full: how the parts fit together
 
-You talk only to the entry. It works out what you said, writes tracker items and sends each job into the topic session that owns it (running, or started now). Topic sessions check the notes first, do the work and report back to the entry with evidence; the entry opens it and gives you one result. Maintenance runs the weekly learning loop over the 和 AI 協作 note.
+You talk only to the entry. It works out what you said, writes tracker items and sends each job into the topic session that owns it (running, or started now). Topic sessions check the notes first, do the work and report back to the entry with evidence; the entry opens it and gives you one result. The growth loop: when you correct or confirm a session, `learn_notice` reminds it to write one line in the 和 AI 協作 note; maintenance's weekly review groups the lines into preferences, skills and (for a mistake that came back) a new hook, changed only after your yes; every session reads the preferences first.
 
 ```mermaid
 ---
@@ -93,12 +93,14 @@ flowchart LR
   Entry ==>|"into the running session,<br/>or starts it"| Topics
   Topics -->|"report with evidence"| Entry
   Topics <-->|"check first, save"| Vault[("<b>Notes folder</b><br/>incl. 和 AI 協作 note")]
-  Entry -.->|"each correction or confirmation:<br/>one line"| Vault
-  Mnt["<b>Maintenance</b><br/>weekly learning loop:<br/>preferences, skills, hooks,<br/>trend line"]
+  You -.->|"correct, confirm"| LN["<b>learn_notice</b><br/>reminds: write one line"]
+  LN -.->|"one line: date, your words, kind"| Vault
+  Mnt["<b>Maintenance</b><br/>weekly learning loop:<br/>preferences, skills, hooks,<br/>after your yes; trend line"]
   Vault -.->|"the week's lines"| Mnt
+  Mnt -.->|"preferences, read first"| Vault
   Mnt -.->|"new hook, log mode first"| Hooks
   Topics -.->|by kind of work| Res["Outside resources<br/>only what you ticked"]
-  Hooks{{"<b>Hooks</b> in every session<br/>vault_guard · read_whole · requests_reinject · stop_evidence<br/>level_notice · inbox_notice · usage_warn"}} -.- Entry
+  Hooks{{"<b>Hooks</b> in every session<br/>vault_guard · read_whole · requests_reinject · stop_evidence<br/>level_notice · learn_notice · inbox_notice · usage_warn"}} -.- Entry
 ```
 
 What each hook does (Basic on/off; Full switches on the ones marked):
@@ -106,7 +108,8 @@ What each hook does (Basic on/off; Full switches on the ones marked):
 - `read_whole` - in the notes folder, stops Claude from judging a note by its first lines; it reads the note to the end. Basic: on.
 - `requests_reinject` - when a long conversation is summarised, puts your own messages back word for word; when a conversation passes the hand-over size, tells Claude to write its hand-over and you to start a fresh one. Basic: on.
 - `stop_evidence` - notices when Claude says "done" after a change without looking at the result. Basic: on, writes a log line only; Full can make it stop Claude once (A4).
-- `level_notice` - about once a week, in the notes folder, asks one yes/no question when what happened to you shows another part would help. Basic: on.
+- `level_notice` - about once a week, in the notes folder, asks one yes/no question when what happened to you shows another part would help; in Basic it also runs the light weekly review of the 和 AI 協作 lines (proposes only; nothing changes before your yes). Basic: on.
+- `learn_notice` - when your message reads like a correction or a confirmation, reminds Claude to write one line in the 和 AI 協作 note; at the start of a conversation (and after it is summarised) puts the note's sorted preferences into it. Basic: on (`"learn_notice": "warn"`; `log` only counts, `off` stops it).
 - `inbox_notice` - when a session opens, and at each message, shows the work waiting in its inbox; in the entry, also the items done and waiting for its check. Basic: off; Full sessions switch it on (A1).
 - `usage_warn` - warns once when your weekly Claude usage passes 80%. Basic: off; on only if you ask (A3).
 
@@ -153,7 +156,7 @@ The tracker refuses a "done" without evidence. With the stricter done-check (A4)
 
 ### 3. Full: who gets the task
 
-The entry first works out your words (answer at once, edit an old item, or split), then reads `routes.md`. Anything about the kit, rules or reminders goes to maintenance. A job no session owns gets a new topic session, opened by the entry itself. Jobs that need two topics are chained by the entry, and every report comes back to it. Heavy reading goes to subagents (helpers Claude starts inside the same session); outside resources by kind of work, if you have them.
+The entry first works out your words (answer at once, edit an old item, or split), then reads `routes.md`. Anything about the kit, rules or reminders goes to maintenance. A job no session owns gets a new topic session, opened by the entry itself. Jobs that need two topics are chained by the entry, and every report comes back to it. A topic session starts every job by checking the second brain (the notes and the 和 AI 協作 preferences). Heavy reading goes to subagents (helpers Claude starts inside the same session); outside resources by kind of work, if you have them.
 
 ```mermaid
 ---
@@ -170,6 +173,7 @@ flowchart LR
   E ==>|into the running session, or starts it| Topics
   subgraph Topics["Your topic sessions"]
     TA["Topic: study"] -.->|"chained by the entry:<br/>next starts with the checked result"| TB["Topic: job"]
+    TB -->|starts with| CK["<b>Check notes first</b><br/>preferences first,<br/>then the job"]
   end
   Topics -->|every report| E
   Topics -->|heavy reading| S["Subagents"]
@@ -186,7 +190,7 @@ flowchart LR
 
 ### 4. Full: a day with reminders
 
-The scheduler runs every five minutes; that check uses no quota. A due row goes straight into the running session, or starts it, within the plan's daily limit; over the limit it waits in the inbox. The weekly review is maintenance's learning loop. The morning list and the deadline reminder are examples you can add.
+The scheduler runs every five minutes; that check uses no quota. A due row goes straight into the running session, or starts it, within the plan's daily limit; over the limit it waits in the inbox. A woken session checks the second brain (the notes and the 和 AI 協作 preferences) before it acts. The weekly review is maintenance's learning loop. The morning list and the deadline reminder are examples you can add.
 
 ```mermaid
 ---
@@ -195,12 +199,13 @@ title: "Full: a day with reminders"
 flowchart LR
   Tick(["<b>All day</b><br/>alarm.py every 5 minutes:<br/>reads files, uses no quota"])
   Tick -.-> M
+  Tick -->|"due row: into the session,<br/>or starts it"| CK["<b>Check notes first</b><br/>the woken session,<br/>before it acts"]
   subgraph Day["Any day"]
     M["<b>8 am</b> Morning list<br/>example row, to the entry"] --> R["<b>3 pm</b> Deadline reminder<br/>example row, into the topic session"]
     R --> H["<b>9:30 pm</b> Hand-over check, H01<br/>long idle sessions get a fresh one"]
   end
   subgraph Sun["Sunday, M01 (Max and higher: also Wednesday)"]
-    W["<b>8 pm</b> Maintenance:<br/>read the week's corrections<br/>and confirmations"] --> W1["Group by kind:<br/>preferences, skills,<br/>hook only on the 2nd time"] --> W2["Missed items, done without<br/>evidence, close old items"] --> W3["Report one trend line<br/>to the entry"]
+    W["<b>8 pm</b> Maintenance:<br/>read the week's corrections<br/>and confirmations"] --> W1["Group by kind:<br/>preferences, skills, hooks,<br/>after your yes"] --> W2["Missed items, done without<br/>evidence, close old items"] --> W3["Report one trend line<br/>to the entry"]
   end
   subgraph Month["1st of the month, T01"]
     T1["<b>10 am</b> Re-check outside resources<br/>to maintenance"]

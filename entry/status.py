@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""One screen of everything still open: the tracker (ledger), task.md files, unread inboxes, alarms.
+"""One screen of everything still open: the tracker (ledger), task.md files, unread inboxes, the learning
+loop's numbers (lines in the 和 AI 協作 note, corrections this week, kinds that came back), alarms.
 
     status.py [--all]     (--all also lists every open task line, not just the first 5 per file)
 
@@ -74,6 +75,23 @@ def main():
                 print("  %s: %d" % (f.stem, len(n)))
     if not any_in:
         print("  empty")
+
+    print("\n== Learning (the 和 AI 協作 note) ==")
+    try:
+        import datetime
+        import learn
+        p = learn.note()
+        if p and p.exists():
+            s = learn.stats(p.read_text(encoding="utf-8"), datetime.date.today())
+            rep = ", ".join("%s x%d" % kv for kv in s["repeats"].items()) or "none"
+            print("  lines recorded: %d (corrections %d, confirmations %d); preferences written: %d"
+                  % (s["lines"], s["corrections"], s["confirmations"], s["preferences"]))
+            print("  corrections this week: %d (last week %d)" % (s["corrections_this_week"], s["last_week"]))
+            print("  same kind again: " + rep)
+        else:
+            print("  no note yet (%s)" % p)
+    except Exception as e:
+        print("  cannot read: %r" % (e,))
 
     alarms = home / "alarms.md"
     n = 0

@@ -1,18 +1,20 @@
 {
-  "description": "second-brain-kit guard hooks. Each one fails open and reads its mode (off/log/warn/ask/deny/block) from ~/.sbk/config.json. Without that file the Basic defaults apply: vault_guard ask, read_whole deny (vault notes only), requests_reinject warn (words back after compaction; hand-over notice above handover_tokens), stop_evidence log, usage_warn off, inbox_notice off, level_notice warn (weekly upgrade check, notes folder only).",
+  "description": "second-brain-kit guard hooks. Each one fails open and reads its mode (off/log/warn/ask/deny/block) from ~/.sbk/config.json. Without that file the Basic defaults apply: vault_guard ask, read_whole deny (vault notes only), requests_reinject warn (words back after compaction; hand-over notice above handover_tokens), stop_evidence log, usage_warn off, inbox_notice off, level_notice warn (weekly upgrade check and the Basic light review of the learning loop, notes folder only), learn_notice warn (reminds Claude to record a correction or confirmation in the 和 AI 協作 note; at session start puts the note's sorted preferences into the conversation).",
   "hooks": {
     "SessionStart": [
       {
         "matcher": "compact",
         "hooks": [
-          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" requests_reinject.py", "timeout": 10}
+          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" requests_reinject.py", "timeout": 10},
+          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" learn_notice.py", "timeout": 10}
         ]
       },
       {
         "matcher": "startup|resume",
         "hooks": [
           {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" inbox_notice.py", "timeout": 10},
-          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" level_notice.py", "timeout": 15}
+          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" level_notice.py", "timeout": 15},
+          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" learn_notice.py", "timeout": 10}
         ]
       }
     ],
@@ -21,7 +23,8 @@
         "hooks": [
           {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" usage_warn.py", "timeout": 10},
           {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" inbox_notice.py", "timeout": 10},
-          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" requests_reinject.py", "timeout": 10}
+          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" requests_reinject.py", "timeout": 10},
+          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" learn_notice.py", "timeout": 10}
         ]
       }
     ],

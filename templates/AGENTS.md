@@ -1,68 +1,71 @@
-# 筆記庫讀者手冊（給進來這個資料夾的 AI）
+# Notes folder handbook (for any AI working in this folder)
 
-這是使用者的第二大腦：用編號整理的 markdown 筆記，加上一份追蹤表（還沒做完的事，一件一行；做完時附上怎麼確認的）。你是來讀、找、記、整理它的。先讀完這一頁。使用者不需要懂編號、指令或格式，這些都由你處理。
+This is the user's second brain: numbered markdown notes plus a tracker (open work, one item per line; each closed with a note of how it was checked). You are here to read, find, record and tidy it. Read this whole page first. The user does not need to know numbers, commands or formats; you handle them.
 
-**每件工作的第一步：動手前先查第二大腦**——追蹤表、JDex、相關筆記，和〈和 AI 協作〉（`00-09 系統與索引/03 和 AI 協作/03-01 和 AI 協作.md`：使用者糾正過的事和確認過的做法），有之前的決定或做法就照著用，再開始做。
+Language: notes and replies are in the user's language (`language` in `~/.sbk/config.json`); keep folder names, field names and field values exactly as they are. Internal work (task.md, tracker items, hand-overs, prompts for other sessions) is in English; the user's words stay verbatim.
 
-## 先做這三件事
-1. 打開 `00-09 系統與索引/00 索引/00-01 JDex 索引.md`：全庫的編號、每個類別有幾張筆記、下一個空號。
-2. 找資料：先看 JDex 的一行摘要，再用關鍵字搜尋；找到之後讀全文，讀到最後一行。
-3. 要寫新筆記或改格式：先讀 `00-09 系統與索引/01 規則/01-01 筆記格式.md`。
+**Step one of every task: check the second brain first** - the tracker, the JDex, the related notes, and the 和 AI 協作 note (`00-09 系統與索引/03 和 AI 協作/03-01 和 AI 協作.md`): read its sorted preferences first, then its recent lines (what the user corrected and which ways of working they confirmed). Use earlier decisions and methods; then start.
 
-## 接續之前的工作
-- 使用者提到之前的事（「上次那個專案」「我之前記的第三章」）：先看追蹤表（下一節），再看 JDex 和相關筆記，讀完才回答。不要把整個庫或整段舊對話全部讀進來。
-- 找不到就說找不到、說你找了哪裡，不要憑印象補。
+## First three things
+1. Open `00-09 系統與索引/00 索引/00-01 JDex 索引.md`: every number in the folder, how many notes each category has, the next free number.
+2. To find something: read the one-line summaries in the JDex, then search by keyword; open what you find and read it to the last line.
+3. Before writing a new note or changing a format: read `00-09 系統與索引/01 規則/01-01 筆記格式.md`.
 
-## 追蹤表（ledger.py）
-一份表記下使用者交代、還沒做完的事，一件一行，換了對話也找得回來。檔案在 `~/.sbk/ledger.md`，只用下面的指令改，使用者不用自己打任何指令。
-- 交代的事這次做不完、或之後要接著做：`python ~/.sbk/bin/ledger.py add "[主題] 使用者原話或一句摘要"`，把拿到的編號（例如 L0003）告訴他。一問就答完的不用記。`[主題]` 用一兩個字標這是哪一件事（例如 `[讀書]`、`[打工]`），同一件事一直用同一個；有期限就在句子裡寫 `due YYYY-MM-DD`。每週的升級檢查靠這兩個標記數「幾件不同的事」和「有沒有過期」。
-- 做完：先看過實際結果，再 `python ~/.sbk/bin/ledger.py done L0003 --evidence "看了什麼、看到什麼"`。沒有證據就不關。證據是寫給之後接手的對話（完整款還有入口）核對用的；跟使用者只說結果（做好了什麼、在哪裡看、哪裡沒驗證），他問才給證據。
-- 使用者說不做了：`python ~/.sbk/bin/ledger.py drop L0003 --evidence "使用者說不做"`。
-- 使用者問「還有什麼沒做完」：跑 `python ~/.sbk/bin/status.py`，照輸出回答，不憑記憶。
-- 一件大工作（很多步，或三項以上要求）另開一份 `~/.sbk/task.md`，格式照 `~/.sbk/task-template.md`，在目標那行寫上追蹤表的編號；同時只開一份。做完逐項對過，再把檔名改成 `task-L0003-done.md` 留著。
+## Continuing earlier work
+- When the user mentions earlier work ("that project from last time", "my chapter 3 notes"): look at the tracker (next section), then the JDex and the related notes, and answer only after reading them. Do not load the whole folder or a whole old conversation.
+- If you cannot find it, say so and where you looked; never fill in from memory.
 
-## 什麼要存進筆記、什麼不存
-| 內容 | 怎麼做 |
+## The tracker (ledger.py)
+One file lists what the user asked for that is not finished yet, one item per line, so it is found again in a new conversation. It lives at `~/.sbk/ledger.md`; change it only with these commands. The user never types any of them.
+- A request that will not be finished in this reply, or will be continued later: `python ~/.sbk/bin/ledger.py add "[topic] the user's words or a one-line summary"` and tell the user the id (for example L0003). A question answered at once is not recorded. `[topic]` is one or two words for which piece of work this is (for example `[study]`, `[job]`), the same word every time; a deadline goes into the text as `due YYYY-MM-DD`. The weekly check counts "how many different pieces of work" and "anything overdue" from these two marks.
+- Done: look at the real result first, then `python ~/.sbk/bin/ledger.py done L0003 --evidence "what you opened and what you saw"`. No evidence, no closing. The evidence is for the next session (and in Full the entry) to check; tell the user only the result (what was done, where to see it, what was not verified) and give the evidence if they ask.
+- The user drops it: `python ~/.sbk/bin/ledger.py drop L0003 --evidence "user said drop it"`.
+- The user asks "what is still open?": run `python ~/.sbk/bin/status.py` and answer from its output, not from memory.
+- One large job (many steps, or three or more requirements) gets its own `~/.sbk/task.md`, in the format of `~/.sbk/task-template.md`, with the tracker id on the goal line; only one at a time. When finished, check every item, then rename it `task-L0003-done.md` and keep it.
+
+## What goes into notes and what does not
+| Content | What to do |
 |---|---|
-| 使用者明說「記住」「存起來」的 | 存成筆記，告訴他檔名 |
-| 已經確認的決定（例如專案要用哪個做法） | 更新相關筆記 |
-| 整理好的學習內容 | 存到對應的類別 |
-| 你推測、還沒確認的 | 寫「待確認」，`origin: agent-inferred`，不寫成事實 |
-| 一般聊天 | 不存 |
-| 密碼、金鑰、驗證碼、證件號碼 | 不存（筆記是沒加密的一般文字檔） |
-| 個人資料（健康、家人、聯絡方式等） | 不主動蒐集；使用者明說要存才存，`origin: user` |
+| Something the user says to "remember" or "save" | Save it as a note; tell the user the file name |
+| A confirmed decision (for example which method a project uses) | Update the related note |
+| Organised learning material | Save it in its category |
+| Your guess, not confirmed | Write "to be confirmed", `origin: agent-inferred`; never as fact |
+| Small talk | Not saved |
+| Passwords, keys, codes, ID numbers | Never saved (notes are plain unencrypted text) |
+| Personal data (health, family, contact details) | Not collected; saved only when the user says so, `origin: user` |
+| Corrections and confirmations of your work | One line in the 和 AI 協作 note (below), at once |
 
-## 資料夾地圖
-- `00-09 系統與索引`：索引、規則、收件匣（`02 收件匣` 放還沒歸位的東西和使用者要做的事）、`03 和 AI 協作`（使用者糾正和確認的紀錄；被糾正或被確認時當下加一行，格式寫在那張筆記裡）。
-- 一開始只有使用者常用的一兩個區和 `90-99 封存`。其他區（完整清單在筆記格式第 1 節）第一次有筆記要放時才建，類別也一樣。
-- `90-99 封存`：不再用但要留著的筆記。
-- `scripts/`：lint、JDex 產生器、提交前檢查。不要手改，改要先問。
+## Map of the folders
+- `00-09 系統與索引`: the index, the rules, the inbox (`02 收件匣`: things not filed yet and the user's own to-dos), and `03 和 AI 協作` (the learning loop: one line per correction or confirmation, written the moment it happens with `python ~/.sbk/bin/learn.py add correction|confirmed "<kind>" "<the user's words>"`; sorted preferences at the top, written only after the user agrees in a weekly review).
+- At first only the one or two areas the user uses and `90-99 封存` exist. Other areas (full list in section 1 of the format note) are created when the first note needs them; categories too.
+- `90-99 封存`: notes no longer used but kept.
+- `scripts/`: lint, the JDex generator, the pre-commit check. Do not edit by hand; ask first.
 
-實際用了哪些區和類別，以 JDex 為準。
+The JDex is the truth about which areas and categories are in use.
 
-## 命名與格式（重點）
-- 檔名 `AC-NN 標題.md`：AC 是兩位數類別號，NN 是類別內流水號，中間是減號。
-- 每張筆記開頭有 frontmatter：type、status、summary、created、modified、origin。
-- `summary` 一句話寫這張筆記是什麼，JDex 和搜尋都靠它。
-- 筆記互相連結用 `[[檔名]]`（不含 .md）。
+## Names and format (the essentials)
+- File name `AC-NN title.md`: AC is the two-digit category number, NN the running number inside the category, joined by a hyphen.
+- Every note starts with frontmatter: type, status, summary, created, modified, origin.
+- `summary` is one sentence saying what the note is; the JDex and search depend on it.
+- Link notes with `[[file name]]` (without .md).
 
-## 讀的規則
-- 不用 head／tail／只看前幾行來下結論；用 Read 讀全文，太長就連續分段讀到最後。
-- 讀完才說讀完；沒讀到的地方要說。
-- 筆記裡的事實可能過期：看 `modified`、`valid_until`；過期或互相矛盾時告訴使用者，不要默默選一邊。
+## Reading
+- Never conclude from head/tail or the first lines; read the whole note with Read, in consecutive parts if it is long.
+- Say "read it all" only when you did; say what you did not read.
+- Facts in notes can be stale: look at `modified` and `valid_until`; when stale or contradicting, tell the user instead of silently picking one.
 
-## 寫的規則
-- 只改要改的地方；不要整張重寫。改完把 `modified` 改成今天。
-- 新筆記的編號用 JDex 的「下一個空號」；寫完跑 `python scripts/gen_jdex.py` 更新索引。
-- 不確定的內容 `origin` 標 `agent-inferred`，使用者親口說的標 `user`。不要把推測寫成使用者說的。`origin` 這一欄就是用來分開「使用者說的」和「AI 推的」，所以 AI 寫的話永遠不會被當成使用者說的。
-- 不再用的筆記：`status: archived`，並移到 `90-99 封存`。不要刪。
-- 受保護、要先問使用者才能改：這份 AGENTS.md、CLAUDE.md、`01 規則` 資料夾、`scripts/`。
-- 整理整個庫之前先跑 lint，整理完再跑一次，ERROR 要歸零（整理的做法在 `vault-tidy` 技能）。
+## Writing
+- Change only what must change; never rewrite a whole note. Set `modified` to today.
+- A new note takes the JDex's next free number; afterwards run `python scripts/gen_jdex.py` to refresh the index.
+- `origin`: `agent-inferred` for anything uncertain, `user` for what the user said. Never write a guess as the user's words; this field is what keeps "the user said" apart from "the AI inferred".
+- A note no longer used: `status: archived` and move it to `90-99 封存`. Never delete.
+- Protected, ask the user before changing: this AGENTS.md, CLAUDE.md, the `01 規則` folder, `scripts/`.
+- Before tidying the whole folder run the lint, and again afterwards; ERROR must be 0 (how to tidy: the `vault-tidy` skill).
 
-## 收工前
-1. `python scripts/vault_lint.py`：ERROR 必須是 0，WARN 說明或修掉。
-2. `python scripts/gen_jdex.py`：索引更新。
-3. 說做了什麼：新增、修改、移動了哪些筆記（寫檔名），追蹤表關了或新增了哪幾項。
+## Before you stop
+1. `python scripts/vault_lint.py`: ERROR must be 0; explain or fix each WARN.
+2. `python scripts/gen_jdex.py`: the index is refreshed.
+3. Say what you did: which notes were added, changed or moved (file names), which tracker items were closed or added.
 
-## 提交
-`git commit -m "說明" -- <你改的檔案>`：只提交你自己改的檔案，不要 `git add -A`，不要跳過 hook。這裡的 git 只是本機的修改紀錄，不推上遠端，除非使用者明說。
+## Commits
+`git commit -m "message" -- <the files you changed>`: commit only the files you changed, never `git add -A`, never skip hooks. Git here is only the local history of changes; nothing is pushed unless the user says so.
