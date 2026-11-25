@@ -16,10 +16,10 @@ Basic is the part that is always installed. Compared with Claude Code on its own
 
 - **Cost:** the kit is free, but Claude Code needs a paid plan (Pro, Max, Ultra, Team, Enterprise) or a Console account (a developer account with prepaid credits); the free claude.ai plan does not include Claude Code ([official page](https://code.claude.com/docs/en/setup)). No ChatGPT, Gemini or other AI account is needed.
 - **Install two things first:** [Claude Code](https://code.claude.com/docs/en/setup) (official; the Claude that works with files on your computer. If you would rather not use a terminal, the window where you type commands, get the [desktop app](https://code.claude.com/docs/en/desktop-quickstart)) and [Python 3](https://www.python.org/downloads/) (free; the kit's small tools run on it). The claude.ai chat in a web browser cannot do this.
-- **How to open Claude Code:** desktop app: open Claude, sign in, click the Code tab. Terminal: on Windows press Start, search "PowerShell", open it and type `claude`; on a Mac press Cmd+Space, search "Terminal", open it and type `claude`.
+- **How to open Claude Code:** desktop app: open Claude, sign in, click the **Code** tab. Terminal: on Windows press Start, search "PowerShell", open it and type `claude`; on a Mac press Cmd+Space, search "Terminal", open it and type `claude`. Either one works for this kit.
 - **How long:** about 15-30 minutes, mostly Claude working on its own; you answer 4 questions and say yes a few times. Add 5-10 minutes if the computer still needs Python or git (a tool that records changes; Claude offers to install it).
 - **What it touches:** only the folders and settings it creates itself; before it changes anything you already had (for example Claude's settings file), it asks you.
-- **Changing your mind:** tell Claude "Remove second-brain-kit". It removes the kit, the block it added to your settings and the desktop shortcut; your notes and work list stay, and it asks before deleting them.
+- **Changing your mind:** tell Claude "Remove second-brain-kit". It removes the kit, the block it added to your settings and the shortcut it made (terminal users only); your notes and work list stay, and it asks before deleting them.
 - **This is not an official plugin from Anthropic** (the company that makes Claude; a plugin is an add-on for Claude Code); users made it.
 
 ## Install: paste this one sentence into Claude Code
@@ -30,15 +30,20 @@ Install second-brain-kit from https://github.com/0Smallcat0/second-brain-kit and
 
 ## What happens next
 
-1. Claude asks you four things: where to keep your notes; which language to use; where you get stuck most when using Claude (for example several things at once get mixed up, you often forget deadlines, you keep having to explain the background again, or it's all fine); and whether it may look at your Claude history on this computer to help decide (it only counts a few numbers on this computer, uploads nothing, and "no" is fine).
+1. Claude asks you four things (plus one short question, only if it cannot tell: do you use the Claude app or a terminal?): where to keep your notes; which language to use; where you get stuck most when using Claude (for example several things at once get mixed up, you often forget deadlines, you keep having to explain the background again, or it's all fine); and whether it may look at your Claude history on this computer to help decide (it only counts a few numbers on this computer, uploads nothing, and "no" is fine).
 2. **Claude suggests each part and you confirm.** Basic is always installed; for one-conversation-per-subject, reminders, and splitting work with another AI you already have, it says in one line each whether to switch it on now and why. With no history, or if you say no, it goes by your answer alone; if your answer points to none of them, you get Basic. Say what to add or drop.
 3. It sets everything up and asks before changing any setting you already had.
 4. It runs a short check: a brand-new conversation has to find a test note and continue a test item. Then the test data is removed.
-5. It shows you how to start: a shortcut on your desktop, and a two-minute first try.
+5. It shows you how to start, for the way you open Claude: in the Claude app, the exact clicks that open your notes folder (no shortcut is made); in a terminal, a desktop shortcut or two short commands. Then a two-minute first try.
 
 ## How to use it after
 
-Double-click the desktop shortcut and type to Claude the way you would chat. For example:
+Open Claude on your notes folder, then type to Claude the way you would chat. There are two ways in; use the one you installed with:
+
+- **Claude app:** open Claude and click the **Code** tab (top of the sidebar). In the row under the prompt box, click the first control and pick the top entry under **Local**, then click the folder control next to it, choose **Open folder…** and pick your notes folder. Next time, click that session in the sidebar to carry on; **+ New** starts a fresh one in the same way.
+- **Terminal:** the shortcut Claude made for you, or without it: open the terminal, type `cd` and your notes folder's path, then `claude` (`claude --continue` returns to the last conversation).
+
+Then say, for example:
 
 - "Remember this: I want to finish chapter 3 this week."
 - "Find my notes about linear algebra."
@@ -51,7 +56,7 @@ Double-click the desktop shortcut and type to Claude the way you would chat. For
 flowchart LR
   You(["You"]) -->|talk| Main
   subgraph Checks["Safety checks run around it"]
-    Main["<b>Main Claude session</b><br/>opened in your notes folder"]
+    Main["<b>Main Claude session</b><br/>opened in your notes folder<br/>Claude app: Code tab, Open folder<br/>or terminal: claude"]
   end
   Main <-->|read, save| Notes[("<b>Notes folder</b><br/>your notes, numbered")]
   Main <-->|add, finish| Work[("<b>Work list</b><br/>what is still open")]

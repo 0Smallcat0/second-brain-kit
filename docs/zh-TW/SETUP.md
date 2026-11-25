@@ -12,6 +12,7 @@
 - `KIT`：裡面有 `.claude-plugin/plugin.json`、且寫著 `"name": "second-brain-kit"` 的那個資料夾。用外掛（plugin，Claude Code 的擴充套件）安裝時就是 `${CLAUDE_PLUGIN_ROOT}`（外掛的 hook 和指令裡才有這個值；在這個對話裡請到 `~/.claude/plugins` 底下的外掛快取找那個檔案）。手動 clone 時就是 clone 下來的資料夾。
 - `SBK_HOME`：`~/.claude/sbk`（工作清單、紀錄、套件設定放這裡）。
 - `VAULT`：使用者選的筆記資料夾（預設 `~/second-brain`）。
+- `SURFACE`：使用者怎麼開 Claude：`app`（Claude 桌面版 App 的 **Code** 分頁）或 `terminal`（在終端機視窗輸入 `claude`）。步驟 0.2 決定；步驟 5、6、7 依它分開做。
 - 路徑：Windows 上用正斜線或加引號。Python：`python3`、`python`、`py` 哪個能跑 Python 3 就用哪個。
 
 做事規則：
@@ -27,21 +28,22 @@
 
 使用者可能只貼了 README 的那句話（「請從 https://github.com/0Smallcat0/second-brain-kit 安裝 second-brain-kit，照 docs/zh-TW/SETUP.md 幫我設定……」）。那句話本身就是要你安裝，不用再問一次。
 1. 執行 `claude plugin marketplace add 0Smallcat0/second-brain-kit`，再執行 `claude plugin install second-brain-kit@second-brain-kit`（就是 `/plugin marketplace add ...`、`/plugin install ...` 的命令列版本）。
-2. 這裡跑不了 `claude` 指令、或安裝失敗：把 `https://github.com/0Smallcat0/second-brain-kit` clone 到一個新資料夾（例如 `~/second-brain-kit-src`），用它當 `KIT`。hook 之後走步驟 4 的手動做法。
+2. 這裡跑不了 `claude` 指令（只用桌面版 App 的人可能沒有，App 不需要它）、或安裝失敗：把 `https://github.com/0Smallcat0/second-brain-kit` clone 到一個新資料夾（例如 `~/second-brain-kit-src`），用它當 `KIT`。hook 之後走步驟 4 的手動做法。
 3. 找到 `KIT`（見上面代號），從那裡讀這份檔案再繼續。
 
 **檢查：** `KIT/.claude-plugin/plugin.json` 存在且寫著 `second-brain-kit`；`claude plugin list` 列出 second-brain-kit（走 clone 的話，記下你用的是 clone）。
 
 ## 步驟 0：檢查電腦、問四件事、逐項建議要裝哪些
 
-1. 執行 `python --version`（或 `python3`／`py`）、`git --version`、`claude --version`。需要 Python 3.8 以上和 git。
+1. 執行 `python --version`（或 `python3`／`py`）和 `git --version`；需要 Python 3.8 以上和 git。用終端機的人還要 `claude --version` 跑得起來；用 App 的人不用（桌面版 App 內建 Claude Code，也沒有 `claude -p`）。
    缺哪個就提議幫他裝（「我幫你裝 Python 好嗎？」），他同意就裝：Windows 用 `winget install -e --id Python.Python.3.12`／`winget install -e --id Git.Git`；macOS 用 `xcode-select --install`（會裝好 git 和 python3），有 Homebrew 的話也可以 `brew install python git`；Linux 用套件管理員。要輸入管理員密碼、或要在安裝視窗按按鈕的部分算**要你做**：告訴使用者是哪個視窗、哪個指令，然後繼續。
-2. 用**一則訊息**、白話問這四題，然後等他回答：
+2. 先決定 `SURFACE`。讀環境變數 `CLAUDE_CODE_ENTRYPOINT`（`echo $CLAUDE_CODE_ENTRYPOINT`；PowerShell 用 `$env:CLAUDE_CODE_ENTRYPOINT`）：`claude-desktop` 或 `claude-desktop-3p` → `app`；`cli` → `terminal`。這些是 Anthropic 監控說明頁列出的「對話怎麼啟動的」值；這個變數本身官方沒寫，只當線索。其他值（`claude-vscode`、`sdk-cli`……）或沒有：看不出來，就在下面第 1 題後面加一句「你平常是用 Claude 桌面版 App（Code 分頁），還是在終端機視窗裡用？」，照他的回答。使用者的回答永遠大過這個變數。
+   然後用**一則訊息**、白話問這四題，然後等他回答：
    1. 「筆記要放在哪裡？我建議 `~/second-brain`（直接說好就用這個）。」
    2. 「筆記和回覆要用哪種語言？」
    3. 「你用 Claude 最常卡在哪？例如同時好幾件事會搞混、常忘記期限、要一直重講背景、還是都還好？（如果你也有 ChatGPT、Gemini 這類其他 AI 的帳號，順便說一聲；沒有就不用提，一個 Claude 帳號就夠了。）」
    4. 「我可以看這台電腦上你的 Claude 對話紀錄來幫你判斷嗎？安裝時只數近兩週有幾個專案資料夾在用、有沒有對話長到被自動濃縮兩次以上；之後大約每週只看在筆記資料夾裡的對話，數你請我提醒、說事情搞混了幾次。只在這台電腦上數，不上傳、不改任何東西。不要也完全沒關係。」
-   這裡和之後的安裝過程都不要再問別的。不算多問的只有：要改他電腦設定前問同意，以及第 4 點建議開主題對話時順便問要分哪幾件事。不做個人資料訪談、不逐一列工具問、不問「要基本款還是完整款？」。
+   這裡和之後的安裝過程都不要再問別的。不算多問的只有：變數看不出來時問「App 還是終端機」，要改他電腦設定前問同意，以及第 4 點建議開主題對話時順便問要分哪幾件事。不做個人資料訪談、不逐一列工具問、不問「要基本款還是完整款？」。
 3. 建立 `SBK_HOME`。如果 `SBK_HOME/config.json` 不存在，把 `KIT/templates/config.json` 複製過去，填上 `vault`（絕對路徑）、`language`、`uses`（第 3 題的原話）、`other_tools`（只填他說他**有帳號**的工具；沒提就留空）、`read_history`（第 4 題：同意 `true`，不同意 `false`）。如果已經存在（修復或第二次安裝），保留裡面所有的值，只補模板有、檔案缺的欄位。
 4. **逐項建議要裝哪些，他確認。**
    - 第 4 題同意：執行 `python KIT/scripts/level_check.py --install`。它只在這台電腦上數兩件事：`~/.claude/projects` 裡近 14 天有在用的專案資料夾有幾個，以及有沒有哪個對話被自動摘要（compact）兩次以上。對話內容不讀，也不改任何東西。輸出有 `"partial": true` 表示數了 30 秒就停：照它數到的算。
@@ -147,9 +149,24 @@ hook 是 Claude Code 在特定時刻（執行指令前、Claude 說做完時）�
 **檢查：** `selftest.py` 印出 `0 failed`；步驟 0 檢查印出的模式是基本款那組（修復時是他原本的模式）；下面這行會印出含 `"permissionDecision": "ask"` 的內容：
 `echo '{"tool_name":"Bash","tool_input":{"command":"git push"},"cwd":"VAULT"}' | python KIT/hooks/vault_guard.py`（`VAULT` 換成實際路徑）。
 
-## 步驟 5：主對話的啟動捷徑
+## 步驟 5：怎麼打開主對話
 
-主對話就是在 `VAULT` 裡啟動的 Claude Code；在那裡它會讀 `VAULT/CLAUDE.md`，再載入 `AGENTS.md`。做一個點兩下就能開的捷徑，用使用者的語言命名（例如「第二大腦」）。這是新檔案；同名檔案已經存在的話，先問再取代。
+主對話就是在 `VAULT` 裡啟動的 Claude Code；在那裡它會讀 `VAULT/CLAUDE.md`，再載入 `AGENTS.md`（桌面版 App 和終端機讀的是同樣的檔案）。怎麼做看 `SURFACE`；不要假設使用者有桌面捷徑。
+
+### `SURFACE` = app：不做捷徑檔
+
+不要做 `.cmd`、`.command`、`.sh`。用使用者的語言告訴他下面這幾步，按鈕名稱照 App 自己的（出自 Anthropic 桌面版快速入門和桌面版說明頁，名稱是英文；中文介面若顯示不同，就請他照位置找），並在步驟 7 寫進 `VAULT/README.md`：
+1. 打開 Claude（macOS：「應用程式」資料夾；Windows：開始選單；Linux：應用程式啟動器），點側邊欄上方的 **Code** 分頁。如果分頁只顯示圖示，把滑鼠移上去就會看到名稱。
+2. 在輸入框下面那一排，點第一個控制項（環境選單），選 **Local** 群組最上面那一項；再點它旁邊的專案資料夾控制項，選 **Open folder…**，選 `<VAULT>`（寫出完整路徑）。
+3. 像聊天一樣打字跟 Claude 說。下次要繼續，就在側邊欄點那個對話；側邊欄的 **+ New** 會開新對話，資料夾用同樣方式再選一次。點標題列上的對話標題可以改名（例如「第二大腦」），之後比較好找。
+- 新對話如果把環境顯示在輸入框上面、不是下面，是舊版畫面：資料夾就在輸入框上面選，或更新 App（macOS **Claude > Check for Updates…**，Windows **Help > Check for Updates…**）。
+- 官方文件沒有寫釘選或「最近的資料夾」功能，所以不要承諾有；側邊欄的對話列表就是回來的路。
+
+**檢查：** `VAULT/CLAUDE.md` 裡有 `@AGENTS.md`，`VAULT/AGENTS.md` 存在（App 開啟那個資料夾時載入的就是它們）。在 App 裡真的開起資料夾，在使用者於步驟 7 做之前是**沒驗證**。
+
+### `SURFACE` = terminal：捷徑，或兩行指令
+
+做一個點兩下就能開的捷徑，用使用者的語言命名（例如「第二大腦」）。這是新檔案；同名檔案已經存在的話，先問再取代。
 - **Windows：** `<桌面>\第二大腦.cmd`（用 `powershell -NoProfile -Command "[Environment]::GetFolderPath('Desktop')"` 找出真正的桌面，可能在 OneDrive 裡），存成不含 BOM 的 UTF-8：
   ```
   @echo off
@@ -164,7 +181,7 @@ hook 是 Claude Code 在特定時刻（執行指令前、Claude 說做完時）�
   exec claude
   ```
 - **Linux：** 同一段內容存成 `~/Desktop/second-brain.sh`（沒有桌面資料夾就放 `~/second-brain.sh`），`chmod +x`。
-也告訴使用者不用捷徑的方法：開終端機，`cd` 到筆記資料夾，輸入 `claude`；`claude --continue` 會回到在那裡的上一段對話。
+也告訴使用者不用捷徑的方法：開終端機，`cd "<VAULT>"`，輸入 `claude`；`claude --continue` 會回到在那裡的上一段對話。
 
 **檢查：** 捷徑檔存在、裡面有筆記資料夾的路徑；而且從那個資料夾跑得起 Claude Code：Windows `cmd /c "cd /d "<VAULT>" && claude --version"`，macOS／Linux `sh -c 'cd "<VAULT>" && claude --version'` 印出版本。點兩下開捷徑本身在使用者於步驟 7 做之前都是**沒驗證**。
 
@@ -186,7 +203,7 @@ hook 是 Claude Code 在特定時刻（執行指令前、Claude 說做完時）�
 4. 在筆記資料夾開一個完全不知道這次對話的**新**對話：
    先 `cd "<VAULT>"`，再
    `claude -p "Setup test. Follow this folder's AGENTS.md: find the open work-list item that mentions <代號>, open the note it names, add the line 'resumed by a new session' at the end, close the item with evidence. Do not commit. Reply with the note path and the item id." --allowedTools "Read,Grep,Glob,Edit,Bash(python:*)"`
-   這裡跑不了 `claude -p` 的話，請使用者在另一個視窗打開步驟 5 的捷徑，說「繼續安裝測試那個項目」，等它回完再告訴你；這段時間這個對話保持開著。
+   這裡跑不了 `claude -p` 的話（用 App 的人常常沒有 `claude` 指令，App 也沒有 `-p`），請使用者在筆記資料夾另開一個對話：App 就點側邊欄 **+ New**，再照步驟 5 選 **Open folder…** `<VAULT>`；終端機就打開步驟 5 的捷徑，或在另一個視窗 `cd "<VAULT>"` 再輸入 `claude`；然後說「繼續安裝測試那個項目」，等它回完再告訴你；這段時間這個對話保持開著。
 5. 收拾：刪掉測試筆記；再跑一次 `gen_jdex.py` 和 `vault_lint.py`；測試項目保持已關閉（關閉的項目不會顯示）。
 
 **檢查：** 收拾前，筆記最後一行是 `resumed by a new session`，`ledger.py list --all` 顯示測試編號已完成、證據是新對話寫的；收拾後，筆記不在了，lint 最後是 `RESULT: PASS`，`git -C VAULT status --short` 看不到測試檔，`ledger.py list` 的輸出和第 3 點完全一樣。新對話沒找到項目的話，看它回了什麼，修好原因（通常是 `VAULT/CLAUDE.md` 或 `AGENTS.md` 裡工作清單的路徑），再測一次。
@@ -195,7 +212,7 @@ hook 是 Claude Code 在特定時刻（執行指令前、Claude 說做完時）�
 
 1. `python KIT/scripts/selftest.py` → `0 failed`；`vault_lint.py` → `RESULT: PASS`；`python SBK_HOME/bin/status.py` 跑得起來。
 2. 寫入口說明頁 `VAULT/README.md`（檢查程式允許筆記資料夾最上層有這個檔名），用使用者的語言、30 行以內、給使用者看（不是給 Claude）。只寫怎麼開始、怎麼讓 Claude 記住、怎麼看還有什麼沒做完、怎麼請它修：
-   - 怎麼開始：捷徑的名稱和位置；終端機的方法（完整款：新的需求交給入口對話的捷徑；要某個主題動工就打開它的捷徑）；
+   - 怎麼開始，照 `SURFACE`：App——步驟 5 那幾步（Code 分頁、**Open folder…**、下次點側邊欄那個對話）；終端機——捷徑的名稱和位置，或 `cd` 到筆記資料夾輸入 `claude`。完整款：新的需求交給入口對話；要某個主題動工就打開它的對話；
    - 四句範例：「記住：……」「找我之前記的……」「還有什麼沒做完？」「接著上次的……繼續」；
    - 「哪裡卡卡的就跟 Claude 說，例如：『做完檢查太嚴了，調鬆一點』」；
    - 東西放在哪：筆記在這個資料夾；工作清單和紀錄在 `~/.claude/sbk/`；本機 git 記下修改的歷史，但**不是**硬碟的備份：要不時把這個資料夾複製到另一顆硬碟或你信任的雲端硬碟；
@@ -205,7 +222,7 @@ hook 是 Claude Code 在特定時刻（執行指令前、Claude 說做完時）�
    - 每一步一行，附狀態詞（完成／沒開啟／不適用／要你做／沒驗證）；
    - 每個安全檢查實際上會對他做什麼；
    - 你沒做的事和原因；只有他能做的事寫成編號清單（有的話）；
-   - **兩分鐘上手**：（1）關掉這個視窗，點兩下捷徑；（2）說「記住：我這週要讀完第三章」，Claude 會存起來；（3）說「還有什麼沒做完？」，Claude 會列出工作清單；（4）說「找我之前說的第三章」，Claude 會找到那張筆記。每天就是這樣用。
+   - **兩分鐘上手**：（1）App：在 Claude App 側邊欄點筆記資料夾那個對話（或 **+ New**，再 **Open folder…** `<VAULT>`）；終端機：關掉這個視窗，點兩下捷徑（或 `cd` 到筆記資料夾輸入 `claude`）；（2）說「記住：我這週要讀完第三章」，Claude 會存起來；（3）說「還有什麼沒做完？」，Claude 會列出工作清單；（4）說「找我之前說的第三章」，Claude 會找到那張筆記。每天就是這樣用。
 
 **檢查：** `VAULT/README.md` 存在、lint 仍然通過；最後一則訊息第一行是裝了哪些那一句，步驟 00 到 7（含 5b）每一步都有狀態詞。
 
@@ -215,7 +232,7 @@ hook 是 Claude Code 在特定時刻（執行指令前、Claude 說做完時）�
 
 - **修復或第二次安裝：** 照順序重跑每一步。每一步都保留已有的東西：設定值、筆記、工作清單（`ledger.md`）、`task.md`、`requests/`、`logs/`，以及進階功能的 `routes.md`、`alarms.md`、`state/alarms.json`，一律不刪、不重設。只補缺的；套件裡改過的檔案先給使用者看，才取代任何東西。
 - **更新：** 更新外掛（`claude plugin update second-brain-kit@second-brain-kit`）或在 clone 資料夾 `git pull`；再重做步驟 1 的複製，clone 安裝的話再重做步驟 4 的複製。不動使用者的筆記和工作清單。
-- **移除：** 刪掉 `~/.claude/CLAUDE.md` 裡兩個 `sbk` 標記中間的段落，移除外掛（或刪掉 `settings.json` 裡的 hook 項目），刪掉捷徑，進階功能還要刪系統排程。筆記資料夾和 `SBK_HOME`（工作清單、紀錄）預設保留；要刪之前先問：那裡面是使用者的資料。最後告訴他保留了什麼、在哪裡。
+- **移除：** 刪掉 `~/.claude/CLAUDE.md` 裡兩個 `sbk` 標記中間的段落，移除外掛（或刪掉 `settings.json` 裡的 hook 項目），有做捷徑的話刪掉（只有終端機使用者有），進階功能還要刪系統排程。筆記資料夾和 `SBK_HOME`（工作清單、紀錄）預設保留；要刪之前先問：那裡面是使用者的資料。最後告訴他保留了什麼、在哪裡。
 
 ## 進階功能
 

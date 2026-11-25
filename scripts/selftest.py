@@ -585,6 +585,32 @@ def main():
             r = g2("commit", "-q", "-m", "broken link")
             check("template vault: a broken link is refused by pre-commit", r.returncode != 0 and "broken-wikilink" in (r.stdout + r.stderr), r.stdout + r.stderr)
 
+        # ---- how the user opens the notes folder: App users get steps, no shortcut file ----
+        for lang, setup, readme in (("en", KIT / "docs" / "SETUP.md", KIT / "README.md"),
+                                    ("zh", KIT / "docs" / "zh-TW" / "SETUP.md", KIT / "README.zh-TW.md")):
+            st = setup.read_text(encoding="utf-8")
+            a = st.find("### `SURFACE` = app")
+            b = st.find("### `SURFACE` = terminal")
+            app = st[a:b] if 0 <= a < b else ""
+            term = st[b:st.find("## Step 5b" if lang == "en" else "## 步驟 5b")] if b >= 0 else ""
+            check("setup %s: surface is detected from CLAUDE_CODE_ENTRYPOINT, user answer wins" % lang,
+                  "CLAUDE_CODE_ENTRYPOINT" in st and "claude-desktop" in st and "`cli`" in st)
+            check("setup %s: App branch gives the Code tab / Open folder steps and makes no shortcut file" % lang,
+                  "**Code**" in app and "**Open folder…**" in app and "**Local**" in app
+                  and not any(w in app for w in ("chmod", "@echo off", "#!/bin/sh")))
+            check("setup %s: terminal branch keeps the shortcut and the plain cd + claude way" % lang,
+                  "@echo off" in term and "#!/bin/sh" in term and "claude --continue" in term and "cd \"<VAULT>\"" in term)
+            check("setup %s: Step 6 and 7 do not assume a shortcut or claude -p for App users" % lang,
+                  "**+ New**" in st and st.count("**Open folder…**") >= 4)
+            rd = readme.read_text(encoding="utf-8")
+            mm = rd[rd.find("```mermaid"):rd.find("```", rd.find("```mermaid") + 10)]
+            check("readme %s: both ways in (App steps + terminal), diagram names both" % lang,
+                  "**Open folder…**" in rd and "**Code**" in rd and "`claude`" in rd and ("Open folder" if lang == "en" else "選筆記資料夾") in mm and "claude" in mm
+                  and "desktop launcher" not in mm)
+        svg = (KIT / "docs" / "diagrams" / "00-basic.svg").read_text(encoding="utf-8")
+        check("diagram 00-basic: names the App way and the terminal way, no desktop launcher",
+              "Open folder" in svg and "or terminal: claude" in svg and "desktop launcher" not in svg)
+
         # ---- launcher wrapper ----
         sh = shutil.which("sh")
         if sh:

@@ -12,6 +12,7 @@ Words used below:
 - `KIT` - the folder that contains `.claude-plugin/plugin.json` with `"name": "second-brain-kit"`. Installed as a plugin it is `${CLAUDE_PLUGIN_ROOT}` (set inside plugin hooks and commands; in this session search the plugin cache under `~/.claude/plugins` for that file). Cloned by hand it is the clone folder.
 - `SBK_HOME` - `~/.claude/sbk` (the work list, logs, settings of the kit).
 - `VAULT` - the notes folder the user chooses (default `~/second-brain`).
+- `SURFACE` - how the user opens Claude: `app` (the Claude desktop app, its **Code** tab) or `terminal` (the `claude` command in a terminal window). Step 0.2 decides it; Steps 5, 6 and 7 differ by it.
 - Paths: use forward slashes or quoted paths on Windows. Python: `python3`, `python` or `py`, whichever runs Python 3.
 
 Rules while you work:
@@ -27,21 +28,22 @@ Rules while you work:
 
 The user may have pasted only the sentence from the README ("Install second-brain-kit from https://github.com/0Smallcat0/second-brain-kit and set me up by its docs/SETUP.md ..."). That sentence is their request to install, so do not ask again.
 1. Run `claude plugin marketplace add 0Smallcat0/second-brain-kit`, then `claude plugin install second-brain-kit@second-brain-kit` (the command-line twins of `/plugin marketplace add ...` and `/plugin install ...`).
-2. If the `claude` command cannot be run from here or the install fails: clone `https://github.com/0Smallcat0/second-brain-kit` into a new folder (for example `~/second-brain-kit-src`) and use it as `KIT`. Hooks then use Step 4's manual route.
+2. If the `claude` command cannot be run from here (an App user may not have it: the desktop app does not need it) or the install fails: clone `https://github.com/0Smallcat0/second-brain-kit` into a new folder (for example `~/second-brain-kit-src`) and use it as `KIT`. Hooks then use Step 4's manual route.
 3. Find `KIT` (see Words) and read this file from there before going on.
 
 **Check:** `KIT/.claude-plugin/plugin.json` exists and says `second-brain-kit`; `claude plugin list` shows second-brain-kit (clone route: write down that you used it).
 
 ## Step 0 - Check the computer, ask four things, suggest the parts
 
-1. Run `python --version` (or `python3` / `py`), `git --version`, `claude --version`. Python 3.8+ and git are needed.
+1. Run `python --version` (or `python3` / `py`) and `git --version`; Python 3.8+ and git are needed. Terminal users also need `claude --version` to work; App users do not (the desktop app has Claude Code built in, and has no `claude -p`).
    If one is missing, offer to install it ("OK if I install Python?") and after a yes do it: Windows `winget install -e --id Python.Python.3.12` / `winget install -e --id Git.Git`; macOS `xcode-select --install` (gives git and python3) or `brew install python git` if Homebrew exists; Linux the package manager. If it needs an administrator password or a click in an installer window, that part is **needs you**: tell the user exactly which window or command, then continue.
-2. Ask these four in **one message**, in plain words, and wait:
+2. Find `SURFACE` first. Read the environment variable `CLAUDE_CODE_ENTRYPOINT` (`echo $CLAUDE_CODE_ENTRYPOINT`; PowerShell `$env:CLAUDE_CODE_ENTRYPOINT`): `claude-desktop` or `claude-desktop-3p` -> `app`; `cli` -> `terminal`. These are the values Anthropic's monitoring page lists for how a session was launched; the variable itself is not documented, so treat it as a hint. Any other value (`claude-vscode`, `sdk-cli`, ...) or none: you cannot tell, so add to question 1 below "Do you open Claude through the Claude app (the Code tab) or in a terminal window?" and use the answer. The user's own answer always wins over the variable.
+   Then ask these four in **one message**, in plain words, and wait:
    1. "Where should your notes live? I suggest `~/second-brain` (say OK to accept)."
    2. "Which language should I use for notes and replies?"
    3. "Where do you get stuck most when using Claude? For example: several things at once get mixed up, you often forget deadlines, you keep having to explain the background again, or it's all fine? (If you also have an account for another AI such as ChatGPT or Gemini, mention it; if not, skip it - one Claude account is enough.)"
    4. "May I look at your Claude history on this computer to help decide? At install I only count how many project folders were used in the last two weeks and whether a conversation got so long it was summarised twice or more; after that, about once a week, I only look at conversations in your notes folder and count how often you asked me to remind you or said things got mixed up. It is counted on this computer only, nothing is uploaded or changed. 'No' is completely fine."
-   Do not ask anything else, here or later in the setup. The only things that do not count as extra questions: asking permission for a change on their system, and, when you suggest topic sessions in point 4, which things to split. No profile questions, no tool-by-tool list, no "Basic or Full?".
+   Do not ask anything else, here or later in the setup. The only things that do not count as extra questions: the app-or-terminal question when the variable did not tell you, asking permission for a change on their system, and, when you suggest topic sessions in point 4, which things to split. No profile questions, no tool-by-tool list, no "Basic or Full?".
 3. Create `SBK_HOME`. If `SBK_HOME/config.json` does not exist, copy `KIT/templates/config.json` there and fill `vault` (absolute path), `language`, `uses` (their words for question 3), `other_tools` (only tools they said they **have an account** for; empty if none), `read_history` (question 4: yes `true`, no `false`). If it exists (a repair or second run), keep every value it has and only add missing keys from the template.
 4. **Suggest the parts one by one; the user confirms.**
    - Question 4 was yes: run `python KIT/scripts/level_check.py --install`. It only counts, on this computer: project folders in `~/.claude/projects` used in the last 14 days, and whether one conversation was summarised (compacted) two or more times. It reads no conversation content and changes nothing. If the output says `"partial": true`, the count stopped after 30 seconds: use what it found.
@@ -147,9 +149,24 @@ Then run `python KIT/scripts/selftest.py`.
 **Check:** `selftest.py` prints `0 failed`; the modes printed in Step 0's check are the Basic set (or the user's earlier modes on a repair); this call prints a line containing `"permissionDecision": "ask"`:
 `echo '{"tool_name":"Bash","tool_input":{"command":"git push"},"cwd":"VAULT"}' | python KIT/hooks/vault_guard.py` (put the real path in place of `VAULT`).
 
-## Step 5 - A launcher for the main session
+## Step 5 - How the user opens the main session
 
-The main session is Claude Code started inside `VAULT`; there it reads `VAULT/CLAUDE.md`, which loads `AGENTS.md`. Make a double-click launcher named in the user's language (for example "Second brain"). It is a new file; if one with that name exists, ask before replacing it.
+The main session is Claude Code started inside `VAULT`; there it reads `VAULT/CLAUDE.md`, which loads `AGENTS.md` (the desktop app and the terminal read the same files). What you do depends on `SURFACE`; never assume a desktop shortcut.
+
+### `SURFACE` = app: no shortcut file
+
+Make no `.cmd`, `.command` or `.sh` file. Tell the user these steps in their language, with the app's own button names (from Anthropic's desktop quickstart and desktop pages), and put them in `VAULT/README.md` in Step 7:
+1. Open Claude (macOS: Applications folder; Windows: Start menu; Linux: application launcher) and click the **Code** tab at the top of the sidebar. If the tabs show only icons, hover over one to see its name.
+2. In the row under the prompt box, click the first control (the environment selector) and pick the top entry in the **Local** group. Then click the project folder control next to it, choose **Open folder…**, and pick `<VAULT>` (write the full path).
+3. Type to Claude as in a chat. Next time, click that session in the sidebar to carry on; **+ New** in the sidebar starts a fresh one, and you pick the folder again the same way. Clicking the session's title in the title bar renames it (for example "Second brain") so it is easy to find.
+- If a new session shows the environment above the prompt box instead of under it, the app has the earlier layout: choose the folder above the prompt box, or update the app (macOS **Claude > Check for Updates…**, Windows **Help > Check for Updates…**).
+- The docs describe no pin or "recent folders" feature, so do not promise one; the session list in the sidebar is the way back.
+
+**Check:** `VAULT/CLAUDE.md` contains `@AGENTS.md` and `VAULT/AGENTS.md` exists (those are what the app loads on opening the folder). Opening the folder in the app is **not verified** until the user does it in Step 7.
+
+### `SURFACE` = terminal: a shortcut, or two plain commands
+
+Make a double-click launcher named in the user's language (for example "Second brain"). It is a new file; if one with that name exists, ask before replacing it.
 - **Windows:** `<Desktop>\Second brain.cmd` (find the real Desktop with `powershell -NoProfile -Command "[Environment]::GetFolderPath('Desktop')"`; it may be inside OneDrive), saved as UTF-8 without BOM:
   ```
   @echo off
@@ -164,7 +181,7 @@ The main session is Claude Code started inside `VAULT`; there it reads `VAULT/CL
   exec claude
   ```
 - **Linux:** the same script as `~/Desktop/second-brain.sh` (or `~/second-brain.sh` if there is no Desktop folder), `chmod +x`.
-Also tell the user the plain way: open a terminal, `cd` into the notes folder, type `claude`; `claude --continue` goes back to the last conversation there.
+Also tell the user the plain way that needs no shortcut: open a terminal, `cd "<VAULT>"`, type `claude`; `claude --continue` goes back to the last conversation there.
 
 **Check:** the launcher file exists and contains the vault path; and Claude Code runs from that folder: Windows `cmd /c "cd /d "<VAULT>" && claude --version"`, macOS/Linux `sh -c 'cd "<VAULT>" && claude --version'` prints a version. Opening the launcher itself is **not verified** until the user does it in Step 7.
 
@@ -186,7 +203,7 @@ Technical checks passing does not prove the second brain works. Prove it with te
 4. Start a **new** session in the vault that knows nothing of this one:
    `cd "<VAULT>"` then
    `claude -p "Setup test. Follow this folder's AGENTS.md: find the open work-list item that mentions <token>, open the note it names, add the line 'resumed by a new session' at the end, close the item with evidence. Do not commit. Reply with the note path and the item id." --allowedTools "Read,Grep,Glob,Edit,Bash(python:*)"`
-   If `claude -p` cannot run here, ask the user to open the launcher from Step 5 in a second window, say "Continue the setup test item", and tell you when it has answered; keep this session open meanwhile.
+   If `claude -p` cannot run here (App users often have no `claude` command, and the app has no `-p`), ask the user to open a second session on the notes folder - app: **+ New** in the sidebar, then **Open folder…** `<VAULT>` as in Step 5; terminal: the launcher from Step 5, or `cd "<VAULT>"` then `claude` in a second window - say "Continue the setup test item", and tell you when it has answered; keep this session open meanwhile.
 5. Clean up: delete the test note; run `gen_jdex.py` and `vault_lint.py` again; the test item stays closed in the work list (closed items are not shown).
 
 **Check:** before the cleanup, the note ends with `resumed by a new session` and `ledger.py list --all` shows the test id as done with evidence written by the new session; after the cleanup, the note is gone, lint ends with `RESULT: PASS`, `git -C VAULT status --short` shows no test file, and `ledger.py list` prints exactly what it printed in 3. If the new session did not find the item, read what it answered, fix the cause (usually `VAULT/CLAUDE.md` or the ledger path in `AGENTS.md`) and run the test again.
@@ -195,7 +212,7 @@ Technical checks passing does not prove the second brain works. Prove it with te
 
 1. `python KIT/scripts/selftest.py` -> `0 failed`; `vault_lint.py` -> `RESULT: PASS`; `python SBK_HOME/bin/status.py` runs.
 2. Write the start-here page `VAULT/README.md` (the checker allows this name in the vault root) in the user's language, under 30 lines, for the user (not for Claude). It covers only how to start, how to make Claude remember, how to see what is open, and how to get something fixed:
-   - how to start: the launcher name and where it is; the terminal way (Full: new requests go to the entry launcher; open a topic launcher to let that topic work);
+   - how to start, by `SURFACE`: app - the Step 5 steps (Code tab, **Open folder…**, click the session in the sidebar next time); terminal - the launcher name and where it is, or `cd` into the notes folder and type `claude`. Full: new requests go to the entry session; open a topic session to let that topic work;
    - four example sentences: "Remember this: ...", "Find my notes about ...", "What is still open?", "Continue where we stopped on ...";
    - "If something gets in the way, tell Claude, for example: the done-check is too strict, make it quieter";
    - where things live: notes in this folder; the work list and logs in `~/.claude/sbk/`; local git keeps the history of changes but is **not** a backup of the disk: copy this folder to another disk or a cloud drive you trust from time to time;
@@ -205,7 +222,7 @@ Technical checks passing does not prove the second brain works. Prove it with te
    - one line per step with its status word (done / not enabled / n.a. / needs you / not verified);
    - what each safety check will do to them in practice;
    - what you did not do and why; what only they can do, as a numbered list (if anything);
-   - **the two-minute first use**: (1) close this window and double-click the launcher; (2) say "Remember this: I want to finish chapter 3 this week" - Claude saves it; (3) say "What is still open?" - Claude shows the work list; (4) say "Find what I said about chapter 3" - Claude finds the note. That is the whole daily routine.
+   - **the two-minute first use**: (1) app: in the Claude app, click the notes-folder session in the sidebar (or **+ New**, then **Open folder…** `<VAULT>`); terminal: close this window and double-click the launcher (or `cd` into the notes folder and type `claude`); (2) say "Remember this: I want to finish chapter 3 this week" - Claude saves it; (3) say "What is still open?" - Claude shows the work list; (4) say "Find what I said about chapter 3" - Claude finds the note. That is the whole daily routine.
 
 **Check:** `VAULT/README.md` exists and lint still passes; the final message starts with the what-was-installed line and has a status word for Steps 00 to 7 (including 5b).
 
@@ -215,7 +232,7 @@ Technical checks passing does not prove the second brain works. Prove it with te
 
 - **Repair or second run:** run the steps again in order. Each step keeps what exists: config values, notes, the work list (`ledger.md`), `task.md` files, `requests/`, `logs/` and, in Advanced, `routes.md`, `alarms.md` and `state/alarms.json` are never deleted or reset. Only missing pieces are added; changed kit files are shown to the user before they replace anything.
 - **Update:** update the plugin (`claude plugin update second-brain-kit@second-brain-kit`) or `git pull` the clone; then redo Step 1's copy and, for a clone install, Step 4's copy. Do not touch the user's notes or work list.
-- **Remove:** remove the block between the `sbk` markers in `~/.claude/CLAUDE.md`, uninstall the plugin (or remove the hook entries from `settings.json`), delete the launcher, and in Advanced the scheduler entry. The vault and `SBK_HOME` (work list, logs) are kept by default; ask before deleting either: they hold the user's data. End by telling the user what was kept and where.
+- **Remove:** remove the block between the `sbk` markers in `~/.claude/CLAUDE.md`, uninstall the plugin (or remove the hook entries from `settings.json`), delete the launcher if one was made (terminal users only), and in Advanced the scheduler entry. The vault and `SBK_HOME` (work list, logs) are kept by default; ask before deleting either: they hold the user's data. End by telling the user what was kept and where.
 
 ## Advanced
 
