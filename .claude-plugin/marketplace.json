@@ -8,7 +8,7 @@
     {
       "name": "second-brain-kit",
       "source": "./",
-      "version": "0.2.7",
+      "version": "0.2.8",
       "description": "Claude sets it up and suggests each extra part, you confirm: one main session in a numbered notes folder, a tracker Claude keeps, a done-check that logs and safety hooks, short working principles, starter preferences you may delete and four general skills, plus only the Full parts you confirm. A weekly check offers more, with your yes."
     }
   ]

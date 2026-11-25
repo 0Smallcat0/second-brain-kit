@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Hand a long conversation over to a fresh one, without losing what was asked.
 
-    handover.py check            every kit session running in the background: hand over the ones above
-                                 the threshold that are idle (the alarm row "handover" runs this)
+    handover.py check            every kit session in the background, running or stopped: hand over the ones
+                                 above the threshold that are idle (a stopped one is woken first) (the alarm row "handover" runs this)
     handover.py size NAME        how many tokens the running session NAME carries now
     handover.py run NAME         hand NAME over now, whatever its size
     handover.py words FILE.jsonl OUT.md      write the user's words of one transcript to OUT.md
@@ -20,9 +20,11 @@ Results: RENEWED, BUSY (it is working; try later), NO-HANDOVER (task.md did not 
 old session is kept), NOT-RUNNING.
 Size = the input of the session's last reply (input + cache read + cache creation + output tokens).
 config.json: "handover_tokens" (default 150000), "handover_wait_min" (default 15).
+A stopped conversation counts too (the supervisor stops a finished session's process after about an
+hour): it is woken with the hand-over request as its message, then replaced as above.
 Sessions in a window (the Basic main conversation, an entry the user typed into) cannot be replaced
-by a script: hooks/requests_reinject.py tells Claude there to write the hand-over and tells the user
-to start a new conversation and say "continue".
+by a script: hooks/requests_reinject.py tells Claude there to write the hand-over into one fixed
+task.md and records it in state/handover.json; the next conversation in that folder picks it up by itself.
 """
 import json
 import os
@@ -100,19 +102,30 @@ def threshold():
     return int(session.cfg().get("handover_tokens", 150000))
 
 
+def latest(name, rows):
+    """The conversation of NAME to look at: the one alive now, else the newest stopped one (the supervisor
+    stops the process of a finished session after about an hour; its conversation is still there)."""
+    alive = [r for r in rows if r["name"] == name and r["alive"]]
+    return alive[0] if alive else session.resumable(name, rows)
+
+
 def run(name, wait_min=None):
-    rows = session.running()
-    old = session.find(name, rows)
+    rows = session.rows_all()
+    old = latest(name, rows)
     if not old:
         return "NOT-RUNNING: " + name
-    if old["status"] == "busy":
+    if old["alive"] and old["status"] == "busy":
         return "BUSY: %s is working" % name
     d = session.folder(name)
     task = d / "task.md"
     before = task.stat().st_mtime if task.exists() else 0
     if session.dry():
         return "RENEWED (dry run): %s" % name
-    if not session.push(name, HAND):
+    if old["alive"]:
+        sent = session.push(name, HAND)
+    else:  # a stopped conversation is continued with the hand-over request as its message
+        sent = session.open_session(name, text=HAND) == 0
+    if not sent:
         return "NO-HANDOVER: could not deliver the hand-over request to %s" % name
     wait = float(wait_min if wait_min is not None else session.cfg().get("handover_wait_min", 15))
     end = time.time() + wait * 60
@@ -126,6 +139,7 @@ def run(name, wait_min=None):
             break
     if not ok:
         return "NO-HANDOVER: task.md of %s did not change within %g minutes; the old session is kept" % (name, wait)
+    old = session.find(name) or old  # a resumed conversation may have a new id
     src = transcript(old["sessionId"])
     out = d / ("old-%s-words.md" % old["id"])
     n = words(src, out) if src else 0
@@ -139,7 +153,7 @@ def run(name, wait_min=None):
              "claude --resume %s finds it). Read task.md and %s first (the user's words and the last "
              "replies), then carry on with what task.md lists as open; if nothing is open, stop and wait."
              % (old["id"], old["sessionId"], out.name))
-    rc = session.open_session(name, first, replace_ok=True)
+    rc = session.open_session(name, first, replace_ok=True, fresh=True)
     new = None
     for _ in range(30):  # claude agents lists a new background session a few seconds after it starts
         new = session.find(name)
@@ -155,7 +169,15 @@ def check_all():
     """Background sessions above the threshold and idle are handed over; the rest are listed."""
     out = []
     limit = threshold()
-    for r in session.running():
+    rows = session.rows_all()
+    names = []
+    for r in rows:
+        if r["name"] not in names:
+            names.append(r["name"])
+    for name in names:  # alive ones and stopped-but-resumable ones: a long conversation is exactly the one that stopped
+        r = latest(name, rows)
+        if not r:
+            continue
         if r.get("kind") and r["kind"] != "background":
             continue  # a window the user types into: the hook handles it
         src = transcript(r["sessionId"])
@@ -168,12 +190,12 @@ def check_all():
 
 
 def main():
-    sys.stdout.reconfigure(encoding="utf-8")
+    session.send.ledger.setup_output()
     a = sys.argv[1:]
     if a[:1] == ["check"]:
         print(check_all())
     elif a[:1] == ["size"] and len(a) == 2:
-        r = session.find(a[1])
+        r = latest(a[1], session.rows_all())
         src = transcript(r["sessionId"]) if r else None
         print("%s: %s tokens (threshold %d)" % (a[1], size_of(src) if src else "not running /", threshold()))
     elif a[:1] == ["run"] and len(a) >= 2:

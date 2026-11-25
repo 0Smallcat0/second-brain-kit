@@ -522,38 +522,507 @@ def learn_loop_tests(tmp, cfg):
           st.get("lines") == 4 and st.get("corrections") == 3 and st.get("confirmations") == 1
           and st.get("corrections_this_week") == 3 and st.get("preferences") == 1 and "沒驗證就說做完" in str(st.get("repeats")),
           out + err)
-    # 4. the Basic light review through level_notice, once a week, only with new lines
+    # 4. the light review through level_notice: by position, used up only when marked done (v8 item 4)
     LC = KIT / "scripts" / "level_check.py"
+    (h / "state" / "learn_review.json").unlink()  # the pref above marked those lines reviewed; this case is a user who has not reviewed
     note2 = note.read_text(encoding="utf-8")
     cc = tmp / "learncc"
     cc.mkdir(exist_ok=True)
-    rc, out, err = run([LC, "--hook", "--now", "2026-12-10T09:00:00"], {"cwd": str(v), "hook_event_name": "SessionStart"},
-                       dict(env, CLAUDE_CONFIG_DIR=str(cc)))
-    check("light review (Basic): the first session of the week gets the review with the new lines by kind",
-          rc == 0 and "weekly light review" in out and "沒驗證就說做完 x3" in out and "group --since" in out
-          and "learn.py" in out and note.read_text(encoding="utf-8") == note2, out + err)
-    rc, out, err = run([LC, "--hook", "--now", "2026-12-11T09:00:00"], {"cwd": str(v), "hook_event_name": "SessionStart"},
-                       dict(env, CLAUDE_CONFIG_DIR=str(cc)))
-    check("light review (Basic): not again in the same week", rc == 0 and "light review" not in out, out + err)
-    s = json.loads((h / "state" / "level_check.json").read_text(encoding="utf-8"))
-    s["last_hook_run"] = "2026-12-01"
-    (h / "state" / "level_check.json").write_text(json.dumps(s), encoding="utf-8")
-    rc, out, err = run([LC, "--hook", "--now", "2026-12-17T09:00:00"], {"cwd": str(v), "hook_event_name": "SessionStart"},
-                       dict(env, CLAUDE_CONFIG_DIR=str(cc)))
-    check("light review (Basic): a week with no new lines brings no review", rc == 0 and "light review" not in out, out + err)
+    hook = {"cwd": str(v), "hook_event_name": "SessionStart"}
+    rc, out, err = run([LC, "--hook", "--now", "2026-12-10T09:00:00"], hook, dict(env, CLAUDE_CONFIG_DIR=str(cc)))
+    check("light review (Basic): the first session gets the review with the new lines by kind",
+          rc == 0 and "light review" in out and "沒驗證就說做完 x3" in out and "group --since" in out
+          and "learn.py" in out and "reviewed" in out and note.read_text(encoding="utf-8") == note2, out + err)
+    rc, out, err = run([LC, "--hook", "--now", "2026-12-10T15:00:00"], hook, dict(env, CLAUDE_CONFIG_DIR=str(cc)))
+    check("light review: offered once a day, not on every session start", rc == 0 and "light review" not in out, out + err)
+    rc, out, err = run([LC, "--hook", "--now", "2026-12-11T09:00:00"], hook, dict(env, CLAUDE_CONFIG_DIR=str(cc)))
+    check("light review: a review that was shown but never marked done is offered again the next day (v8 item 4)",
+          rc == 0 and "light review" in out and "沒驗證就說做完 x3" in out, out + err)
+    rc, out, err = run([LE, "reviewed", "--now", "2026-12-11"], env=envl)
+    rc, out, err = run([LC, "--hook", "--now", "2026-12-12T09:00:00"], hook, dict(env, CLAUDE_CONFIG_DIR=str(cc)))
+    check("light review: marked done (learn.py reviewed) it does not come again", rc == 0 and "light review" not in out, out + err)
+    # lines written after the mark, on the day of the mark itself, are not lost (the old date test dropped them)
+    run([LE, "add", "correction", "太長", "回答太長了，不對", "--now", "2026-12-11"], env=envl)
+    run([LE, "add", "correction", "太長", "還是太長", "--now", "2026-12-12"], env=envl)
+    rc, out, err = run([LC, "--hook", "--now", "2026-12-13T09:00:00"], hook, dict(env, CLAUDE_CONFIG_DIR=str(cc)))
+    check("light review: within 7 days of the last review nothing new is offered", rc == 0 and "light review" not in out, out + err)
+    rc, out, err = run([LC, "--hook", "--now", "2026-12-19T09:00:00"], hook, dict(env, CLAUDE_CONFIG_DIR=str(cc)))
+    check("light review: a week after the last one, only the lines written since (by position, same day as the mark included)",
+          rc == 0 and "light review" in out and "太長 x2" in out and "沒驗證就說做完 x" not in out
+          and "2 line(s)" in out, out + err)
+    rc, out, err = run([LE, "pref", "太長", "Keep answers short.", "--now", "2026-12-19"], env=envl)
+    rc, out, err = run([LC, "--hook", "--now", "2026-12-20T09:00:00"], hook, dict(env, CLAUDE_CONFIG_DIR=str(cc)))
+    check("light review: writing a preference (learn.py pref) marks the review done", rc == 0 and "light review" not in out, out + err)
     hf = tmp / "learnhome-full"
     (hf / "managers" / "maintenance").mkdir(parents=True)
     (hf / "config.json").write_text(json.dumps(dict(cfg, vault=str(v), level="full")), encoding="utf-8")
-    rc, out, err = run([LC, "--hook", "--now", "2026-12-10T09:00:00"], {"cwd": str(v), "hook_event_name": "SessionStart"},
-                       dict(env, SBK_HOME=str(hf), CLAUDE_CONFIG_DIR=str(cc)))
-    check("light review: none in Full with a maintenance session (its weekly review does it)",
+    rc, out, err = run([LC, "--hook", "--now", "2026-12-10T09:00:00"], hook, dict(env, SBK_HOME=str(hf), CLAUDE_CONFIG_DIR=str(cc)))
+    check("light review (Full, no [review] item closed in 8 days: App only / no scheduler): the entry gets it (v8 item 8)",
+          rc == 0 and "light review" in out, out + err)
+    (hf / "state").mkdir(exist_ok=True)
+    (hf / "state" / "level_check.json").unlink()
+    (hf / "ledger.md").write_text("# Ledger\n\n- L0001 | done | 2026-12-07T20:00:00 | [review] 2026-12-07: trend lines | ev: opened the result\n", encoding="utf-8")
+    rc, out, err = run([LC, "--hook", "--now", "2026-12-10T09:00:00"], hook, dict(env, SBK_HOME=str(hf), CLAUDE_CONFIG_DIR=str(cc)))
+    check("light review (Full): none while a [review] tracker item was closed in the last 8 days (maintenance does it)",
           rc == 0 and "light review" not in out, out + err)
     # 5. /sbk-status shows the learning numbers
     (h / "bin").mkdir(exist_ok=True)
     rc, out, err = run([KIT / "entry" / "status.py", "--all"], env=envl)
     check("status: a learning section with lines recorded, preferences, corrections this week, same kind again",
-          "== Learning" in out and "lines recorded: 4 (corrections 3, confirmations 1)" in out
-          and "preferences written: 1" in out and "corrections this week:" in out and "same kind again" in out, out + err)
+          "== Learning" in out and "lines recorded: 6 (corrections 5, confirmations 1)" in out
+          and "preferences written: 2" in out and "corrections this week:" in out and "same kind again" in out, out + err)
+
+
+def v8_tests(tmp, cfg):
+    """One or more cases per item of the 0.2.8 review (L0612 review-v8). Each would have failed on 0.2.7."""
+    import time
+    H = KIT / "hooks"
+    E = KIT / "entry"
+    LE = E / "learn.py"
+    LC = KIT / "scripts" / "level_check.py"
+    base = tmp / "v8"
+    base.mkdir()
+    v = base / "vault"
+    (v / "20-29 學習" / "21 課程").mkdir(parents=True)
+    (v / ".sbk-vault").write_text("", encoding="utf-8")
+    (v / ".sbk-protect").write_text("AGENTS.md\nCLAUDE.md\n00-09 System and index/01 Rules/\nscripts/\n", encoding="utf-8")
+    nt = v / "20-29 學習" / "21 課程" / "21-01 Linear algebra.md"
+    nt.write_text("---\ntype: skill\nstatus: active\nsummary: s\ncreated: 2026-01-01\nmodified: 2026-01-02\norigin: user\n---\n\n"
+                  + "".join("line %d\n" % i for i in range(1, 401)), encoding="utf-8")
+    hm = base / "home"
+    hm.mkdir()
+    env = {"SBK_HOME": str(hm), "SBK_VAULT": "", "ANTHROPIC_API_KEY": "", "CLAUDE_CONFIG_DIR": str(base / "cc")}
+
+    def put_cfg(**kw):
+        (hm / "config.json").write_text(json.dumps(dict(cfg, vault=str(v), **kw)), encoding="utf-8")
+    put_cfg()
+
+    # ---- item 1: the hooks see the PowerShell tool ----
+    hj = json.loads((H / "hooks.json").read_text(encoding="utf-8"))
+    pre = hj["hooks"]["PreToolUse"]
+    check("v8 item 1: hooks.json and the manual example match Bash|PowerShell (the shell Claude uses on Windows)",
+          any(m["matcher"] == "Bash|PowerShell" for m in pre)
+          and "Bash|PowerShell" in (KIT / "templates" / "settings.hooks.example.json").read_text(encoding="utf-8"),
+          [m["matcher"] for m in pre])
+    for cmd, expect in [("git push origin main", True), ("Remove-Item -Recurse -Force .\\20-29", True),
+                        ("ri -r build", True), ("rd /s /q build", True), ("Get-ChildItem", False)]:
+        rc, out, _ = run([H / "vault_guard.py"], {"tool_name": "PowerShell", "cwd": str(v), "tool_input": {"command": cmd}}, env)
+        check("v8 item 1: vault_guard on the PowerShell tool: '%s' %s" % (cmd, "asks" if expect else "passes"),
+              ('"permissionDecision": "ask"' in out) == expect, out)
+    rc, out, _ = run([H / "read_whole.py"], {"tool_name": "PowerShell", "cwd": str(v), "tool_input": {
+        "command": 'Get-Content "20-29 學習/21 課程/21-01 Linear algebra.md" -TotalCount 20'}}, env)
+    check("v8 item 1: read_whole refuses Get-Content -TotalCount on a note (PowerShell tool)", '"permissionDecision": "deny"' in out, out)
+    t = base / "t.jsonl"
+    envb = dict(env, SBK_MODE_STOP_EVIDENCE="block")
+    jl(t, [user("fix a.txt"), tool("PowerShell", {"command": "Set-Content a.txt x"}), result(),
+           tool("PowerShell", {"command": "Get-Content a.txt"}), result(), say("Done, a.txt now says x.")])
+    rc, out, _ = run([H / "stop_evidence.py"], {"transcript_path": str(t)}, envb)
+    check("v8 item 1: stop_evidence counts a PowerShell read-back as the check (no false 'done without looking')",
+          rc == 0 and out.strip() == "", out)
+    jl(t, [user("fix a.txt"), tool("PowerShell", {"command": "Set-Content a.txt x"}), result(), say("Done.")])
+    rc, out, _ = run([H / "stop_evidence.py"], {"transcript_path": str(t)}, envb)
+    check("v8 item 1: ... and a PowerShell write with no read-back is a write", '"decision": "block"' in out, out)
+
+    # ---- item 2: heartbeat, onFailure, status ----
+    check("v8 item 2: every hook is registered with onFailure continue (a failing hook cannot block a tool call on Windows without Git Bash)",
+          all(h.get("onFailure") == "continue" for evs in hj["hooks"].values() for m in evs for h in m["hooks"])
+          and "onFailure" in (KIT / "templates" / "settings.hooks.example.json").read_text(encoding="utf-8"), hj["hooks"].keys())
+    rc, out, err = run([E / "status.py"], env=env)
+    check("v8 item 2: /sbk-status says NO STAMP when no hook ever ran", "== Hooks ==" in out and "NO STAMP" in out, out + err)
+    sh = shutil.which("sh")
+    if sh:
+        r = subprocess.run([sh, str(H / "run.sh"), "usage_warn.py"], input="{}", capture_output=True, text=True,
+                           env=dict(os.environ, SBK_HOME=str(hm), ANTHROPIC_API_KEY="x"))
+        hb = hm / "state" / "hooks-heartbeat.json"
+        check("v8 item 2: run.sh stamps state/hooks-heartbeat.json each time it starts a hook",
+              r.returncode == 0 and hb.exists() and json.loads(hb.read_text(encoding="utf-8")).get("hook") == "usage_warn.py", r.stderr)
+        rc, out, err = run([E / "status.py"], env=env)
+        check("v8 item 2: status.py then says 'hooks: last ran'", "hooks: last ran" in out and "NO STAMP" not in out, out + err)
+    se = (KIT / "docs" / "SETUP.md").read_text(encoding="utf-8")
+    check("v8 item 2: SETUP has the quit-and-reopen step before Step 4, 'not enabled' without Git Bash, and no 'never trap'",
+          "Quit the Claude app completely and reopen it" in se and "Windows without Git Bash" in se
+          and "hooks never trap a session" not in se and "hooks-heartbeat.json" in se, "")
+
+    # ---- item 3: python_cmd ----
+    put_cfg(python_cmd="python3-sbk")
+    ev = {"cwd": str(v), "hook_event_name": "UserPromptSubmit", "prompt": "你又沒看檔案就說做完"}
+    note = v / "00-09 系統與索引" / "03 和 AI 協作" / "03-01 和 AI 協作.md"
+    note.parent.mkdir(parents=True)
+    note.write_text((KIT / "templates" / "和AI協作.md").read_text(encoding="utf-8").replace("{{date}}", "2026-12-01"), encoding="utf-8")
+    rc, out, err = run([H / "learn_notice.py"], ev, env)
+    check("v8 item 3: learn_notice prints the command with python_cmd from config.json, not a hard-coded python",
+          "python3-sbk" in out and "learn.py" in out and " python " not in out.replace("python3-sbk", ""), out + err)
+    check("v8 item 3: the templates use no python the setup cannot rewrite (only `python <path>` commands) and config has python_cmd",
+          "python_cmd" in (KIT / "templates" / "config.json").read_text(encoding="utf-8")
+          and all(re.fullmatch(r"(~|\.\./|scripts/|\.\./\.\./|SBK_HOME/|KIT/).*", m)
+                  for n in ("AGENTS.md", "CLAUDE.md", "entry-CLAUDE.md", "manager-CLAUDE.md", "maintenance-CLAUDE.md")
+                  for m in re.findall(r"`python ([^ `]+)", (KIT / "templates" / n).read_text(encoding="utf-8"))), "")
+    check("v8 item 3: Step 6's end-to-end allowlist has python3, py and the PowerShell tool",
+          "Bash(python3:*),Bash(py:*),PowerShell(python:*)" in se, "")
+
+    # ---- item 4: the review is used up only when it was done ----
+    LCe = dict(env)
+    put_cfg()
+    for d in ("2026-12-07", "2026-12-08", "2026-12-09"):
+        run([LE, "add", "correction", "kind-one", "不對，重做", "--now", d], env=dict(env, SBK_VAULT=str(v)))
+    hook = {"cwd": str(v), "hook_event_name": "SessionStart"}
+    rc, o1, err = run([LC, "--hook", "--now", "2026-12-10T09:00:00"], hook, LCe)
+    rc, o2, err = run([LC, "--hook", "--now", "2026-12-11T09:00:00"], hook, LCe)
+    check("v8 item 4: a review that was shown and not done is offered again the next day (0.2.7 used it up when shown)",
+          "light review" in o1 and "light review" in o2 and "kind-one x3" in o2, o1 + o2 + err)
+    run([LE, "reviewed", "--now", "2026-12-11"], env=dict(env, SBK_VAULT=str(v)))
+    run([LE, "add", "correction", "kind-two", "again, wrong", "--now", "2026-12-11"], env=dict(env, SBK_VAULT=str(v)))
+    rc, o3, err = run([LC, "--hook", "--now", "2026-12-19T09:00:00"], hook, LCe)
+    check("v8 item 4: lines are chosen by position after the last review, so a line written on the day of the review is not lost",
+          "kind-two" in o3 and "kind-one" not in o3, o3 + err)
+
+    # ---- item 5: the hand-over is picked up by the next conversation ----
+    big = base / "big.jsonl"
+    jl(big, [user("plan my week"), {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "ok"}],
+                                                                        "usage": {"input_tokens": 10, "cache_read_input_tokens": 160000,
+                                                                                  "cache_creation_input_tokens": 5, "output_tokens": 5}}}])
+    put_cfg(handover_tokens=150000)
+    rc, out, err = run([H / "requests_reinject.py"], {"cwd": str(v), "hook_event_name": "UserPromptSubmit", "session_id": "old1",
+                                                      "transcript_path": str(big), "prompt": "next"}, env)
+    hf = hm / "state" / "handover.json"
+    check("v8 item 5: the hand-over notice names the fixed task.md (not 'this folder') and writes state/handover.json",
+          "task.md" in out and "this folder" not in out and hf.exists()
+          and json.loads(hf.read_text(encoding="utf-8")).get("main", {}).get("task", "").endswith("task.md"), out + err)
+    (hm / "task.md").write_text("# task\n- [ ] x\n", encoding="utf-8")
+    rc, out, err = run([H / "requests_reinject.py"], {"cwd": str(v), "hook_event_name": "SessionStart", "source": "startup",
+                                                      "session_id": "new1"}, env)
+    check("v8 item 5: a new conversation in the notes folder is told 'A hand-over is waiting' and which files to read",
+          "A hand-over is waiting" in out and "task.md" in out, out + err)
+    rc, out, err = run([E / "status.py"], env=env)
+    rc2, out2, err2 = run([H / "requests_reinject.py"], {"cwd": str(v), "hook_event_name": "SessionStart", "source": "startup",
+                                                         "session_id": "new2"}, env)
+    check("v8 item 5: picked up once only", "A hand-over is waiting" not in out2, out2 + err2)
+    (hm / "entry").mkdir()
+    (hm / "entry" / "task.md").write_text("# entry task\n", encoding="utf-8")
+    hand = json.loads(hf.read_text(encoding="utf-8"))
+    hand["entry"] = {"task": str(hm / "entry" / "task.md"), "words": "", "date": "2026-12-10", "ts": time.time(), "session": "e0"}
+    hf.write_text(json.dumps(hand), encoding="utf-8")
+    rc, out, err = run([E / "status.py"], env=env)
+    check("v8 item 5: /sbk-status lists a waiting hand-over", "== Hand-over ==" in out and "WAITING" in out, out + err)
+    rc, out, err = run([H / "requests_reinject.py"], {"cwd": str(hm / "entry"), "hook_event_name": "SessionStart", "source": "clear",
+                                                      "session_id": "e1"}, env)
+    check("v8 item 5: the entry picks up its own hand-over after /clear",
+          "A hand-over is waiting" in out and "entry" in out and "task.md" in out, out + err)
+    ag = (KIT / "templates" / "AGENTS.md").read_text(encoding="utf-8")
+    check("v8 item 5: AGENTS.md has the 'A hand-over is waiting' rule and the fixed place",
+          "A hand-over waiting" in ag and "`~/.sbk/task.md`" in ag and "never write a `task.md` into the notes folder" in ag, "")
+
+    # ---- item 6 and 7: the Windows tick under pythonw.exe; cron PATH and claude_path ----
+    pyw = Path(PY).with_name("pythonw.exe")
+    if os.name == "nt" and pyw.exists():
+        hw = base / "homew"
+        (hw / "inbox").mkdir(parents=True)
+        (hw / "config.json").write_text(json.dumps(dict(cfg, vault=str(v))), encoding="utf-8")
+        (hw / "alarms.md").write_text((KIT / "templates" / "alarms.md").read_text(encoding="utf-8"), encoding="utf-8")
+        r = subprocess.run([str(pyw), str(E / "alarm.py"), "--tick", "--now", "2026-12-20T20:05"], capture_output=True, text=True,
+                           env=dict(os.environ, SBK_HOME=str(hw), SBK_SESSION_DRYRUN="1"), timeout=60)
+        check("v8 item 6: the tick runs to the end under pythonw.exe (sys.stdout is None there; 0.2.7 crashed, exit 1)",
+              r.returncode == 0 and (hw / "state" / "alarms.json").exists(), (r.returncode, r.stderr))
+        lg = hw / "logs" / "alarm.log"
+        check("v8 item 6: the tick's output is kept in logs/alarm.log (the only place a scheduled run can be read)",
+              lg.exists() and "M01" in lg.read_text(encoding="utf-8"), lg.exists())
+    else:
+        print("SKIP v8 item 6: the pythonw.exe tick runs on Windows only")
+    adv = (KIT / "docs" / "ADVANCED.md").read_text(encoding="utf-8")
+    check("v8 item 6: A2's check waits for one real scheduled run (LastTaskResult 0, state/alarms.json time)",
+          "LastTaskResult" in adv and "Get-ScheduledTaskInfo" in adv, "")
+    check("v8 item 7: the cron line sets PATH, installs without an editor, macOS gets a LaunchAgent, the tick logs to alarm.log",
+          "crontab -l 2>/dev/null; echo" in adv and "LaunchAgent" in adv and "logs/alarm.log" in adv and "PATH=" in adv, "")
+    fake = base / "claude-fake.cmd"
+    fake.write_text("@echo off\n", encoding="utf-8")
+    (hm / "managers" / "study").mkdir(parents=True, exist_ok=True)
+    put_cfg(claude_path=str(fake), routing="live")
+    rc, out, err = run([E / "session.py", "open", "study", "hello"], env=dict(env, SBK_SESSION_DRYRUN="1", SBK_AGENTS_JSON=str(base / "none.json")))
+    check("v8 item 7: session.py uses the absolute claude_path saved in config.json first (cron has no PATH to find claude)",
+          str(fake) in out or fake.name in out, out + err)
+    put_cfg()
+
+    # ---- items 8: Full without a review item gets the light review (covered in learn_loop_tests) ----
+    # ---- item 9: app-only users are not offered topic sessions ----
+    check("v8 item 9: SETUP offers no topic sessions to App-only users and says what they click; the entry template does the work itself on routing inbox",
+          "App only, no `claude` command: not offered" in se
+          and "do not open topic sessions and do not ask the user to open one by hand"
+          in (KIT / "templates" / "entry-CLAUDE.md").read_text(encoding="utf-8"), "")
+
+    # ---- item 10: one conversation per topic ----
+    hs = base / "homes"
+    (hs / "managers" / "study").mkdir(parents=True)
+    (hs / "inbox").mkdir()
+    (hs / "config.json").write_text(json.dumps(dict(cfg, vault=str(v), routing="live", wake_limits={"per_day": 20, "min_gap_min": 1})), encoding="utf-8")
+    agents = base / "agents.json"
+    agents.write_text(json.dumps([{"id": "id1", "name": "study", "kind": "background", "cwd": str(hs / "managers" / "study"),
+                                   "startedAt": 5, "sessionId": "11111111-aaaa-bbbb-cccc-000000000001", "state": "done"}]), encoding="utf-8")
+    envs = dict(env, SBK_HOME=str(hs), SBK_SESSION_DRYRUN="1", SBK_AGENTS_JSON=str(agents))
+    rc, out, err = run([E / "session.py", "list"], env=envs)
+    check("v8 item 10: session list shows a stopped conversation that can be resumed (0.2.7 listed only rows with a pid)",
+          "study" in out and "stopped" in out, out + err)
+    rc, out, err = run([E / "session.py", "deliver", "study", "new work"], env=envs)
+    check("v8 item 10: delivering to a stopped topic resumes the SAME conversation (claude --resume <id> --bg), not a second empty one",
+          "--resume 11111111-aaaa-bbbb-cccc-000000000001" in out and "--bg" in out and "-n study" not in out.split("--resume")[0], out + err)
+    jl(base / "ps.jsonl", [user("hi"), {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "ok"}],
+                                                                           "usage": {"input_tokens": 10, "cache_read_input_tokens": 160000,
+                                                                                     "cache_creation_input_tokens": 5, "output_tokens": 5}}}])
+    cdir = base / "cc"
+    (cdir / "projects" / "p").mkdir(parents=True)
+    shutil.copy(base / "ps.jsonl", cdir / "projects" / "p" / "11111111-aaaa-bbbb-cccc-000000000001.jsonl")
+    rc, out, err = run([E / "handover.py", "check"], env=dict(envs, CLAUDE_CONFIG_DIR=str(cdir)))
+    check("v8 item 10: the 150k hand-over check sees a stopped row (it was invisible before: the long conversation is the stopped one)",
+          "study" in out and "no sessions" not in out.lower(), out + err)
+    entry_t = (KIT / "templates" / "entry-CLAUDE.md").read_text(encoding="utf-8")
+    check("v8 item 10: the entry template says one conversation per topic and never a second one", "one conversation per topic" in entry_t.lower()
+          and "Never start a second conversation" in entry_t, "")
+
+    # ---- item 11: maintenance checks read_history and does not Read raw jsonl ----
+    mt = (KIT / "templates" / "maintenance-CLAUDE.md").read_text(encoding="utf-8")
+    check("v8 item 11: maintenance checks read_history first, is limited to the vault and ~/.sbk projects, uses handover.py words (no raw jsonl)",
+          "`read_history`" in mt and "handover.py words" in mt and "never other projects" in mt and "never a raw `.jsonl`" in mt, "")
+
+    # ---- item 12: allowlist per role ----
+    sess = (E / "session.py").read_text(encoding="utf-8")
+    rc, out, err = run([E / "session.py", "open", "study", "go"], env=dict(envs, SBK_AGENTS_JSON=str(base / "none.json")))
+    check("v8 item 12: a topic session may search the web, load skills, use subagents and commit its notes (WebSearch, Agent, git commit)",
+          "WebSearch" in out and "Agent" in out and "git commit" in out and "--permission-mode dontAsk" in out, out + err)
+    check("v8 item 12: the manager and maintenance templates say a refused tool call is reported to the entry the same turn",
+          "refused" in (KIT / "templates" / "manager-CLAUDE.md").read_text(encoding="utf-8")
+          and "refused" in mt, "")
+
+    # ---- item 13: the Stop hook commits changed notes ----
+    if shutil.which("git"):
+        g = lambda *a: subprocess.run(["git", "-C", str(v)] + list(a), capture_output=True, text=True, encoding="utf-8")
+        g("init", "-q")
+        g("config", "user.name", "t")
+        g("config", "user.email", "t@localhost")
+        g("add", ".")
+        g("commit", "-q", "-m", "init", "--no-verify")
+        nt.write_text(nt.read_text(encoding="utf-8") + "an addition\n", encoding="utf-8")
+        before = g("rev-list", "--count", "HEAD").stdout.strip()
+        rc, out, err = run([H / "vault_snapshot.py"], {"cwd": str(v), "hook_event_name": "Stop"}, env)
+        after = g("rev-list", "--count", "HEAD").stdout.strip()
+        check("v8 item 13: the Stop hook vault_snapshot commits the changed note (git now records every change)",
+              rc == 0 and int(after) == int(before) + 1 and "snapshot" in g("log", "-1", "--format=%s").stdout
+              and g("status", "--short").stdout.strip() == "", (before, after, err))
+        rc, out, err = run([H / "vault_snapshot.py"], {"cwd": str(v), "hook_event_name": "Stop"}, env)
+        check("v8 item 13: nothing changed -> no empty commit", g("rev-list", "--count", "HEAD").stdout.strip() == after, err)
+        nt.write_text(nt.read_text(encoding="utf-8") + "another\n", encoding="utf-8")
+        rc, out, err = run([H / "vault_snapshot.py"], {"cwd": str(v), "hook_event_name": "Stop"}, dict(env, SBK_MODE_VAULT_SNAPSHOT="off"))
+        check("v8 item 13: mode off commits nothing", g("rev-list", "--count", "HEAD").stdout.strip() == after, err)
+        g("checkout", "--", ".")
+    check("v8 item 13: it never pushes, and AGENTS.md's 'Before you stop' names it",
+          "push" not in re.sub(r"never pushes|no push|nothing is pushed", "", (H / "vault_snapshot.py").read_text(encoding="utf-8")).lower().split("def ")[1]
+          and "`vault_snapshot`" in ag, "")
+
+    # ---- item 14: README and diagram say what the guard does ----
+    rd = (KIT / "README.md").read_text(encoding="utf-8")
+    rz = (KIT / "README.zh-TW.md").read_text(encoding="utf-8")
+    sv = (KIT / "docs" / "diagrams" / "00-basic.svg").read_text(encoding="utf-8")
+    check("v8 item 14: README (both), the Basic diagram no longer promise 'asks before deleting, uploading or overwriting'",
+          "asks before deleting, uploading or overwriting" not in rd.lower() and "刪除、上傳、覆寫之前先問你" not in rz
+          and "刪除、上傳前先問你" not in sv and "before Claude uploads or deletes anything" not in rd, "")
+
+    # ---- item 15: partial Read context; narrowed shell rule ----
+    rp = lambda **kw: run([H / "read_whole.py"], {"hook_event_name": "PostToolUse", "tool_name": "Read", "cwd": str(v),
+                                                  "tool_input": dict({"file_path": str(nt)}, **kw)}, env)
+    rc, out, err = rp(limit=80)
+    check("v8 item 15: a Read of a note that stops before the end gets 'You have lines 1-80 of N ... read the rest'",
+          "You have lines 1-80 of" in out and "offset 81" in out and "PostToolUse" in out, out + err)
+    rc, out, err = rp()
+    check("v8 item 15: a Read that reaches the end adds nothing", out.strip() == "", out + err)
+    for cmd, expect in [("ls 20-29*/*.md | head -5", False), ("git log -- x.md | head -3", False), ("cat x.md | head -5", True)]:
+        rc, out, _ = run([H / "read_whole.py"], {"tool_name": "Bash", "cwd": str(v), "tool_input": {"command": cmd}}, env)
+        check("v8 item 15: shell rule is about the note itself: '%s' %s" % (cmd, "denied" if expect else "allowed"),
+              ('"permissionDecision": "deny"' in out) == expect, out)
+
+    # ---- item 16: the block names the vault by absolute path and shows Core stance before the yes ----
+    cl = (KIT / "templates" / "CLAUDE.md").read_text(encoding="utf-8")
+    check("v8 item 16: the global block uses {{vault}} (absolute path), says the preferences are already in the conversation, "
+          "and SETUP shows the block with Core stance before the yes",
+          "{{vault}}" in cl and "already in this conversation" in cl and "Core stance" in se and "show the block before the yes" in se, "")
+
+    # ---- item 17: kit sessions that cannot ask the user do not use the weekly check ----
+    h17 = base / "home17"
+    (h17 / "managers" / "x").mkdir(parents=True)
+    (h17 / "config.json").write_text(json.dumps(dict(cfg, vault=str(v), level="full")), encoding="utf-8")
+    env17 = dict(env, SBK_HOME=str(h17))
+    for sub in ("state", "managers/x"):
+        d = h17 / sub
+        d.mkdir(parents=True, exist_ok=True)
+        rc, out, err = run([LC, "--hook", "--now", "2026-12-30T09:00:00"], {"cwd": str(d), "hook_event_name": "SessionStart"}, env17)
+        st = h17 / "state" / "level_check.json"
+        check("v8 item 17: level_notice is silent in SBK_HOME/%s and does not use up the week" % sub,
+              out.strip() == "" and (not st.exists() or "last_hook_run" not in json.loads(st.read_text(encoding="utf-8"))), out + err)
+        rc, out, err = run([H / "learn_notice.py"], {"cwd": str(d), "hook_event_name": "SessionStart", "source": "startup"}, env17)
+        if sub == "state":
+            check("v8 item 17: learn_notice does not load the preferences into the haiku courier's run (SBK_HOME/state)", out.strip() == "", out + err)
+    rc, out, err = run([E / "session.py", "push", "study", "hi"], env=dict(envs, SBK_AGENTS_JSON=str(base / "none2.json")))
+    agents.write_text(json.dumps([{"pid": 9, "id": "id1", "name": "study", "status": "idle", "kind": "background",
+                                   "cwd": str(hs / "managers" / "study"), "startedAt": 5, "sessionId": "s1"}]), encoding="utf-8")
+    rc, out, err = run([E / "session.py", "push", "study", "hi"], env=envs)
+    check("v8 item 17: the courier run has all hooks off for that run (--settings disableAllHooks, documented)",
+          "disableAllHooks" in out, out + err)
+    put_cfg()
+
+    # ---- item 18: preferences merge, retire, trend, budget ----
+    envl = dict(env, SBK_VAULT=str(v))
+    run([LE, "pref", "short", "Keep answers to three lines.", "--now", "2026-11-01"], env=envl)
+    rc, out, err = run([LE, "pref", "short", "Keep answers to five lines.", "--now", "2026-11-20"], env=envl)
+    nt_text = note.read_text(encoding="utf-8")
+    check("v8 item 18a: pref of the same kind REPLACES the older line (0.2.7 only appended)",
+          "replaced" in out and nt_text.count("(short;") == 1 and "five lines" in nt_text and "three lines" not in nt_text, out + err + nt_text[-500:])
+    rc, out, err = run([LE, "retire", "short", "--now", "2026-12-01"], env=envl)
+    check("v8 item 18b: learn.py retire removes a preference of a kind", rc == 0 and "(short;" not in note.read_text(encoding="utf-8"), out + err)
+    check("v8 item 18b: the maintenance template has the merge / retire / resolve step with the 25-line budget",
+          "pref_budget" in mt and "25 lines" in mt and "learn.py retire" in mt and "learn.py reviewed" in mt, "")
+    run([LE, "pref", "repeat", "Check twice.", "--now", "2026-11-10"], env=envl)
+    run([LE, "add", "correction", "repeat", "again", "--now", "2026-11-03"], env=envl)
+    run([LE, "add", "correction", "repeat", "again2", "--now", "2026-11-04"], env=envl)
+    run([LE, "add", "correction", "repeat", "still", "--now", "2026-11-15"], env=envl)
+    rc, out, err = run([LE, "trend", "--now", "2026-11-25"], env=envl)
+    check("v8 item 18c: trend prints, per preference, the corrections of its kind before and after it was written (2 before, 1 after)",
+          "repeat" in out and "2" in out and "came back" in out.lower() and "after" in out.lower(), out + err)
+    check("v8 item 18d: a kind that returns after its preference is escalated (maintenance template; trend line)",
+          "came back after its preference" in out.lower() or "Came back after its preference" in out, out)
+    # newest never cut
+    sys.path.insert(0, str(H))
+    import importlib
+    ln = importlib.import_module("learn_notice")
+    starters = ["- starter line %d %s" % (i, ln.STARTER_TAGS[0]) for i in range(5)]
+    own = ["- own %d %s" % (i, "x" * 400) + " (k%d; 2026-12-%02d)" % (i, i + 1) for i in range(1, 15)]
+    out_p = ln.fit(starters + own) if hasattr(ln, "fit") else []
+    joined = "\n".join(out_p)
+    check("v8 item 18: when the preferences exceed the cap the starter lines go first and the user's newest line is kept",
+          "own 14" in joined and "starter line 4" not in joined, joined[-300:])
+
+    # ---- item 19: the starter lines the block already says are gone, identically in both languages ----
+    zh = (KIT / "templates" / "和AI協作.md").read_text(encoding="utf-8")
+    en = (KIT / "templates" / "和AI協作.en.md").read_text(encoding="utf-8")
+    gone_en = ["Prepare everything up to the user's last step", "When editing the user's document, change only what was asked",
+               "Decide small, reversible things yourself"]
+    gone_zh = ["把事情準備到只剩使用者的最後一步", "改使用者的文件時只動要改的地方", "可挽回的小事自己決定"]
+    check("v8 item 19: the same three starter lines were removed from the EN and zh files (12 left each), and the block covers each",
+          not any(x in en for x in gone_en) and not any(x in zh for x in gone_zh)
+          and "Keep going until only the user's own step is left" in cl and "When editing the user's document, change only what must change" in cl
+          and "Ask for permission as" in cl, "")
+
+    # ---- item 20: one name map ----
+    sys.path.insert(0, str(H))
+    cm = importlib.import_module("_common")
+    nj = json.loads((KIT / "templates" / "names.json").read_text(encoding="utf-8"))
+    cfgt = json.loads((KIT / "templates" / "config.json").read_text(encoding="utf-8"))
+    check("v8 item 20: templates/names.json ships zh-TW and en, equal to _common; config template carries the zh-TW map",
+          nj["zh-TW"] == cm.NAMES_ZH and nj["en"] == cm.NAMES_EN and cfgt["names"] == cm.NAMES_ZH, "")
+    sys.path.insert(0, str(KIT / "scripts"))
+    gj = importlib.import_module("gen_jdex")
+    lc = importlib.import_module("level_check")
+    check("v8 item 20: the default-name copies in gen_jdex and level_check equal _common.NAMES_ZH",
+          all(cm.NAMES_ZH[k] == vv for k, vv in gj.NAMES_ZH.items()) and all(cm.NAMES_ZH[k] == vv for k, vv in lc.NAMES_ZH.items()), "")
+    ve = base / "vault-en"
+    en_names = nj["en"]
+    (ve / en_names["sys_dir"] / en_names["ai_dir"]).mkdir(parents=True)
+    (ve / en_names["sys_dir"] / en_names["rules_dir"]).mkdir(parents=True)
+    (ve / ".sbk-vault").write_text("", encoding="utf-8")
+    (ve / "AGENTS.md").write_text("x", encoding="utf-8")
+    ne = ve / en_names["sys_dir"] / en_names["ai_dir"] / en_names["ai_note"]
+    ne.write_text(en.replace("{{date}}", "2026-12-01"), encoding="utf-8")
+    he = base / "home-en"
+    he.mkdir()
+    (he / "config.json").write_text(json.dumps(dict(cfg, vault=str(ve), language="English", names=en_names)), encoding="utf-8")
+    ene = dict(env, SBK_HOME=str(he), SBK_VAULT=str(ve))
+    rc, out, err = run([LE, "add", "correction", "too-long", "that is too long", "--now", "2026-12-05"], env=ene)
+    check("v8 item 20: with the en name map learn.py finds and writes the English-named note", rc == 0 and "too-long" in ne.read_text(encoding="utf-8"), out + err)
+    run([LE, "pref", "too-long", "Keep answers short.", "--now", "2026-12-06"], env=ene)
+    rc, out, err = run([H / "learn_notice.py"], {"cwd": str(ve), "hook_event_name": "SessionStart", "source": "startup"}, ene)
+    check("v8 item 20: learn_notice puts the preferences of the English-named note into the conversation", "Keep answers short." in out, out + err)
+    rc, out, err = run([KIT / "scripts" / "gen_jdex.py", "--root", ve], env=ene)
+    idx = ve / en_names["sys_dir"] / en_names["index_dir"] / en_names["index_note"]
+    check("v8 item 20: gen_jdex writes the index under the English names, in English text (no 'JDex 索引' / '下一個空號')",
+          idx.exists() and "Next free number" in idx.read_text(encoding="utf-8") and "下一個空號" not in idx.read_text(encoding="utf-8"), out + err)
+    rc, out, _ = run([H / "vault_guard.py"], {"tool_name": "Write", "cwd": str(ve), "tool_input": {
+        "file_path": str(ve / en_names["sys_dir"] / en_names["rules_dir"] / "x.md"), "content": "x"}}, ene)
+    check("v8 item 20: vault_guard protects the English-named rules folder (0.2.7 knew only the Chinese name)",
+          '"permissionDecision": "ask"' in out, out)
+    (he / "config.json").write_text(json.dumps(dict(cfg, vault=str(ve), language="English")), encoding="utf-8")
+    rc, out, err = run([H / "vault_guard.py"], {"tool_name": "Write", "cwd": str(ve), "tool_input": {
+        "file_path": str(ve / en_names["sys_dir"] / en_names["rules_dir"] / "x.md"), "content": "x"}}, ene)
+    check("v8 item 20: with no names in config.json (an install from before 0.2.8) the old Chinese defaults still apply",
+          cm.names().get("rules_dir") == "01 規則" if False else cm.NAMES_ZH["rules_dir"] == "01 規則", "")
+    check("v8 item 20: SETUP no longer contradicts itself (the 'translate' vs 'names stay as they are' sentences are one rule: the map)",
+          "Folder and file names stay as they are." not in se and "translate the words only if the user wants another language" not in se, "")
+
+    # ---- item 21: Basic records a processed item ----
+    check("v8 item 21: AGENTS.md uses ledger.py add with --done-when and --said (Basic records goal, done-when and the words)",
+          'ledger.py add "[topic] goal in one line" --done-when' in ag and "--said" in ag, "")
+
+    # ---- item 22: version notice, commands on the clone route ----
+    hv = base / "homev"
+    (hv / "bin").mkdir(parents=True)
+    (hv / "bin" / "VERSION").write_text("0.2.7\n", encoding="utf-8")
+    (hv / "config.json").write_text(json.dumps(dict(cfg, vault=str(v))), encoding="utf-8")
+    rc, out, err = run([LC, "--hook", "--now", "2026-12-30T09:00:00"], {"cwd": str(v), "hook_event_name": "SessionStart"},
+                       dict(env, SBK_HOME=str(hv)))
+    check("v8 item 22: bin/VERSION differs from the plugin's -> 'kit updated: copy the tools again' (0.2.7 had no such notice)",
+          "second-brain-kit update" in out and "copy the tools again" in out, out + err)
+    pv = json.loads((KIT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"]
+    (hv / "bin" / "VERSION").write_text(pv + "\n", encoding="utf-8")
+    (hv / "state" / "level_check.json").unlink() if (hv / "state" / "level_check.json").exists() else None
+    rc, out, err = run([LC, "--hook", "--now", "2026-12-31T09:00:00"], {"cwd": str(v), "hook_event_name": "SessionStart"},
+                       dict(env, SBK_HOME=str(hv)))
+    check("v8 item 22: ... and silent when the versions match", "second-brain-kit update" not in out, out + err)
+    check("v8 item 22: SETUP writes bin/VERSION and copies commands/ on the clone route; plugin and marketplace say 0.2.8",
+          "bin/VERSION" in se and "KIT/commands/*.md" in se and pv == "0.2.8"
+          and json.loads((KIT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))["plugins"][0]["version"] == "0.2.8", pv)
+
+    # ---- item 23: SessionStart covers /clear and forks ----
+    ss = hj["hooks"]["SessionStart"]
+    check("v8 item 23: SessionStart matcher includes clear and fork for learn_notice and inbox_notice (hooks.json and the example)",
+          any("clear" in m["matcher"] and "fork" in m["matcher"] and any("learn_notice" in h["command"] for h in m["hooks"])
+              and any("inbox_notice" in h["command"] for h in m["hooks"]) for m in ss)
+          and "startup|resume|clear|fork" in (KIT / "templates" / "settings.hooks.example.json").read_text(encoding="utf-8"), [m["matcher"] for m in ss])
+    rc, out, err = run([H / "learn_notice.py"], {"cwd": str(v), "hook_event_name": "SessionStart", "source": "clear"}, env)
+    check("v8 item 23: after /clear the preferences are put into the conversation", rc == 0 and ("preferences" in out.lower() or "偏好" in out), out + err)
+
+    # ---- item 24: the tracker keeps changes made at the same time, and keeps lines it does not know ----
+    import threading
+    hl = base / "homel"
+    hl.mkdir()
+    el = dict(env, SBK_HOME=str(hl))
+    L = E / "ledger.py"
+    for i in range(3):
+        run([L, "add", "item %d" % i], env=el)
+    lp = hl / "ledger.md"
+    lp.write_text(lp.read_text(encoding="utf-8") + "\nA note somebody typed here by hand\n", encoding="utf-8")
+    procs = []
+    for i in range(6):
+        procs.append(subprocess.Popen([PY, str(L), "add", "parallel %d" % i], env=dict(os.environ, **el), stdout=subprocess.PIPE, stderr=subprocess.PIPE))
+    for p in procs:
+        p.communicate(timeout=60)
+    txt = lp.read_text(encoding="utf-8")
+    check("v8 item 24: six parallel `ledger.py add` calls lose none (a lock file around load-to-save)",
+          all(("parallel %d" % i) in txt for i in range(6)) and txt.count("| open |") == 9, txt[-400:])
+    check("v8 item 24: a line the item pattern does not match survives the save", "A note somebody typed here by hand" in txt, txt[-300:])
+
+    # ---- item 25: Ultra ----
+    check("v8 item 25: SETUP question 5 and the plan table have Ultra (an Ultra subscriber got the Pro values)",
+          "Pro, Max, Ultra, Team" in se and "| Ultra, Team, Enterprise or higher |" in se, "")
+
+    # ---- item 26: the to-do note by its installed path ----
+    mgr = (KIT / "templates" / "manager-CLAUDE.md").read_text(encoding="utf-8")
+    pit = (KIT / "docs" / "PITFALLS.md").read_text(encoding="utf-8") + (KIT / "docs" / "zh-TW" / "踩過的坑.md").read_text(encoding="utf-8")
+    check("v8 item 26: manager template and PITFALLS name the vault note 02-02 (not a todo-for-me.md in SBK_HOME)",
+          "todo-for-me.md" not in mgr and "todo-for-me.md" not in pit and "02-02 我要做的事" in mgr and "02-02 我要做的事" in pit, "")
+
+    # ---- the names the templates use are all in the map (so the setup's replacement for another language is complete) ----
+    zhnames = list(nj["zh-TW"].values())
+    used = set()
+    for n in ("AGENTS.md", "CLAUDE.md", "entry-CLAUDE.md", "manager-CLAUDE.md", "maintenance-CLAUDE.md", "sbk-protect.txt"):
+        for m in re.findall(r"\d\d(?:-\d\d)? [^`/\n<>\"')]*[一-鿿][^`/\n<>\"')]*", (KIT / "templates" / n).read_text(encoding="utf-8")):
+            used.add(m.strip())
+    stray = [u for u in used if not any(z.rstrip(".md") in u or u in z for z in zhnames)]
+    check("v8 item 20: every numbered Chinese folder or file name in the templates is one the name map has", not stray, stray)
 
 
 def main():
@@ -890,8 +1359,8 @@ def main():
               and "outside_resources" in cfg and "other_tools" not in cfg, cfg)
         check("config template: Basic level, history not read until the user says yes, modes", cfg.get("level") == "basic" and cfg.get("read_history") is False and cfg["modes"] == {
             "vault_guard": "ask", "read_whole": "deny", "requests_reinject": "warn",
-            "stop_evidence": "log", "usage_warn": "off", "inbox_notice": "off", "level_notice": "warn",
-            "learn_notice": "warn"}, cfg)
+            "stop_evidence": "log", "vault_snapshot": "warn", "usage_warn": "off", "inbox_notice": "off",
+            "level_notice": "warn", "learn_notice": "warn"}, cfg)
         home2 = tmp / "home2"
         (home2 / "managers" / "study").mkdir(parents=True)
         (home2 / "inbox").mkdir()
@@ -923,6 +1392,7 @@ def main():
         # ---- weekly level check (scripts/level_check.py, hooks/level_notice.py) ----
         level_tests(tmp, cfg)
         learn_loop_tests(tmp, cfg)
+        v8_tests(tmp, cfg)
 
         # ---- vault tools ----
         rc, out, _ = run([KIT / "scripts" / "gen_jdex.py", "--root", vault], env=env)
@@ -1126,13 +1596,15 @@ def main():
               all("check the second brain first" in t or "check the notes first" in t for t in firsts.values())
               and "step one of every task: check the second brain first" in firsts["CLAUDE.md"]
               and "step one of every task: check the second brain first" in firsts["AGENTS.md"]
-              and "first its sorted preferences" in firsts["CLAUDE.md"] and "sorted preferences first" in firsts["AGENTS.md"],
+              and "sorted preferences are already in this conversation" in firsts["CLAUDE.md"]
+              and "sorted preferences are already in this conversation" in firsts["AGENTS.md"]
+              and "sorted preferences first" in firsts["entry-CLAUDE.md"],
               [n for n, t in firsts.items() if "check the second brain first" not in t])
         se = (KIT / "docs" / "SETUP.md").read_text(encoding="utf-8")
         check("setup: six questions, the plan sets starting values, outside resources are ticked",
               "ask six things" in se and "Which Claude plan" in se and "Tick any, or none" in se and "max_sessions" in se and "可免費申請" in se)
         check("docs: the entry sends work into running sessions; inbox fallback is described",
-              "straight into the running session" in adv and "直接把事送進正在跑" in advz
+              "conversation of the topic that owns it" in adv and "直接把事送進負責那件事的主題對話" in advz
               and "session.py check" in se and "inbox" in se)
         # ---- language split: what Claude reads exists only in English; what the user sees is in their language ----
         claude_only = [KIT / "docs" / "SETUP.md", KIT / "docs" / "MULTI-TOOL.md"] + [
@@ -1196,8 +1668,8 @@ def main():
             starters = [l for l in tx.splitlines() if l.startswith("- ") and l.rstrip().endswith(tag)]
             untagged = [l for l in tx[tx.find(starter_head[0]):tx.find("\n## ", tx.find(starter_head[0]) + 3)].splitlines()
                         if l.startswith("- ") and not l.rstrip().endswith(tag)] if starter_head else ["no starter heading"]
-            check("starter preferences (%s): 15 lines, each tagged as from the original author, under their own heading" % label,
-                  len(starters) == 15 and starter_head and not untagged, (len(starters), starter_head, untagged))
+            check("starter preferences (%s): 12 lines, each tagged as from the original author, under their own heading" % label,
+                  len(starters) == 12 and starter_head and not untagged, (len(starters), starter_head, untagged))
             first = tx.find("## 已整理的偏好") if label == "zh" else tx.find("## Sorted preferences")
             check("starter preferences (%s): the user's own preference heading comes first, so `learn.py pref` writes there" % label,
                   0 <= first < tx.find(starter_head[0]) < tx.find("## 紀錄" if label == "zh" else "## Log"))
@@ -1213,8 +1685,8 @@ def main():
             (sh / "config.json").write_text(json.dumps({"vault": str(sv), "language": label}), encoding="utf-8")
             senv = {"SBK_HOME": str(sh), "SBK_VAULT": str(sv), "ANTHROPIC_API_KEY": ""}
             rc, out, err = run([KIT / "hooks" / "learn_notice.py"], {"cwd": str(sv), "hook_event_name": "SessionStart", "source": "startup"}, senv)
-            check("starter preferences (%s): a new conversation gets all 15 starter lines (none cut by the size cap) and the tag" % label,
-                  rc == 0 and out.count(tag) == 15 and "more in the note" not in out and "the starter ones the kit ships" in out, out[-300:] + err)
+            check("starter preferences (%s): a new conversation gets all 12 starter lines (none cut by the size cap) and the tag" % label,
+                  rc == 0 and out.count(tag) == 12 and "more in the note" not in out and "the starter ones the kit ships" in out, out[-300:] + err)
             rc, out, err = run([KIT / "entry" / "learn.py", "pref", "reply-length", "Keep replies to three lines.", "--now", "2026-12-10"], env=senv)
             tx = sn.read_text(encoding="utf-8")
             check("starter preferences (%s): a preference the user adds is written above the starter ones" % label,
@@ -1224,8 +1696,8 @@ def main():
                 stx = json.loads(out)
             except Exception:
                 stx = {}
-            check("starter preferences (%s): stats count the user's own (1) apart from the 15 starter ones" % label,
-                  stx.get("preferences") == 1 and stx.get("starter_preferences") == 15, out + err)
+            check("starter preferences (%s): stats count the user's own (1) apart from the 12 starter ones" % label,
+                  stx.get("preferences") == 1 and stx.get("starter_preferences") == 12, out + err)
             rc, out, err = run([KIT / "entry" / "learn.py", "add", "correction", "kind-a", "words", "--now", "2026-12-11"], env=senv)
             added = sn.read_text(encoding="utf-8").rstrip().splitlines()[-1]
             check("starter preferences (%s): learn.py add writes the log line in the note's language" % label,

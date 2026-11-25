@@ -1,0 +1,28 @@
+{
+  "zh-TW": {
+    "sys_dir": "00-09 系統與索引",
+    "index_dir": "00 索引",
+    "index_note": "00-01 JDex 索引.md",
+    "rules_dir": "01 規則",
+    "format_note": "01-01 筆記格式.md",
+    "inbox_dir": "02 收件匣",
+    "inbox_note": "02-01 收件匣.md",
+    "todo_note": "02-02 我要做的事.md",
+    "ai_dir": "03 和 AI 協作",
+    "ai_note": "03-01 和 AI 協作.md",
+    "archive_dir": "90-99 封存"
+  },
+  "en": {
+    "sys_dir": "00-09 System and index",
+    "index_dir": "00 Index",
+    "index_note": "00-01 JDex index.md",
+    "rules_dir": "01 Rules",
+    "format_note": "01-01 Note format.md",
+    "inbox_dir": "02 Inbox",
+    "inbox_note": "02-01 Inbox.md",
+    "todo_note": "02-02 My to-dos.md",
+    "ai_dir": "03 Working with AI",
+    "ai_note": "03-01 Working with AI.md",
+    "archive_dir": "90-99 Archive"
+  }
+}

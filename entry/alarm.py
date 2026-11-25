@@ -29,7 +29,9 @@ for the first time (just added) only fires if it is due within the last 10 minut
 
 Run it from the OS scheduler every 5 minutes (docs/ADVANCED.md A2 has the exact commands):
     Windows:  Register-ScheduledTask ... -RepetitionInterval 5 minutes, with "start when available"
-    Linux/macOS crontab:  */5 * * * * python3 <bin>/alarm.py --tick
+    macOS:    a LaunchAgent (StartInterval 300) with PATH set; Linux: crontab with PATH set:
+              */5 * * * * PATH=... python3 <bin>/alarm.py --tick
+The tick appends what it prints to <SBK_HOME>/logs/alarm.log (a scheduled run has no screen).
 """
 import datetime
 import json
@@ -129,13 +131,14 @@ def fire(row, late=False, now=None):
         import handover
         return handover.check_all()
     if to == "entry":
-        head, items = ledger.load()
         mark = "[alarm %s]" % row["id"]
-        if any(i[3].startswith(mark) and i[1] not in ledger.CLOSED for i in items):
-            return "skipped (same alarm still open)"
-        nxt = max([int(i[0][1:]) for i in items] + [0]) + 1
-        items.append(["L%04d" % nxt, "open", ledger.now(), ledger.clean(tag), ""])
-        ledger.save(head, items)
+        with ledger.locked():
+            head, items = ledger.load()
+            if any(i[3].startswith(mark) and i[1] not in ledger.CLOSED for i in items):
+                return "skipped (same alarm still open)"
+            nxt = max([int(i[0][1:]) for i in items] + [0]) + 1
+            items.append(["L%04d" % nxt, "open", ledger.now(), ledger.clean(tag), ""])
+            ledger.save(head, items)
         res = "ledger L%04d" % nxt
         if session.cfg().get("routing") == "live" and session.find("entry"):
             res += ", " + session.deliver("entry", tag, "L%04d" % nxt, scheduled=True, now=now)
@@ -231,8 +234,10 @@ def prune(now):
 
 
 def main():
-    sys.stdout.reconfigure(encoding="utf-8")
     a = sys.argv[1:]
+    # --tick runs from the OS scheduler: its output is also kept in <SBK_HOME>/logs/alarm.log. Under
+    # pythonw.exe (the Windows task) there is no stdout at all, and before 0.2.8 the next line crashed.
+    ledger.setup_output("alarm" if "--tick" in a else None)
     now = datetime.datetime.now().replace(second=0, microsecond=0)
     if "--now" in a:
         now = datetime.datetime.strptime(a[a.index("--now") + 1], "%Y-%m-%dT%H:%M")

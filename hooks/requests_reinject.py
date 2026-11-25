@@ -7,18 +7,24 @@ saved to <SBK_HOME>/requests/<session>.md.
 
 UserPromptSubmit (hand-over): when the conversation carries more than config "handover_tokens"
 (default 150000) tokens, tell Claude once (and again every further 50000) to write the hand-over
-into task.md, save the user's words to <SBK_HOME>/requests/<session>.md, and tell the user to start
-a new conversation in the same folder and say "continue". This is for conversations in a window
-(the Basic main conversation, an entry the user types into); background sessions are replaced by
-entry/handover.py without the user.
+into ONE fixed task.md (<SBK_HOME>/task.md for the Basic main conversation, <SBK_HOME>/entry/task.md
+for the entry), save the user's words to <SBK_HOME>/requests/<session>.md, and record both in
+<SBK_HOME>/state/handover.json. This is for conversations in a window (the Basic main conversation,
+an entry the user types into); background sessions are replaced by entry/handover.py without the user.
+
+SessionStart (startup, clear) in the notes folder or the entry folder: when a hand-over is waiting
+in handover.json, say so and name the two files, so the new conversation continues without the user
+having to say anything.
 """
 import json
+import os
 import re
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import (add_context, config, conversation_tokens, home, human_text,  # noqa: E402
+from _common import (add_context, config, conversation_tokens, find_vault, home, human_text,  # noqa: E402
                      iter_records, log, mode, read_input)
 
 CAP = 8000          # additionalContext is limited to about 10000 characters
@@ -47,6 +53,63 @@ def save(sid, msgs):
         return ""
 
 
+HAND_STATE = "handover.json"
+HAND_DAYS = 7
+
+
+def scope_of(cwd):
+    """Which conversation this is: 'entry' (the entry folder), 'main' (inside the notes folder) or None."""
+    try:
+        here = Path(cwd).resolve()
+        entry = (home() / "entry").resolve()
+        if here == entry or entry in here.parents:
+            return "entry", entry / "task.md"
+    except Exception:
+        pass
+    if find_vault(cwd):
+        return "main", home() / "task.md"
+    return None, None
+
+
+def read_hand():
+    try:
+        return json.loads((home() / "state" / HAND_STATE).read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def write_hand(d):
+    try:
+        f = home() / "state" / HAND_STATE
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def handover_pickup(data):
+    scope, _ = scope_of(data.get("cwd") or os.getcwd())
+    if not scope or data.get("source") not in ("startup", "clear"):
+        return
+    hand = read_hand()
+    rec = hand.get(scope)
+    if not rec or rec.get("picked") or rec.get("session") == data.get("session_id"):
+        return
+    if time.time() - float(rec.get("ts", 0)) > HAND_DAYS * 86400:
+        return
+    if not Path(rec.get("task", "")).exists():
+        return
+    rec["picked"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+    hand[scope] = rec
+    write_hand(hand)
+    add_context("SessionStart",
+                "[second-brain-kit] A hand-over is waiting from the earlier long conversation (%s). Read %s "
+                "first (what is decided, half done and next), then the user's words in %s, and carry on "
+                "from there; the user does not have to say \"continue\". If the user starts something "
+                "unrelated, do that instead." % (rec.get("date", ""), rec["task"], rec.get("words") or "the requests folder"))
+    log("requests_reinject", "hand-over picked up (%s)" % scope)
+
+
 def handover_notice(data, sid):
     path = data.get("transcript_path")
     if not path:
@@ -70,14 +133,26 @@ def handover_notice(data, sid):
     except Exception:
         pass
     saved = save(sid, collect(path))
+    scope, task = scope_of(data.get("cwd") or os.getcwd())
+    if scope:
+        hand = read_hand()
+        hand[scope] = {"task": str(task), "words": saved, "date": time.strftime("%Y-%m-%d"),
+                       "ts": time.time(), "session": sid}
+        write_hand(hand)
+        where = "the hand-over file %s (create it if missing)" % task
+        close = ("Then tell the user, in one line in their language, to start a new conversation: it picks "
+                 "the hand-over up by itself, nothing has to be said.")
+    else:
+        where = "task.md in this folder"
+        close = ("Then tell the user, in one line in their language, to start a new conversation in the "
+                 "same folder and say \"continue\"; the new one reads task.md and that file.")
     add_context("UserPromptSubmit",
                 "This conversation now carries about %dk tokens (hand-over threshold %dk). After answering "
-                "this message, hand over: update task.md in this folder (top section \"Now\" within 40 lines: "
+                "this message, hand over: update %s (top section \"Now\" within 40 lines: "
                 "decisions still in force with the user's words and dates, work half done, next steps; "
-                "finished items one line each under \"Closed\", the long text appended to task-archive.md). "
-                "The user's words are saved in %s. Then tell the user, in one line in their language, to "
-                "start a new conversation in the same folder and say \"continue\"; the new one reads task.md "
-                "and that file." % (n // 1000, limit // 1000, saved or "the requests folder"))
+                "finished items one line each under \"Closed\", the long text appended to task-archive.md "
+                "next to it). The user's words are saved in %s. %s"
+                % (n // 1000, limit // 1000, where, saved or "the requests folder", close))
     log("requests_reinject", "hand-over notice at %d tokens" % n)
 
 
@@ -88,6 +163,8 @@ def main():
     sid = re.sub(r"[^A-Za-z0-9_-]", "", str(data.get("session_id") or "session"))[:60] or "session"
     if data.get("hook_event_name") == "UserPromptSubmit":
         return handover_notice(data, sid)
+    if data.get("source") in ("startup", "resume", "clear", "fork"):
+        return handover_pickup(data)
     path = data.get("transcript_path")
     if not path:
         return

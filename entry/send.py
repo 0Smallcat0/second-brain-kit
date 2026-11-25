@@ -48,18 +48,19 @@ def dispatch(manager, text, lid=None):
     """Tracker item (new, or the given one marked dispatched) + inbox line. Returns (lid, added)."""
     if not (home() / "managers" / manager).is_dir():
         sys.exit("no session folder: %s (create it from templates first)" % (home() / "managers" / manager))
-    head, items = ledger.load()
-    if lid is None:
-        lid = "L%04d" % (max([int(i[0][1:]) for i in items] + [0]) + 1)
-        items.append([lid, "dispatched:" + manager, ledger.now(), ledger.clean(text), ""])
-    else:
-        ledger.find(items, lid)[1] = "dispatched:" + manager
-    ledger.save(head, items)
+    with ledger.locked():
+        head, items = ledger.load()
+        if lid is None:
+            lid = "L%04d" % (max([int(i[0][1:]) for i in items] + [0]) + 1)
+            items.append([lid, "dispatched:" + manager, ledger.now(), ledger.clean(text), ""])
+        else:
+            ledger.find(items, lid)[1] = "dispatched:" + manager
+        ledger.save(head, items)
     return lid, deliver(manager, text, lid)
 
 
 def main():
-    sys.stdout.reconfigure(encoding="utf-8")
+    ledger.setup_output()
     args = sys.argv[1:]
     lid = None
     if "--ledger" in args:

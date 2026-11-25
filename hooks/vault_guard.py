@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""PreToolUse hook (Bash, Write, Edit, MultiEdit): ask before things that are hard to undo.
+"""PreToolUse hook (Bash, PowerShell, Write, Edit, MultiEdit): ask before things that are hard to undo.
 
-Bash:   git push, skipping git hooks (--no-verify), destructive git (reset --hard, clean -f,
-        checkout -- ., restore ., branch -D, stash drop/clear), recursive deletes.
+Shell:  the Bash and the PowerShell tool (on Windows Claude uses PowerShell): git push, skipping git
+        hooks (--no-verify), destructive git (reset --hard, clean -f, checkout -- ., restore ., branch -D,
+        stash drop/clear), recursive deletes (rm -r, Remove-Item/ri/del/rd -Recurse, rmdir /s).
 Files:  the vault's protected files (AGENTS.md, CLAUDE.md, the rules folder 01 規則, scripts/,
         .sbk-vault, .git/ and any prefix listed in <vault>/.sbk-protect), Claude's own settings / CLAUDE.md, and a Write
         that would replace most of an existing vault note with something much shorter.
@@ -15,7 +16,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import find_vault, log, mode, pretool, read_input  # noqa: E402
+from _common import SHELL_TOOLS, find_vault, log, mode, names, pretool, read_input  # noqa: E402
 
 BASH_RULES = [
     (re.compile(r"\bgit\s+(-\S+\s+\S+\s+)*push\b"), "git push publishes work outside this machine."),
@@ -25,10 +26,17 @@ BASH_RULES = [
                 r"|\bgit\s+restore\s+(?!--staged)\S*\.(\s|$)|\bgit\s+branch\s+-D\b"
                 r"|\bgit\s+stash\s+(drop|clear)\b"),
      "This git command throws work away."),
-    (re.compile(r"\brm\s+-\S*[rR]|\bRemove-Item\b[^\n]*-Recurse|\brmdir\s+/s\b|\bdel\s+/s\b", re.I),
+    (re.compile(r"\brm\s+-\S*[rR]|\bRemove-Item\b[^\n]*-Recurse|\brmdir\s+/s\b|\bdel\s+/s\b|\brd\s+/s\b"
+                r"|\b(ri|del|erase|rm|rmdir|rd)\s+(\S+\s+)*-r(ecurse)?\b", re.I),
      "This deletes a whole folder tree."),
 ]
-DEFAULT_PROTECTED = ("AGENTS.md", "CLAUDE.md", "scripts/", ".sbk-vault", ".git/", "00-09 系統與索引/01 規則/")
+
+
+def default_protected():
+    n = names()
+    return ["AGENTS.md", "CLAUDE.md", "scripts/", ".sbk-vault", ".git/", "%s/%s/" % (n["sys_dir"], n["rules_dir"])]
+
+
 CLAUDE_FILES = {"settings.json", "settings.local.json", "CLAUDE.md"}
 
 
@@ -51,7 +59,7 @@ def check_bash(cmd):
 
 
 def protected_list(vault):
-    items = list(DEFAULT_PROTECTED)
+    items = default_protected()
     try:
         for line in (vault / ".sbk-protect").read_text(encoding="utf-8").splitlines():
             line = line.strip()
@@ -104,7 +112,7 @@ def main():
     tool = data.get("tool_name", "")
     inp = data.get("tool_input") or {}
     cwd = data.get("cwd") or os.getcwd()
-    if tool == "Bash":
+    if tool in SHELL_TOOLS:
         check_bash(str(inp.get("command", "")))
     elif tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
         check_file(tool, inp, cwd)

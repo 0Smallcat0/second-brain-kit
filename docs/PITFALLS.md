@@ -53,7 +53,7 @@ Tools report "success" for a write that landed in the wrong folder, an upload th
 
 ## 13. Only pointing at the problem
 "X is blocked, you need to ..." and stop.
-**Fix:** work until only the user's step is left (password, code, payment, signature, decision), prepare everything up to it, and list the minimum they must do in numbered lines. `todo-for-me.md` is that list; it must never hold something Claude could have done.
+**Fix:** work until only the user's step is left (password, code, payment, signature, decision), prepare everything up to it, and list the minimum they must do in numbered lines. The user's note `02 收件匣/02-02 我要做的事.md` (name from `names` in `config.json`) is that list; it must never hold something Claude could have done.
 
 ## 14. The entry does hands-on work
 An entry session that starts doing long jobs fills its context, forgets to route, and the tracker stops being updated.

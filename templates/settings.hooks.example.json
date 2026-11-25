@@ -1,36 +1,144 @@
 {
-  "_comment": "Manual install only (not needed when you installed the plugin). Merge the \"hooks\" block into ~/.claude/settings.json and replace __KIT__ with the folder where the hook files were copied, for example /home/me/.sbk/hooks. The sh wrapper picks python3, python or py.",
+  "_comment": "Manual install only (not needed when you installed the plugin). Merge the \"hooks\" block into ~/.claude/settings.json and replace __KIT__ with the folder where the hook files were copied, for example /home/me/.sbk/hooks. The sh wrapper picks python3, python or py. On Windows this needs Git for Windows (Git Bash); without it the hooks cannot start, and onFailure continue lets the tool call go ahead instead of blocking it.",
   "hooks": {
     "SessionStart": [
-      {"matcher": "compact", "hooks": [
-        {"type": "command", "command": "sh \"__KIT__/run.sh\" requests_reinject.py", "timeout": 10},
-        {"type": "command", "command": "sh \"__KIT__/run.sh\" learn_notice.py", "timeout": 10}
-      ]},
-      {"matcher": "startup|resume", "hooks": [
-        {"type": "command", "command": "sh \"__KIT__/run.sh\" inbox_notice.py", "timeout": 10},
-        {"type": "command", "command": "sh \"__KIT__/run.sh\" level_notice.py", "timeout": 15},
-        {"type": "command", "command": "sh \"__KIT__/run.sh\" learn_notice.py", "timeout": 10}
-      ]}
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"__KIT__/run.sh\" requests_reinject.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          },
+          {
+            "type": "command",
+            "command": "sh \"__KIT__/run.sh\" learn_notice.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          }
+        ]
+      },
+      {
+        "matcher": "startup|resume|clear|fork",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"__KIT__/run.sh\" inbox_notice.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          },
+          {
+            "type": "command",
+            "command": "sh \"__KIT__/run.sh\" level_notice.py",
+            "timeout": 15,
+            "onFailure": "continue"
+          },
+          {
+            "type": "command",
+            "command": "sh \"__KIT__/run.sh\" requests_reinject.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          },
+          {
+            "type": "command",
+            "command": "sh \"__KIT__/run.sh\" learn_notice.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          }
+        ]
+      }
     ],
     "UserPromptSubmit": [
-      {"hooks": [
-        {"type": "command", "command": "sh \"__KIT__/run.sh\" usage_warn.py", "timeout": 10},
-        {"type": "command", "command": "sh \"__KIT__/run.sh\" inbox_notice.py", "timeout": 10},
-        {"type": "command", "command": "sh \"__KIT__/run.sh\" requests_reinject.py", "timeout": 10},
-        {"type": "command", "command": "sh \"__KIT__/run.sh\" learn_notice.py", "timeout": 10}
-      ]}
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"__KIT__/run.sh\" usage_warn.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          },
+          {
+            "type": "command",
+            "command": "sh \"__KIT__/run.sh\" inbox_notice.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          },
+          {
+            "type": "command",
+            "command": "sh \"__KIT__/run.sh\" requests_reinject.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          },
+          {
+            "type": "command",
+            "command": "sh \"__KIT__/run.sh\" learn_notice.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          }
+        ]
+      }
     ],
     "PreToolUse": [
-      {"matcher": "Bash", "hooks": [
-        {"type": "command", "command": "sh \"__KIT__/run.sh\" read_whole.py", "timeout": 10},
-        {"type": "command", "command": "sh \"__KIT__/run.sh\" vault_guard.py", "timeout": 10}
-      ]},
-      {"matcher": "Write|Edit|MultiEdit|NotebookEdit", "hooks": [
-        {"type": "command", "command": "sh \"__KIT__/run.sh\" vault_guard.py", "timeout": 10}
-      ]}
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"__KIT__/run.sh\" read_whole.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          },
+          {
+            "type": "command",
+            "command": "sh \"__KIT__/run.sh\" vault_guard.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"__KIT__/run.sh\" vault_guard.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"__KIT__/run.sh\" read_whole.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          }
+        ]
+      }
     ],
     "Stop": [
-      {"hooks": [{"type": "command", "command": "sh \"__KIT__/run.sh\" stop_evidence.py", "timeout": 15}]}
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"__KIT__/run.sh\" stop_evidence.py",
+            "timeout": 15,
+            "onFailure": "continue"
+          },
+          {
+            "type": "command",
+            "command": "sh \"__KIT__/run.sh\" vault_snapshot.py",
+            "timeout": 45,
+            "onFailure": "continue"
+          }
+        ]
+      }
     ]
   }
 }

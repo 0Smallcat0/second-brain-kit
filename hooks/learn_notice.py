@@ -8,8 +8,10 @@ Claude to write ONE line this turn into the 和 AI 協作 note with entry/learn.
 It names the kinds already in the note so the same kind gets the same name (that is what lets the
 weekly review count repeats). Claude decides whether the message really is one; the hook only reminds.
 
-SessionStart (startup, resume, compact): puts the note's sorted preferences into the conversation, so
-every new session follows them without first having to open the note.
+SessionStart (startup, resume, clear, fork, compact): puts the note's sorted preferences into the
+conversation, so every new session follows them without first having to open the note. Not in
+<SBK_HOME>/state (the courier's folder: a session there never talks to the user). When the preferences
+do not fit in the cap, the starter lines go first, then the user's oldest: the newest never.
 
 Mode: config.json "modes": {"learn_notice": "warn"} (default, Basic and Full: remind only);
 "log" = only write logs/learn_notice.log; "off" = nothing. Silent when no 和 AI 協作 note exists.
@@ -20,20 +22,38 @@ Fails open.
         message per line. Use it before trusting a change to the phrase lists.
 """
 import json
+import os
 import re
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _common import (add_context, config, find_vault, home, human_text, iter_records,  # noqa: E402
-                     log, mode, read_input)
+                     log, mode, names, python_cmd, read_input)
 
-REL = Path("00-09 系統與索引") / "03 和 AI 協作" / "03-01 和 AI 協作.md"
+STARTER_TAGS = ("（來自原作者，可刪）", "(from the original author; delete if you like)")
+
+
+def rel():
+    n = names()
+    return Path(n["sys_dir"]) / n["ai_dir"] / n["ai_note"]
+
+
+def in_state_folder(cwd):
+    """The courier (claude -p) runs in <SBK_HOME>/state: it must not get the learning loop's lines."""
+    try:
+        here = Path(cwd).resolve()
+        st = (home() / "state").resolve()
+        return here == st or st in here.parents
+    except Exception:
+        return False
+
+
 LINE = re.compile(r"^-\s*\d{4}-\d{2}-\d{2}\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|")
 HEAD = 600          # long pasted messages: only the user's own opening is read
 MAX_KINDS = 12
 SHORT = 200        # a confirmation is only looked for in a short message
-MAX_PREFS_CHARS = 5000  # SessionStart: the preferences put into the conversation, at most (15 starter lines take ~3300)
+MAX_PREFS_CHARS = 5000  # SessionStart: the preferences put into the conversation, at most (the 12 starter lines take ~2700)
 
 CORRECTION = [
     r"(?<!對)不對(?!稱|應|外|面)",                    # not 對不對 ("right?"), 不對稱
@@ -91,11 +111,11 @@ def classify(text):
 
 def note_path(data):
     v = config().get("vault")
-    p = Path(v) / REL if v else None
+    p = Path(v) / rel() if v else None
     if p and p.exists():
         return p
     found = find_vault(data.get("cwd"))
-    p = found / REL if found else None
+    p = found / rel() if found else None
     return p if p and p.exists() else None
 
 
@@ -114,9 +134,9 @@ def known_kinds(p):
 def learn_cmd():
     p = home() / "bin" / "learn.py"
     if p.exists():
-        return "python \"%s\"" % p.as_posix()
+        return "%s \"%s\"" % (python_cmd(), p.as_posix())
     kit = Path(__file__).resolve().parent.parent / "entry" / "learn.py"
-    return "python \"%s\"" % kit.as_posix()
+    return "%s \"%s\"" % (python_cmd(), kit.as_posix())
 
 
 def message(kind, hit, note, kinds):
@@ -131,7 +151,8 @@ def message(kind, hit, note, kinds):
 
 
 def replay(paths):
-    sys.stdout.reconfigure(encoding="utf-8")
+    if sys.stdout is not None:
+        sys.stdout.reconfigure(encoding="utf-8")
     total = 0
     hits = {"correction": [], "confirmed": []}
     for f in paths:
@@ -166,23 +187,32 @@ def preferences(p):
     return out
 
 
+def fit(prefs):
+    """The lines to inject within MAX_PREFS_CHARS. The user's own come first in the note and the newest of
+    them are last; when too long, drop the starter lines (from the end), then the user's oldest."""
+    own = [l for l in prefs if not l.rstrip().endswith(STARTER_TAGS)]
+    starter = [l for l in prefs if l.rstrip().endswith(STARTER_TAGS)]
+    cut = False
+    while len(own) + len(starter) > 0 and sum(len(l) for l in own + starter) > MAX_PREFS_CHARS:
+        cut = True
+        if starter:
+            starter.pop()
+        else:
+            own.pop(0)
+    return own + starter + (["- (more in the note)"] if cut else [])
+
+
 def session_start(data, m):
     """At startup, resume and after compaction: put the sorted preferences into the conversation, so a
     new session follows them without having to remember to open the note (E2E 0.2.6: a fresh session
     did not open the note on its own and broke a preference written the day before)."""
     note = note_path(data)
-    if not note or m == "log":
+    if not note or m == "log" or in_state_folder(data.get("cwd") or os.getcwd()):
         return
     prefs = preferences(note)
     if not prefs:
         return
-    text, used = [], 0
-    for l in prefs:
-        if used + len(l) > MAX_PREFS_CHARS:
-            text.append("- (more in the note)")
-            break
-        text.append(l)
-        used += len(l)
+    text = fit(prefs)
     add_context("SessionStart",
                 "[second-brain-kit preferences] The user's sorted preferences from the 和 AI 協作 note (%s): "
                 "their own, written with their agreement, and the starter ones the kit ships (each ends with "
@@ -200,7 +230,7 @@ def main():
     if data.get("hook_event_name") == "SessionStart":
         return session_start(data, m)
     kind, hit = classify(data.get("prompt") or "")
-    if not kind:
+    if not kind or in_state_folder(data.get("cwd") or os.getcwd()):
         return
     note = note_path(data)
     if not note:

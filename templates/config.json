@@ -2,6 +2,8 @@
   "level": "basic",
   "level_reason": "",
   "vault": "",
+  "python_cmd": "",
+  "claude_path": "",
   "language": "",
   "uses": "",
   "outside_resources": "",
@@ -11,15 +13,30 @@
   "max_sessions": 2,
   "wake_limits": {"per_day": 4, "min_gap_min": 120},
   "handover_tokens": 150000,
+  "pref_budget": 25,
   "review": "weekly sun 20:00",
   "modes": {
     "vault_guard": "ask",
     "read_whole": "deny",
     "requests_reinject": "warn",
     "stop_evidence": "log",
+    "vault_snapshot": "warn",
     "usage_warn": "off",
     "inbox_notice": "off",
     "level_notice": "warn",
     "learn_notice": "warn"
+  },
+  "names": {
+      "sys_dir": "00-09 系統與索引",
+      "index_dir": "00 索引",
+      "index_note": "00-01 JDex 索引.md",
+      "rules_dir": "01 規則",
+      "format_note": "01-01 筆記格式.md",
+      "inbox_dir": "02 收件匣",
+      "inbox_note": "02-01 收件匣.md",
+      "todo_note": "02-02 我要做的事.md",
+      "ai_dir": "03 和 AI 協作",
+      "ai_note": "03-01 和 AI 協作.md",
+      "archive_dir": "90-99 封存"
   }
 }

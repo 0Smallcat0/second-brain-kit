@@ -1,52 +1,142 @@
 {
-  "description": "second-brain-kit guard hooks. Each one fails open and reads its mode (off/log/warn/ask/deny/block) from ~/.sbk/config.json. Without that file the Basic defaults apply: vault_guard ask, read_whole deny (vault notes only), requests_reinject warn (words back after compaction; hand-over notice above handover_tokens), stop_evidence log, usage_warn off, inbox_notice off, level_notice warn (weekly upgrade check and the Basic light review of the learning loop, notes folder only), learn_notice warn (reminds Claude to record a correction or confirmation in the 和 AI 協作 note; at session start puts the note's sorted preferences into the conversation).",
+  "description": "second-brain-kit guard hooks. Each one fails open and reads its mode (off/log/warn/ask/deny/block) from ~/.sbk/config.json. Without that file the Basic defaults apply: vault_guard ask (the shell tools Bash and PowerShell, and file edits), read_whole deny (a vault note read in fragments by a shell command is refused; a partial Read of a note gets one line of context), requests_reinject warn (words back after compaction; hand-over notice above handover_tokens; a waiting hand-over is picked up at session start), stop_evidence log, vault_snapshot warn (commits the changed notes when a reply ends), usage_warn off, inbox_notice off, level_notice warn (weekly upgrade check and the light review of the learning loop, notes folder and entry folder only), learn_notice warn (reminds Claude to record a correction or confirmation in the 和 AI 協作 note; at session start puts the note's sorted preferences into the conversation). Every hook is shell form with onFailure continue: where Git Bash is missing, a hook that cannot start must not block a tool call (hooks page, 'Failed hooks on Windows without Git Bash'). hooks/run.sh stamps ~/.sbk/state/hooks-heartbeat.json each time it starts a hook, so /sbk-status can tell hooks that are quiet from hooks that are not running.",
   "hooks": {
     "SessionStart": [
       {
         "matcher": "compact",
         "hooks": [
-          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" requests_reinject.py", "timeout": 10},
-          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" learn_notice.py", "timeout": 10}
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" requests_reinject.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          },
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" learn_notice.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          }
         ]
       },
       {
-        "matcher": "startup|resume",
+        "matcher": "startup|resume|clear|fork",
         "hooks": [
-          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" inbox_notice.py", "timeout": 10},
-          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" level_notice.py", "timeout": 15},
-          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" learn_notice.py", "timeout": 10}
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" inbox_notice.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          },
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" level_notice.py",
+            "timeout": 15,
+            "onFailure": "continue"
+          },
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" requests_reinject.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          },
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" learn_notice.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          }
         ]
       }
     ],
     "UserPromptSubmit": [
       {
         "hooks": [
-          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" usage_warn.py", "timeout": 10},
-          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" inbox_notice.py", "timeout": 10},
-          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" requests_reinject.py", "timeout": 10},
-          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" learn_notice.py", "timeout": 10}
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" usage_warn.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          },
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" inbox_notice.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          },
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" requests_reinject.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          },
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" learn_notice.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          }
         ]
       }
     ],
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|PowerShell",
         "hooks": [
-          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" read_whole.py", "timeout": 10},
-          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" vault_guard.py", "timeout": 10}
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" read_whole.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          },
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" vault_guard.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          }
         ]
       },
       {
         "matcher": "Write|Edit|MultiEdit|NotebookEdit",
         "hooks": [
-          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" vault_guard.py", "timeout": 10}
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" vault_guard.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" read_whole.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          }
         ]
       }
     ],
     "Stop": [
       {
         "hooks": [
-          {"type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" stop_evidence.py", "timeout": 15}
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" stop_evidence.py",
+            "timeout": 15,
+            "onFailure": "continue"
+          },
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run.sh\" vault_snapshot.py",
+            "timeout": 45,
+            "onFailure": "continue"
+          }
         ]
       }
     ]

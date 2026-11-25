@@ -10,6 +10,27 @@ from pathlib import Path
 
 MODES = {"off", "log", "warn", "ask", "deny", "block"}
 
+# The shell tools: on Windows Claude Code routes shell commands through PowerShell when that tool is
+# enabled, so a hook that matches only "Bash" never sees them (code.claude.com hooks page, PowerShell).
+SHELL_TOOLS = ("Bash", "PowerShell")
+
+# Folder and file names the kit creates in the notes folder. config.json "names" overrides any key; a
+# key it lacks falls back to the Traditional Chinese name (what installs before 0.2.8 have). scripts that
+# are copied elsewhere (level_check.py, gen_jdex.py, vault_lint.py) carry their own copy of the keys they
+# need; the selftest checks those copies equal these.
+NAMES_ZH = {
+    "sys_dir": "00-09 系統與索引", "index_dir": "00 索引", "index_note": "00-01 JDex 索引.md",
+    "rules_dir": "01 規則", "format_note": "01-01 筆記格式.md",
+    "inbox_dir": "02 收件匣", "inbox_note": "02-01 收件匣.md", "todo_note": "02-02 我要做的事.md",
+    "ai_dir": "03 和 AI 協作", "ai_note": "03-01 和 AI 協作.md", "archive_dir": "90-99 封存",
+}
+NAMES_EN = {
+    "sys_dir": "00-09 System and index", "index_dir": "00 Index", "index_note": "00-01 JDex index.md",
+    "rules_dir": "01 Rules", "format_note": "01-01 Note format.md",
+    "inbox_dir": "02 Inbox", "inbox_note": "02-01 Inbox.md", "todo_note": "02-02 My to-dos.md",
+    "ai_dir": "03 Working with AI", "ai_note": "03-01 Working with AI.md", "archive_dir": "90-99 Archive",
+}
+
 
 def home():
     """Runtime folder: tracker (ledger.md), alarms, routes, inbox, logs. Override with SBK_HOME.
@@ -36,6 +57,26 @@ def config():
         return json.loads((home() / "config.json").read_text(encoding="utf-8"))
     except Exception:
         return {}
+
+
+def names():
+    """The folder and file name map: config.json "names" over the Traditional Chinese defaults."""
+    out = dict(NAMES_ZH)
+    given = config().get("names")
+    if isinstance(given, dict):
+        out.update({k: v for k, v in given.items() if isinstance(v, str) and v})
+    return out
+
+
+def is_zh(language):
+    """True when the user's language setting is Chinese (or unset: installs before 0.2.8)."""
+    t = (language or "").strip().lower()
+    return (not t) or any(w in t for w in ("chinese", "中文", "繁", "zh", "mandarin", "taiwan", "台", "臺"))
+
+
+def python_cmd():
+    """The command that runs Python 3 on this computer, found at setup (config.json python_cmd)."""
+    return config().get("python_cmd") or "python"
 
 
 def mode(name, default):

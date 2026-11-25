@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import (assistant_blocks, emit, human_text, iter_records, log, mode,  # noqa: E402
+from _common import (SHELL_TOOLS, assistant_blocks, emit, human_text, iter_records, log, mode,  # noqa: E402
                      read_input)
 
 DONE = re.compile(
@@ -25,7 +25,8 @@ ADMIT = re.compile(r"not (yet )?(verified|checked|tested)|unverified|未驗證|�
 WRITE_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit"}
 READ_TOOLS = {"Read", "Grep", "Glob", "WebFetch", "WebSearch"}
 BASH_WRITES = re.compile(
-    r"(^|[\s;&|])(rm|mv|cp|mkdir|touch|tee|sed\s+-i|git\s+(commit|add|checkout|reset|push))\b"
+    r"(^|[\s;&|])(rm|mv|cp|mkdir|touch|tee|sed\s+-i|git\s+(commit|add|checkout|reset|push)"
+    r"|ri|del|erase|rd|rmdir|ni|sc|ac|mi|ci|move|copy|md)\b"
     r"|>>?\s*\S|Set-Content|Out-File|Add-Content|New-Item|Remove-Item|Move-Item|Copy-Item", re.I)
 
 
@@ -48,7 +49,7 @@ def build_turns(path):
 def is_write(name, inp):
     if name in WRITE_TOOLS:
         return True
-    if name == "Bash":
+    if name in SHELL_TOOLS:
         return bool(BASH_WRITES.search(str((inp or {}).get("command", ""))))
     return False
 
@@ -56,7 +57,7 @@ def is_write(name, inp):
 def is_check(name, inp):
     if name in READ_TOOLS:
         return True
-    return name == "Bash" and not is_write(name, inp)
+    return name in SHELL_TOOLS and not is_write(name, inp)
 
 
 def verdict(turn, last_text=None):

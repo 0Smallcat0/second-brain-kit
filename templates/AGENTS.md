@@ -2,9 +2,9 @@
 
 This is the user's second brain: numbered markdown notes plus a tracker (open work, one item per line; each closed with a note of how it was checked). You are here to read, find, record and tidy it. Read this whole page first. The user does not need to know numbers, commands or formats; you handle them.
 
-Language: notes and replies are in the user's language (`language` in `~/.sbk/config.json`); keep folder names, field names and field values exactly as they are. Internal work (task.md, tracker items, hand-overs, prompts for other sessions) is in English; the user's words stay verbatim.
+Language: notes and replies are in the user's language (`language` in `~/.sbk/config.json`); keep field names and field values exactly as they are. Folder and file names are the ones in `names` in `~/.sbk/config.json` (the paths on this page are those names); never rename them. Internal work (task.md, tracker items, hand-overs, prompts for other sessions) is in English; the user's words stay verbatim.
 
-**Step one of every task: check the second brain first** - the tracker, the JDex, the related notes, and the 和 AI 協作 note (`00-09 系統與索引/03 和 AI 協作/03-01 和 AI 協作.md`): read its sorted preferences first, then its recent lines (what the user corrected and which ways of working they confirmed). Use earlier decisions and methods; then start.
+**Step one of every task: check the second brain first** - the tracker, the JDex, the related notes, and the 和 AI 協作 note (`00-09 系統與索引/03 和 AI 協作/03-01 和 AI 協作.md`): its sorted preferences are already in this conversation (the `learn_notice` hook puts them in at session start; open the note only if they are not there), then read its recent lines (what the user corrected and which ways of working they confirmed). Use earlier decisions and methods; then start.
 
 ## First three things
 1. Open `00-09 系統與索引/00 索引/00-01 JDex 索引.md`: every number in the folder, how many notes each category has, the next free number.
@@ -14,10 +14,11 @@ Language: notes and replies are in the user's language (`language` in `~/.sbk/co
 ## Continuing earlier work
 - When the user mentions earlier work ("that project from last time", "my chapter 3 notes"): look at the tracker (next section), then the JDex and the related notes, and answer only after reading them. Do not load the whole folder or a whole old conversation.
 - If you cannot find it, say so and where you looked; never fill in from memory.
+- A hand-over waiting: when a conversation here starts with "A hand-over is waiting" (or the user says "continue" after a long conversation was replaced), read the task file it names, then the file with the user's words it names, then carry on from there. Do not ask "continue what?" and do not make the user repeat anything. The place is fixed: `~/.sbk/task.md` for this folder, `~/.sbk/entry/task.md` for the entry; never write a `task.md` into the notes folder.
 
 ## The tracker (ledger.py)
 One file lists what the user asked for that is not finished yet, one item per line, so it is found again in a new conversation. It lives at `~/.sbk/ledger.md`; change it only with these commands. The user never types any of them.
-- A request that will not be finished in this reply, or will be continued later: `python ~/.sbk/bin/ledger.py add "[topic] the user's words or a one-line summary"` and tell the user the id (for example L0003). A question answered at once is not recorded. `[topic]` is one or two words for which piece of work this is (for example `[study]`, `[job]`), the same word every time; a deadline goes into the text as `due YYYY-MM-DD`. The weekly check counts "how many different pieces of work" and "anything overdue" from these two marks.
+- A request that will not be finished in this reply, or will be continued later: `python ~/.sbk/bin/ledger.py add "[topic] goal in one line" --done-when "what counts as done" --said "the user's words"` (the goal is your processed version, the words are verbatim, so a later conversation can tell what "done" means) and tell the user the id (for example L0003). When the user changes an earlier request, edit that item instead: `ledger.py edit L0003 "the corrected goal" --done-when "..." --said "the user's words this time"`. A question answered at once is not recorded. `[topic]` is one or two words for which piece of work this is (for example `[study]`, `[job]`), the same word every time; a deadline goes into the text as `due YYYY-MM-DD`. The weekly check counts "how many different pieces of work" and "anything overdue" from these two marks.
 - Done: look at the real result first, then `python ~/.sbk/bin/ledger.py done L0003 --evidence "what you opened and what you saw"`. No evidence, no closing. The evidence is for the next session (and in Full the entry) to check; tell the user only the result (what was done, where to see it, what was not verified) and give the evidence if they ask.
 - The user drops it: `python ~/.sbk/bin/ledger.py drop L0003 --evidence "user said drop it"`.
 - The user asks "what is still open?": run `python ~/.sbk/bin/status.py` and answer from its output, not from memory.
@@ -50,7 +51,7 @@ The JDex is the truth about which areas and categories are in use.
 - Link notes with `[[file name]]` (without .md).
 
 ## Reading
-- Never conclude from head/tail or the first lines; read the whole note with Read, in consecutive parts if it is long.
+- Never conclude from head/tail or the first lines; read the whole note with Read, in consecutive parts if it is long. When a Read of a note stops before its end, a hook tells you which lines you have; read the rest before you answer.
 - Say "read it all" only when you did; say what you did not read.
 - Facts in notes can be stale: look at `modified` and `valid_until`; when stale or contradicting, tell the user instead of silently picking one.
 
@@ -65,7 +66,8 @@ The JDex is the truth about which areas and categories are in use.
 ## Before you stop
 1. `python scripts/vault_lint.py`: ERROR must be 0; explain or fix each WARN.
 2. `python scripts/gen_jdex.py`: the index is refreshed.
-3. Say what you did: which notes were added, changed or moved (file names), which tracker items were closed or added.
+3. The changed notes are committed for you: the `vault_snapshot` Stop hook commits them when your reply ends (`vault_snapshot` under `modes` in `~/.sbk/config.json`; `warn` = commit, `log` = only note it, `off`). If it is off, or `git -C <vault> log` does not show your change, commit the files you changed yourself (see Commits). A note rewritten without a commit cannot be got back.
+4. Say what you did: which notes were added, changed or moved (file names), which tracker items were closed or added.
 
 ## Commits
 `git commit -m "message" -- <the files you changed>`: commit only the files you changed, never `git add -A`, never skip hooks. Git here is only the local history of changes; nothing is pushed unless the user says so.

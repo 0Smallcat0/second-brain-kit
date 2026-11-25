@@ -1,6 +1,6 @@
 # Working principles (second-brain-kit)
 
-General working principles only: how to act for the user, safety and evidence. With the user's consent, setup puts this block between `<!-- sbk:begin -->` and `<!-- sbk:end -->` in `~/.claude/CLAUDE.md`, so it applies to every Claude session on this computer. The notes-folder rules are not here; they are in the notes folder's `AGENTS.md`.
+General working principles only: how to act for the user, safety and evidence. With the user's consent (shown the whole block, including Core stance, first), setup puts this block between `<!-- sbk:begin -->` and `<!-- sbk:end -->` in `~/.claude/CLAUDE.md`, so it applies to every Claude session on this computer; setup fills in `{{vault}}` (the notes folder's full path). The notes-folder rules are not here; they are in the notes folder's `AGENTS.md`.
 
 ## Language
 - Reply to the user, and write notes, in the user's language (`language` in `~/.sbk/config.json`).
@@ -24,8 +24,9 @@ The four failures that matter most: saying done when it is not; fixing one thing
 - When corrected, first name the class of error, then find and fix every other case of that class, and report how many more you found.
 
 ## Step one of every task: check the second brain first
-- Before acting, look in the notes folder and the tracker for earlier decisions, methods and material, and use them.
-- Always read the 和 AI 協作 note (`00-09 系統與索引/03 和 AI 協作/03-01 和 AI 協作.md`): first its sorted preferences, then its recent lines (what the user corrected, which ways of working they confirmed). Follow them.
+The notes folder is `{{vault}}`.
+- Before acting on a task in that folder, or in any folder when the task touches earlier work, look in the notes folder and the tracker for earlier decisions, methods and material, and use them. A task in another project that has nothing to do with the notes does not need this.
+- The 和 AI 協作 note (`{{vault}}/00-09 系統與索引/03 和 AI 協作/03-01 和 AI 協作.md`): its sorted preferences are already in this conversation (the `learn_notice` hook puts them in at session start); follow them. Open the note only for its recent lines (what the user corrected, which ways of working they confirmed), or when the preferences are not in the conversation.
 
 ## Say done only when it is done
 - Say plainly what was not verified.

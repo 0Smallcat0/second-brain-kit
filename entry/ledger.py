@@ -14,6 +14,9 @@
 File: <SBK_HOME>/ledger.md   (override with SBK_LEDGER). One line per item:
     - L0003 | dispatched:study | 2000-01-31T09:00:00 | text | ev: evidence
 Closing needs evidence on purpose: "done" without something to point at is the usual lie.
+Several sessions write this file (a topic closing an item while the 5-minute tick adds an alarm item),
+so every change runs between load and save inside `locked()`: a lock file created exclusively, retried
+for two seconds. A line the pattern does not recognise is kept (written after the items), never dropped.
 The text of an item is the processed request (goal; done when; the user's words verbatim), so a
 line can be checked against what was really asked. In Full, a topic closes with done and the entry
 marks it verified after opening the evidence; only then does the user hear the result.
@@ -42,9 +45,13 @@ def path():
     return (old if (not new.exists() and old.exists()) else new) / "ledger.md"
 
 
+_tail = []  # lines after the first item that are not items: load() sets them, save() writes them back
+
+
 def load():
     p = path()
     head, items = [], []
+    _tail.clear()
     if p.exists():
         for raw in p.read_text(encoding="utf-8").splitlines():
             m = LINE.match(raw)
@@ -52,14 +59,63 @@ def load():
                 items.append(list(m.groups()))
             elif not items:
                 head.append(raw)
+            elif raw.strip():
+                _tail.append(raw)
     return "\n".join(head).rstrip() + "\n\n" if head else HEADER, items
+
+
+def locked(wait=2.0, stale=30.0):
+    """Hold the tracker's lock file from load to save. Exclusive create, retry for `wait` seconds; a lock
+    older than `stale` seconds is a crashed writer's and is removed. After `wait` it goes ahead without the
+    lock rather than hang a session (a lost update is rarer than a hung one)."""
+    lock = path().with_suffix(".md.lock")
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    have = False
+    end = time.time() + wait
+    while True:
+        try:
+            os.close(os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+            have = True
+            break
+        except (FileExistsError, PermissionError):
+            try:
+                if time.time() - lock.stat().st_mtime > stale:
+                    lock.unlink()
+                    continue
+            except OSError:
+                pass
+        except OSError:
+            break
+        if time.time() > end:
+            break
+        time.sleep(0.03)
+    return _Held(lock if have else None)
+
+
+class _Held:
+    """What locked() returns: `with locked():` releases the lock file (if it was taken) on the way out."""
+
+    def __init__(self, lock):
+        self.lock = lock
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        if self.lock is not None:
+            try:
+                self.lock.unlink()
+            except OSError:
+                pass
+        return False
 
 
 def save(head, items):
     p = path()
     p.parent.mkdir(parents=True, exist_ok=True)
     body = "".join("- %s | %s | %s | %s | ev: %s\n" % tuple(i) for i in items)
-    tmp = p.with_suffix(".md.tmp")
+    body += "".join(l + "\n" for l in _tail)
+    tmp = p.with_suffix(".md.%d.tmp" % os.getpid())
     tmp.write_text(head + body, encoding="utf-8")
     os.replace(str(tmp), str(p))
 
@@ -80,6 +136,61 @@ def age_days(ts):
         return int((time.time() - time.mktime(time.strptime(ts, "%Y-%m-%dT%H:%M:%S"))) // 86400)
     except Exception:
         return 0
+
+
+def setup_output(log_name=None):
+    """UTF-8 output. Under pythonw.exe (the Windows scheduled task) sys.stdout and sys.stderr are None and
+    `sys.stdout.reconfigure` raised AttributeError before 0.2.8; with log_name, everything printed is also
+    appended to <SBK_HOME>/logs/<log_name>.log (the only place a scheduled run's output can be read)."""
+    if sys.stdout is not None and hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if log_name:
+        base = os.environ.get("SBK_HOME")
+        if base:
+            logs = Path(base) / "logs"
+        else:
+            new, old = Path.home() / ".sbk", Path.home() / ".claude" / "sbk"
+            logs = (old if (not new.exists() and old.exists()) else new) / "logs"
+        try:
+            logs.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            return
+        sys.stdout = _Tee(sys.stdout, logs / (log_name + ".log"))
+        sys.stderr = _Tee(sys.stderr, logs / (log_name + ".log"))
+
+
+class _Tee:
+    """Passes writes on to the stream it wraps (None under pythonw.exe) and appends every non-blank one to a log."""
+
+    def __init__(self, out, path):
+        self.out, self.path, self.started = out, path, False
+
+    def write(self, text):
+        if self.out is not None:
+            try:
+                self.out.write(text)
+            except Exception:
+                pass
+        if text.strip():
+            try:
+                with open(str(self.path), "a", encoding="utf-8") as f:
+                    if not self.started:
+                        f.write(time.strftime("[%Y-%m-%dT%H:%M:%S] ") + "run\n")
+                        self.started = True
+                    f.write(text if text.endswith("\n") else text + "\n")
+            except Exception:
+                pass
+        return len(text)
+
+    def flush(self):
+        try:
+            if self.out is not None:
+                self.out.flush()
+        except Exception:
+            pass
+
+    def isatty(self):
+        return False
 
 
 def clean(text):
@@ -113,11 +224,12 @@ def cmd_add(args):
     text, to, _ = compose(args)
     if not text:
         sys.exit("add: text is empty")
-    head, items = load()
-    nxt = max([int(i[0][1:]) for i in items] + [0]) + 1
-    lid = "L%04d" % nxt
-    items.append([lid, ("dispatched:" + to) if to else "open", now(), text, ""])
-    save(head, items)
+    with locked():
+        head, items = load()
+        nxt = max([int(i[0][1:]) for i in items] + [0]) + 1
+        lid = "L%04d" % nxt
+        items.append([lid, ("dispatched:" + to) if to else "open", now(), text, ""])
+        save(head, items)
     print(lid)
 
 
@@ -128,28 +240,30 @@ def cmd_edit(args):
     text, _, _ = compose(rest)
     if not text:
         sys.exit("edit: text is empty")
-    head, items = load()
-    it = find(items, lid)
-    if it[1] in CLOSED:
-        sys.exit("already closed: add a new item instead")
-    m = re.search(r'; said: "(.*)"$', it[3])
-    if m:  # the user's earlier words stay; a correction's words are added after them
-        n = re.search(r'; said: "(.*)"$', text)
-        text = (text[:n.start()] if n else text) + '; said: "' + m.group(1) + ('" / "' + n.group(1) if n else "") + '"'
-    it[3] = text
-    save(head, items)
+    with locked():
+        head, items = load()
+        it = find(items, lid)
+        if it[1] in CLOSED:
+            sys.exit("already closed: add a new item instead")
+        m = re.search(r'; said: "(.*)"$', it[3])
+        if m:  # the user's earlier words stay; a correction's words are added after them
+            n = re.search(r'; said: "(.*)"$', text)
+            text = (text[:n.start()] if n else text) + '; said: "' + m.group(1) + ('" / "' + n.group(1) if n else "") + '"'
+        it[3] = text
+        save(head, items)
     print(it[0], "edited")
 
 
 def cmd_dispatch(args):
     if len(args) != 2:
         sys.exit("usage: dispatch Lxxxx MANAGER")
-    head, items = load()
-    it = find(items, args[0])
-    if it[1] in CLOSED:
-        sys.exit("already closed")
-    it[1] = "dispatched:" + args[1]
-    save(head, items)
+    with locked():
+        head, items = load()
+        it = find(items, args[0])
+        if it[1] in CLOSED:
+            sys.exit("already closed")
+        it[1] = "dispatched:" + args[1]
+        save(head, items)
     print(it[0], "->", args[1])
 
 
@@ -163,10 +277,11 @@ def cmd_close(status, args):
         sys.exit("usage: %s Lxxxx --evidence \"...\"" % status)
     if len(ev) < 6 or ev.lower() in LAZY:
         sys.exit("evidence too thin: say what you opened, ran or read, and what you saw")
-    head, items = load()
-    it = find(items, ids[0])
-    it[1], it[4] = status, ev
-    save(head, items)
+    with locked():
+        head, items = load()
+        it = find(items, ids[0])
+        it[1], it[4] = status, ev
+        save(head, items)
     print(it[0], status)
 
 
@@ -186,7 +301,7 @@ def cmd_list(args):
 
 
 def main():
-    sys.stdout.reconfigure(encoding="utf-8")
+    setup_output()
     if len(sys.argv) < 2:
         sys.exit(__doc__)
     cmd, args = sys.argv[1], sys.argv[2:]

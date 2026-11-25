@@ -4,11 +4,15 @@
     learn.py add 糾正|做對 "kind of mistake / way of working" "the user's own words"
     learn.py trend [--now 2000-01-31]       this week vs last week, kinds that came back, hook candidates
     learn.py group [--since 2000-01-01]     lines since a date (default: 7 days) grouped by kind, most first
-    learn.py pref "kind" "one sentence"     add a sorted preference at the top (after the user agreed)
+    learn.py pref "kind" "one sentence"     write a sorted preference (after the user agreed); it replaces the
+                                            user's own line of the same kind, the newest line is always last
+    learn.py retire "kind"                  remove the user's own preference of that kind (after the user agreed)
+    learn.py reviewed                       the review of the lines so far is done (also written by pref / retire)
     learn.py stats                          lines recorded, corrections this week, kinds that came back
     learn.py path                           where the note is
 
-The note is <vault>/00-09 系統與索引/03 和 AI 協作/03-01 和 AI 協作.md. Claude adds one line the moment
+The note is <vault>/<sys_dir>/<ai_dir>/<ai_note> (names from config.json "names"; by default
+00-09 系統與索引/03 和 AI 協作/03-01 和 AI 協作.md). Claude adds one line the moment
 the user corrects it or confirms a way of working (Basic and Full alike):
     - 2000-01-31 | 糾正 | 沒驗證就說做完 | 「你根本沒打開檔案看」
     - 2000-01-31 | 做對 | 先查筆記再答 | 「對，就是這樣」
@@ -21,6 +25,13 @@ after the user agrees. In Full, Maintenance's weekly review runs `trend`, groups
 preferences (written at the top of the note), ways of working (added to skills) and, only for a kind
 that came back a second time and that a program can see at the moment of action, a hook (started in
 log mode and replayed on past conversations before it may block; see PITFALLS 9-10).
+
+Reviews count by position: <SBK_HOME>/state/learn_review.json holds the date and how many lines were
+reviewed; level_check.py offers the lines after that number, so a review that was shown but not acted on
+is not lost. The user's own preferences have a budget (config.json "pref_budget", default 25): over it,
+`pref` says so and the review proposes merging, retiring and resolving contradictions with the user's yes.
+`trend` also prints, per preference of the user's own, the corrections of its kind in the four weeks
+before and after it was written, and lists the kinds that came back after their preference existed.
 """
 import datetime
 import json
@@ -30,9 +41,13 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "hooks"))
 import send  # noqa: E402
+from _common import config as _config, names as _names  # noqa: E402
 
-REL = Path("00-09 系統與索引") / "03 和 AI 協作" / "03-01 和 AI 協作.md"
+PREF_RE = re.compile(r"^(.*) \(([^();]+); (\d{4}-\d{2}-\d{2})\)$")
+WINDOW = 28
+DEFAULT_BUDGET = 25
 LINE = re.compile(r"^-\s*(\d{4}-\d{2}-\d{2})\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*(.+)$")
 CORR = {"糾正", "correction", "corrected"}
 GOOD = {"做對", "confirmed", "confirm"}
@@ -56,9 +71,35 @@ def vault():
     return None
 
 
+def rel():
+    n = _names()
+    return Path(n["sys_dir"]) / n["ai_dir"] / n["ai_note"]
+
+
 def note():
     v = vault()
-    return v / REL if v else None
+    return v / rel() if v else None
+
+
+def budget():
+    try:
+        return int(_config().get("pref_budget") or DEFAULT_BUDGET)
+    except Exception:
+        return DEFAULT_BUDGET
+
+
+def review_mark():
+    return send.home() / "state" / "learn_review.json"
+
+
+def mark_reviewed(text, today):
+    """Write the review mark: today and how many lines were reviewed (level_check offers the later ones)."""
+    try:
+        f = review_mark()
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(json.dumps({"date": today.isoformat(), "entries": len(entries(text))}), encoding="utf-8")
+    except Exception:
+        pass
 
 
 def entries(text):
@@ -90,6 +131,25 @@ def trend(text, today):
             "confirmations": len(this_g), "repeats": {k: count[k] for k in repeats}}
 
 
+def effects(text, today):
+    """Per preference of the user's own written by `pref` ('sentence (kind; date)'): the corrections of its
+    kind in the four weeks before it was written and in the four weeks after (as far as today allows)."""
+    rows = [r for r in entries(text) if r[1] == "corr"]
+    out = []
+    for line in prefs(text):
+        m = PREF_RE.match(line)
+        if starter(line) or not m:
+            continue
+        kind, d = m.group(2).strip(), datetime.date.fromisoformat(m.group(3))
+        k = kind.lower()
+        before = sum(1 for r in rows if r[2].lower() == k and d - datetime.timedelta(days=WINDOW) <= r[0] <= d)
+        end = min(today, d + datetime.timedelta(days=WINDOW))
+        after = sum(1 for r in rows if r[2].lower() == k and d < r[0] <= end)
+        out.append({"kind": kind, "written": d.isoformat(), "before": before, "after": after,
+                    "days_after": max(0, (end - d).days)})
+    return out
+
+
 def trend_line(t):
     rep = ", ".join("%s x%d" % (k, n) for k, n in t["repeats"].items()) or "none"
     rep_zh = "、".join("%s ×%d" % (k, n) for k, n in t["repeats"].items()) or "沒有"
@@ -111,7 +171,7 @@ def group(text, since):
 
 
 def prefs(text):
-    """Lines of the sorted-preferences section (the first '## ' heading naming preferences)."""
+    """Lines of the sorted-preferences sections (every '## ' heading naming preferences), in file order."""
     lines, on, out = text.splitlines(), False, []
     for l in lines:
         if l.startswith("## "):
@@ -127,22 +187,72 @@ def starter(line):
     return line.rstrip().endswith(STARTER_TAGS)
 
 
+def pref_section(lines):
+    head = next((i for i, l in enumerate(lines) if l.startswith("## ") and ("偏好" in l or "preference" in l.lower())), None)
+    if head is None:
+        return None, None
+    end = next((i for i in range(head + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
+    return head, end
+
+
+def own_pref_lines(lines, head, end):
+    return [i for i in range(head + 1, end) if lines[i].strip().startswith("- ") and not starter(lines[i])]
+
+
+def same_kind(line, kind):
+    m = PREF_RE.match(line.strip()[2:])
+    return bool(m) and m.group(2).strip().lower() == kind.strip().lower()
+
+
 def add_pref(kind, sentence, today=None):
     p = note()
     if not p or not p.exists():
         sys.exit("no 和 AI 協作 note (%s)" % p)
     today = today or datetime.date.today()
-    line = "- %s (%s; %s)" % (" ".join(sentence.split()), kind.replace("|", "/").strip(), today.isoformat())
+    kind = kind.replace("|", "/").strip()
+    line = "- %s (%s; %s)" % (" ".join(sentence.split()), kind, today.isoformat())
     lines = p.read_text(encoding="utf-8").splitlines()
-    head = next((i for i, l in enumerate(lines) if l.startswith("## ") and ("偏好" in l or "preference" in l.lower())), None)
+    head, end = pref_section(lines)
     if head is None:
         sys.exit("no preferences section ('## ' heading with 偏好 or Preferences) in %s" % p)
-    end = next((i for i in range(head + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
+    old = [i for i in own_pref_lines(lines, head, end) if same_kind(lines[i], kind)]
+    for i in reversed(old):  # the same kind is one line: the newer wording replaces the older one
+        print("replaced: " + lines[i].strip())
+        del lines[i]
+        end -= 1
     while end > head + 1 and not lines[end - 1].strip():
         end -= 1
     lines.insert(end, line)
-    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    text = "\n".join(lines) + "\n"
+    p.write_text(text, encoding="utf-8")
     print(line)
+    mark_reviewed(text, today)
+    n = len(own_pref_lines(lines, head, pref_section(lines)[1]))
+    if n > budget():
+        print("NOTE: %d preferences of the user's own, over the budget of %d: propose which to merge or retire "
+              "(learn.py retire \"<kind>\"), and which two contradict each other." % (n, budget()))
+
+
+def retire(kind, today=None):
+    p = note()
+    if not p or not p.exists():
+        sys.exit("no 和 AI 協作 note (%s)" % p)
+    today = today or datetime.date.today()
+    lines = p.read_text(encoding="utf-8").splitlines()
+    head, end = pref_section(lines)
+    if head is None:
+        sys.exit("no preferences section in %s" % p)
+    hit = [i for i in own_pref_lines(lines, head, end) if same_kind(lines[i], kind)]
+    if not hit:
+        kinds = [PREF_RE.match(lines[i].strip()[2:]).group(2) for i in own_pref_lines(lines, head, end)
+                 if PREF_RE.match(lines[i].strip()[2:])]
+        sys.exit("no preference of kind %r; kinds written: %s" % (kind, ", ".join(kinds) or "none"))
+    for i in reversed(hit):
+        print("retired: " + lines[i].strip())
+        del lines[i]
+    text = "\n".join(lines) + "\n"
+    p.write_text(text, encoding="utf-8")
+    mark_reviewed(text, today)
 
 
 def stats(text, today):
@@ -152,7 +262,9 @@ def stats(text, today):
             "confirmations": sum(1 for r in rows if r[1] == "good"), "corrections_this_week": t["corrections"],
             "last_week": t["last_week"], "repeats": t["repeats"],
             "preferences": sum(1 for x in prefs(text) if not starter(x)),
-            "starter_preferences": sum(1 for x in prefs(text) if starter(x))}
+            "starter_preferences": sum(1 for x in prefs(text) if starter(x)),
+            "preference_budget": budget(),
+            "came_back_after_preference": [e["kind"] for e in effects(text, today) if e["after"] > 0]}
 
 
 def add(kind, what, said, today=None):
@@ -173,7 +285,8 @@ def add(kind, what, said, today=None):
 
 
 def main():
-    sys.stdout.reconfigure(encoding="utf-8")
+    if sys.stdout is not None:
+        sys.stdout.reconfigure(encoding="utf-8")
     a = sys.argv[1:]
     today = datetime.date.today()
     if "--now" in a:
@@ -192,6 +305,17 @@ def main():
         if t["repeats"]:
             print("Second time or more (hook candidates if a program can see them at the moment of action): "
                   + ", ".join(t["repeats"]))
+        eff = effects(text, today)
+        if eff:
+            print("Did each preference of the user's own work? Corrections of its kind in the 4 weeks before / after it was written:")
+            for e in eff:
+                print("  - %s (written %s): before %d, after %d (%d days of data)"
+                      % (e["kind"], e["written"], e["before"], e["after"], e["days_after"]))
+            back = [e["kind"] for e in eff if e["after"] > 0]
+            if back:
+                print("Came back after its preference was written (a sentence did not hold it: put it into skill "
+                      "text, or a hook that starts in log mode, if a program can see it at the moment of action): "
+                      + ", ".join(back))
     elif a[:1] == ["group"]:
         p = note()
         text = p.read_text(encoding="utf-8") if p and p.exists() else ""
@@ -213,6 +337,13 @@ def main():
             print("Starter preferences from the kit still in the note: %d (the user may delete any)" % n_starter)
     elif a[:1] == ["pref"] and len(a) == 3:
         add_pref(a[1], a[2], today)
+    elif a[:1] == ["retire"] and len(a) == 2:
+        retire(a[1], today)
+    elif a[:1] == ["reviewed"]:
+        p = note()
+        text = p.read_text(encoding="utf-8") if p and p.exists() else ""
+        mark_reviewed(text, today)
+        print("review marked done: %d lines reviewed on %s" % (len(entries(text)), today.isoformat()))
     elif a[:1] == ["stats"]:
         p = note()
         text = p.read_text(encoding="utf-8") if p and p.exists() else ""

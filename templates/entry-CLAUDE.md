@@ -12,13 +12,14 @@ Language: reply to the user in their language; everything internal (tracker item
 5. Each item has a goal, a done-when and the session it goes to, with the user's words kept verbatim: `python ../bin/ledger.py add "goal" --done-when "what counts as done" --said "the user's words"`.
 6. The user corrects you, or confirms "yes, like that": add one line to the 和 AI 協作 note at once (`python ../bin/learn.py add correction "<kind>" "<the user's words>"`; a confirmation is `confirmed`). The `learn_notice` hook reminds you when a message looks like one.
 
-## Dispatch: into the running topic session, or open one
+## Dispatch: one conversation per topic
 1. Find the topic in `../routes.md`. No row fits: open a new topic yourself (create `../managers/<name>/` from the kit's `templates/manager-CLAUDE.md`, add a row to `routes.md`) and tell the user in one line "opened a new topic X for this".
 2. First write it into the inbox and the tracker (the record that is never lost): `python ../bin/send.py <topic> "goal; done-when" --ledger L0003`.
-3. Deliver it: `python ../bin/session.py list`.
+3. Deliver it: `python ../bin/session.py list` shows the topics running now and the ones whose process stopped (Claude Code stops a finished session nobody is attached to after about an hour; its conversation stays).
    - The topic is running: send it one line with your own SendMessage, "new work in your inbox: L0003" (if the tool is not loaded, ToolSearch `select:SendMessage,ListAgents` first).
-   - Not running: `python ../bin/session.py open <topic>`. The number of topics running at once is capped (`max_sessions` in `../config.json`); when full, an idle topic with an empty inbox is stopped; when all are busy, the work waits in the inbox and is opened later by the scheduler.
-4. When `routing` in `../config.json` is `inbox` (this computer cannot start background sessions, for example the desktop app only, no `claude` command): a topic already open in the app's sidebar gets a message directly; for one that is not open, tell the user in one line which to open - app: sidebar **+ New** -> **Open folder…** and pick `managers/<topic>`; terminal: `cd` into that folder, then `claude`.
+   - Stopped: `python ../bin/session.py deliver <topic> "new work in your inbox: L0003"` continues that same conversation (`claude --resume <id> --bg`), so the topic keeps what it learned. Never start a second conversation for a topic that has one.
+   - No conversation yet: `python ../bin/session.py open <topic>`. The number of topics running at once is capped (`max_sessions` in `../config.json`); when full, an idle topic with an empty inbox is stopped; when all are busy, the work waits in the inbox and is opened later by the scheduler.
+4. When `routing` in `../config.json` is `inbox` (this computer cannot start background sessions: for example the desktop app only, no `claude` command): do not open topic sessions and do not ask the user to open one by hand. Do the work yourself in this conversation, one item at a time, with the same tracker item, done-when and evidence as a topic would; a long job gets its own `task.md` in this folder. Topic sessions need the `claude` command (terminal or the app's built-in one); setup says so at the start.
 5. A job needing several topics: one item per topic, run as a relay - when one reports and you have checked it, give its result path to the next.
 
 ## Done only after you check the evidence
@@ -29,7 +30,10 @@ Language: reply to the user in their language; everything internal (tracker item
 - From an alarm, or once a week on your own: handle items older than 14 days one by one (done needs evidence; dropped by the user: `ledger.py drop L0001 --evidence "user said drop it"`; still wanted: hand it out again).
 
 ## A conversation that gets too long
-- When this conversation passes the hand-over threshold (`handover_tokens` in `../config.json`, default 150k) a hook reminds you: write the hand-over into `task.md` and ask the user to open a new entry conversation and say "continue". Background topic sessions are renewed by the `handover` alarm row; that is not your job.
+- When this conversation passes the hand-over threshold (`handover_tokens` in `../config.json`, default 150k) a hook reminds you: write the hand-over into `task.md` in this folder (`~/.sbk/entry/task.md`, the fixed place) and tell the user to open a new entry conversation. The new conversation finds the hand-over by itself (a hook at its start says "A hand-over is waiting" and names `task.md` and the file with the user's words); the user does not have to say anything. Background topic sessions are renewed by the `handover` alarm row; that is not your job.
+
+## At the start of a conversation
+- If the start says "A hand-over is waiting": read `task.md` and the file with the user's words it names before anything else, then carry on. Otherwise: `python ../bin/status.py` shows what is open.
 
 ## Do not
 - Do long work in the entry, or open topics to look busy.

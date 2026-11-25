@@ -2,11 +2,14 @@
 """Live routing (Full plan): get work into the session that owns it, now.
 
     session.py check                        can this computer route live? prints "routing: live" or "routing: inbox"
-    session.py list                         the kit's sessions running now: name, id, status
-    session.py open NAME ["first message"]  start NAME in the background in its folder (respects max_sessions)
+    session.py list                         the kit's sessions: running now (name, id, status), then stopped ones
+                                            that can be resumed
+    session.py open NAME ["first message"]  start NAME in the background in its folder (respects max_sessions);
+                                            if NAME has an earlier conversation that stopped, continue that one
     session.py push NAME "text"             put a short message into the running session NAME
     session.py deliver NAME "text" [--ledger L0003] [--scheduled]
-                                            inbox line + tracker first; then push if NAME runs, else open it
+                                            inbox line + tracker first; then push if NAME runs, else continue its
+                                            stopped conversation, else open a new one
     session.py stop NAME                    stop NAME; its conversation is kept, its state is its task.md
     session.py trust                        mark the kit folder as trusted, so background sessions can start there
 
@@ -21,8 +24,20 @@ session sees it when it starts (hooks/inbox_notice.py). Nothing here asks a ques
 config.json (<SBK_HOME>): "routing" live|inbox (set by `check` at install), "max_sessions" (sessions other
 than the entry running at once), "wake_limits" {"per_day": N, "min_gap_min": M} (only for --scheduled, i.e.
 the alarm tick: Claude calls it may start per day, and minutes between two for one session), "vault".
+One conversation per topic. Claude Code stops the process of a finished session that nobody is attached
+to after about an hour (agent view docs, "The supervisor process"); the conversation stays on disk and the
+row stays in `claude agents --json --all` without pid/status. So `running()` lists with --all, and
+a topic whose process stopped is continued with `claude --resume <full session id> --bg "<message>"` (same
+conversation, same ID when Claude Code can) instead of starting a second empty conversation.
+`claude respawn <id>` also restarts a stopped session with its conversation but takes no message, so it is
+not used for delivery.
+
+Each role has its own tool allowlist (config.json "allowed_tools": {"entry": ..., "topic": ..., "maintenance":
+...}; the defaults are below). A tool call outside it is refused without a prompt (dontAsk), which a
+session must report to the entry in the same turn with the exact command.
+
 Tests: SBK_SESSION_DRYRUN=1 prints the claude commands instead of running them; SBK_AGENTS_JSON=<file>
-is read instead of `claude agents --json`.
+is read instead of `claude agents --json --all`.
 """
 import datetime
 import json
@@ -39,6 +54,17 @@ import send  # noqa: E402
 MIN_VERSION = (2, 1, 234) if os.name == "nt" else (2, 1, 224)  # cross-session messaging, official docs
 TOOLS = ("Read,Grep,Glob,Edit,Write,Bash(python:*),Bash(python3:*),Bash(py:*),"
          "PowerShell(python:*),PowerShell(python3:*),PowerShell(py:*),ToolSearch,ListAgents,SendMessage")
+# a topic or maintenance session also searches the web, loads skills, hands work to a subagent and commits
+# the notes it changed (git push stays refused: vault_guard asks, dontAsk turns that into a refusal)
+_GIT = ("Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git -C:*),"
+        "PowerShell(git add:*),PowerShell(git commit:*),PowerShell(git status:*),PowerShell(git diff:*),"
+        "PowerShell(git log:*),PowerShell(git -C:*)")
+TOOLS_BY_ROLE = {"entry": TOOLS,
+                 "topic": TOOLS + ",WebSearch,WebFetch,Skill,Agent," + _GIT,
+                 "maintenance": TOOLS + ",WebSearch,WebFetch,Skill,Agent," + _GIT}
+# the courier (claude -p) only carries a message; hooks off for that run (hooks page: "turn hooks off
+# for that run with --settings '{"disableAllHooks": true}'")
+COURIER_SETTINGS = "{\"disableAllHooks\":true}"
 # dontAsk: a tool call outside TOOLS is refused instead of asked, so a background session never
 # waits at a permission prompt nobody can see (seen in a clean test on Windows with acceptEdits).
 INBOUND = '{"crossSessionInbound":"accept"}'
@@ -56,7 +82,48 @@ def dry():
 
 
 def exe():
+    """The claude command: the absolute path `check` saved in config.json (a cron job or the Windows task
+    has a minimal PATH and cannot find it), else the one on PATH."""
+    saved = cfg().get("claude_path")
+    if saved and Path(saved).exists():
+        return saved
     return shutil.which("claude")
+
+
+def role_of(name):
+    return "entry" if name == "entry" else "maintenance" if name == "maintenance" else "topic"
+
+
+def tools_for(name):
+    """The allowlist of one role: config.json allowed_tools.<role> if set, else the default, plus the Python
+    command setup found (python_cmd) when it is not one of the usual three."""
+    given = (cfg().get("allowed_tools") or {}).get(role_of(name))
+    base = given if isinstance(given, str) and given.strip() else TOOLS_BY_ROLE[role_of(name)]
+    py = (cfg().get("python_cmd") or "").strip()
+    if py and py.split()[0] not in ("python", "python3", "py"):
+        exe_ = py.split()[0].replace("\\", "/")
+        base += ",Bash(%s:*),PowerShell(%s:*)" % (exe_, exe_)
+    return base
+
+
+def child_env():
+    """The environment for claude: a session started from cron or the Windows task inherits a minimal PATH
+    (agent view docs: a background session runs with the PATH of the shell it was dispatched from), so put
+    the folders of claude and of this Python, and the usual install folders, in front."""
+    env = dict(os.environ)
+    extra = []
+    if exe():
+        extra.append(str(Path(exe()).parent))
+    extra.append(str(Path(sys.executable).parent))
+    py = (cfg().get("python_cmd") or "").split()
+    found = shutil.which(py[0]) if py else None
+    if found:
+        extra.append(str(Path(found).parent))
+    for d in ("/opt/homebrew/bin", "/usr/local/bin", str(Path.home() / ".local" / "bin")):
+        if Path(d).is_dir():
+            extra.append(d)
+    env["PATH"] = os.pathsep.join(extra + [env.get("PATH", "")])
+    return env
 
 
 def folder(name):
@@ -70,16 +137,19 @@ def _norm(p):
         return str(p).lower()
 
 
-def running():
-    """Kit sessions alive now: [{name, id, status, kind, startedAt}] (status idle or busy)."""
+def rows_all():
+    """Every kit session `claude agents --json --all` lists, alive or not:
+    [{name, id, status, state, alive, kind, startedAt, sessionId}]. pid and status exist only while the
+    process is alive; a finished conversation whose process the supervisor stopped is still a row."""
     raw = None
     fake = os.environ.get("SBK_AGENTS_JSON")
     try:
         if fake:
             raw = Path(fake).read_text(encoding="utf-8")
         elif exe():
-            raw = subprocess.run([exe(), "agents", "--json"], capture_output=True, text=True, encoding="utf-8",
-                                 errors="replace", timeout=60, stdin=subprocess.DEVNULL).stdout
+            raw = subprocess.run([exe(), "agents", "--json", "--all"], capture_output=True, text=True,
+                                 encoding="utf-8", errors="replace", timeout=60, stdin=subprocess.DEVNULL,
+                                 env=child_env()).stdout
     except Exception:
         raw = None
     try:
@@ -89,13 +159,27 @@ def running():
     root = _norm(send.home())
     out = []
     for r in rows if isinstance(rows, list) else []:
-        if not r.get("pid") or not r.get("name"):
+        if not r.get("name"):
             continue
         if not _norm(r.get("cwd", "")).startswith(root):
             continue  # a session of the user's own with the same name elsewhere is not ours
         out.append({"name": r["name"], "id": r.get("id") or r.get("sessionId", "")[:8], "status": r.get("status", ""),
+                    "state": r.get("state", ""), "alive": bool(r.get("pid")),
                     "kind": r.get("kind", ""), "startedAt": r.get("startedAt", 0), "sessionId": r.get("sessionId", "")})
     return out
+
+
+def running():
+    """Kit sessions alive now (status idle or busy)."""
+    return [r for r in rows_all() if r["alive"]]
+
+
+def resumable(name, rows=None):
+    """The newest stopped conversation of NAME (state done or stopped, not alive), or None."""
+    rows = rows if rows is not None else rows_all()
+    cands = [r for r in rows if r["name"] == name and not r["alive"] and r["sessionId"]
+             and r["state"] in ("done", "stopped", "")]
+    return max(cands, key=lambda r: r["startedAt"]) if cands else None
 
 
 def find(name, rows=None):
@@ -130,11 +214,11 @@ def check():
     if not version_ok(v):
         return "inbox", "Claude Code %s is older than %s; run claude update" % (v.strip(), ".".join(map(str, MIN_VERSION)))
     try:
-        r = subprocess.run([exe(), "agents", "--json"], capture_output=True, text=True, timeout=60,
+        r = subprocess.run([exe(), "agents", "--json", "--all"], capture_output=True, text=True, timeout=60,
                            stdin=subprocess.DEVNULL)
         json.loads(r.stdout)
     except Exception:
-        return "inbox", "claude agents --json did not answer (agent view unavailable here)"
+        return "inbox", "claude agents --json --all did not answer (agent view unavailable here)"
     return "live", "Claude Code %s: background sessions and cross-session messaging" % v.strip()
 
 
@@ -189,11 +273,12 @@ def count_wake(st, name, now):
 
 def run_claude(args, cwd=None, timeout=300):
     if dry():
-        print("dry run: claude " + " ".join(a if len(a) < 60 else a[:57] + "..." for a in args))
+        shown = [a if (len(a) < 60 or (i and args[i - 1] == "--allowedTools")) else a[:57] + "..." for i, a in enumerate(args)]
+        print("dry run: claude" + (" (%s)" % exe() if cfg().get("claude_path") else "") + " " + " ".join(shown))
         return 0, ""
     r = subprocess.run([exe()] + args, cwd=str(cwd) if cwd else None, capture_output=True, text=True,
                        encoding="utf-8", errors="replace", timeout=timeout, stdin=subprocess.DEVNULL,
-                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), env=child_env())
     return r.returncode, (r.stdout or "") + (r.stderr or "")
 
 
@@ -214,8 +299,10 @@ def stop(name, rows=None):
     return True
 
 
-def open_session(name, first="", replace_ok=False, text=None):
-    """Start NAME in the background. Returns 0 opened / already running, 3 cap, 4 not possible here."""
+def open_session(name, first="", replace_ok=False, text=None, fresh=False):
+    """Start NAME in the background. Returns 0 opened / already running, 3 cap, 4 not possible here.
+    NAME's earlier conversation, if its process stopped, is continued (one conversation per topic);
+    fresh=True always starts a new one (the hand-over does, after it removed the old)."""
     c = cfg()
     if c.get("routing") != "live" and not dry():
         print("inbox: %s waits until the user opens it (routing is not live on this computer)" % name)
@@ -224,7 +311,8 @@ def open_session(name, first="", replace_ok=False, text=None):
     if not d.is_dir():
         print("no session folder: %s" % d)
         return 4
-    rows = running()
+    allrows = rows_all()
+    rows = [r for r in allrows if r["alive"]]
     if find(name, rows):
         print("running: %s %s" % (name, find(name, rows)["id"]))
         return 0
@@ -240,11 +328,18 @@ def open_session(name, first="", replace_ok=False, text=None):
     if not exe() and not dry():
         print("inbox: no claude command; %s waits until the user opens it" % name)
         return 4
-    args = ["--bg", "-n", name, "--permission-mode", "dontAsk", "--settings", INBOUND,
-            "--allowedTools", TOOLS]
+    old = None if fresh else resumable(name, allrows)
+    common = ["--permission-mode", "dontAsk", "--settings", INBOUND, "--allowedTools", tools_for(name)]
     if c.get("vault"):
-        args += ["--add-dir", c["vault"]]
-    args += ["--", text if text is not None else intro(name, first)]
+        common += ["--add-dir", c["vault"]]
+    if old:
+        msg = text if text is not None else (first or "Your inbox has new work.")
+        rc, out = run_claude(["--resume", old["sessionId"], "--bg"] + common + ["--", msg], cwd=d, timeout=120)
+        if rc == 0 or dry():
+            print("resumed %s %s (its earlier conversation continues)" % (name, old["id"]))
+            return 0
+        print("resume failed for %s (%s); starting a new conversation" % (name, out.strip()[-200:]))
+    args = ["--bg", "-n", name] + common + ["--", text if text is not None else intro(name, first)]
     rc, out = run_claude(args, cwd=d, timeout=120)
     m = re.search(r"backgrounded\W+([0-9a-f]{6,})", out)
     if rc != 0 and not dry():
@@ -268,6 +363,7 @@ def push(name, text):
     st = send.home() / "state"
     st.mkdir(parents=True, exist_ok=True)
     rc, out = run_claude(["-p", "--model", "haiku", "--output-format", "stream-json", "--verbose",
+                          "--settings", COURIER_SETTINGS,
                           "--allowedTools", "ToolSearch,ListAgents,SendMessage", "--", prompt], cwd=st, timeout=300)
     if dry():
         return True
@@ -324,7 +420,7 @@ def trust():
 
 
 def main():
-    sys.stdout.reconfigure(encoding="utf-8")
+    send.ledger.setup_output()
     a = sys.argv[1:]
     if not a:
         sys.exit(__doc__)
@@ -332,10 +428,15 @@ def main():
     if cmd == "check":
         mode, why = check()
         p = send.home() / "config.json"
-        if p.exists():  # keep every other value; only "routing" changes
+        if p.exists():  # keep every other value; only "routing" and "claude_path" change
             try:
                 c = json.loads(p.read_text(encoding="utf-8"))
-                if c.get("routing") != mode:
+                found = shutil.which("claude")
+                changed = c.get("routing") != mode
+                if found and c.get("claude_path") != str(Path(found).resolve()):
+                    c["claude_path"] = str(Path(found).resolve())  # a cron job / scheduled task cannot find it by PATH
+                    changed = True
+                if changed:
                     c["routing"] = mode
                     tmp = p.with_suffix(".tmp")
                     tmp.write_text(json.dumps(c, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -344,11 +445,16 @@ def main():
                 print("config.json not updated: %r" % (e,))
         print("routing: %s  (%s)" % (mode, why))
     elif cmd == "list":
-        rows = running()
+        every = rows_all()
+        rows = [r for r in every if r["alive"]]
         for r in rows:
             print("%-14s %-9s %-5s %s" % (r["name"], r["id"], r["status"], r["kind"]))
         if not rows:
             print("no kit sessions running")
+        for name in sorted({r["name"] for r in every if not r["alive"]} - {r["name"] for r in rows}):
+            old = resumable(name, every)
+            if old:
+                print("%-14s %-9s %-5s %s" % (name, old["id"], "stopped", "(continues when work arrives)"))
     elif cmd == "open" and len(a) >= 2:
         sys.exit(open_session(a[1], " ".join(a[2:])))
     elif cmd == "push" and len(a) >= 3:

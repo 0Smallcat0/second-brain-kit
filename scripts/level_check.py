@@ -24,11 +24,17 @@ Volume (open items, topics, compactions) is still counted and reported as suppor
 but never fires a trigger on its own.
 A trigger whose part is already on, or that the user declined in the last 28 days, is left out.
 
-The same weekly hook run also starts the Basic light review of the learning loop (Basic has no
-maintenance session): if the 和 AI 協作 note got new lines since the last review, one more line of
-context asks Claude to group them by kind, draft preferences and any skill or hook addition, and
-change nothing until the user agrees (entry/learn.py group / pref). Full leaves this to the
-maintenance session's weekly review.
+The hook also starts the light review of the learning loop: if the 和 AI 協作 note has lines after the
+last reviewed one (counted by position, not by date), one more line of context asks Claude to group
+them by kind, draft preferences and any skill or hook addition, and change nothing until the user
+agrees (entry/learn.py group / pref). A review counts as done only when `learn.py reviewed` (or `pref`)
+wrote its mark, so an offer that was shown but never acted on comes again the next day. Basic does it
+itself; Full leaves it to the maintenance session's weekly review while a "[review]" tracker item was
+closed in the last 8 days, and does it itself otherwise (no scheduler, App only, a missed week).
+The hook only speaks in a session in the notes folder or in the entry folder (SBK_HOME/entry): a
+session that cannot ask the user (a topic session, the courier in SBK_HOME/state) must not use up
+the weekly question. When the installed tools in SBK_HOME/bin are not the plugin's version it also
+adds one line asking Claude to copy them again.
 If config "read_history" is false the conversations are not read at all (tracker and log only).
 
 Reads SBK_HOME (ledger.md, task.md, config.json, logs/stop_evidence.log, alarms.md, routes.md,
@@ -395,65 +401,124 @@ def install_facts(now, budget=30.0):
 
 # ---------- the Basic light review of the learning loop ----------
 
-LEARN_REL = Path("00-09 系統與索引") / "03 和 AI 協作" / "03-01 和 AI 協作.md"
+# the three names of the folder/file name map this script needs (hooks/_common.NAMES_ZH has all of them;
+# the selftest checks these equal that); config.json "names" overrides
+NAMES_ZH = {"sys_dir": "00-09 系統與索引", "ai_dir": "03 和 AI 協作", "ai_note": "03-01 和 AI 協作.md"}
+REVIEW_EVERY_DAYS = 7
+REVIEW_FALLBACK_DAYS = 8
+PREF_BUDGET = 25
 LEARN_LINE = re.compile(r"^-\s*(\d{4}-\d{2}-\d{2})\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*(.+)$")
 CORR_WORDS = {"糾正", "correction", "corrected"}
 GOOD_WORDS = {"做對", "confirmed", "confirm"}
 
 
-def learn_cmd(home):
+def learn_rel(cfg):
+    n = dict(NAMES_ZH)
+    n.update({k: v for k, v in (cfg.get("names") or {}).items() if isinstance(v, str) and v})
+    return Path(n["sys_dir"]) / n["ai_dir"] / n["ai_note"]
+
+
+def py(cfg):
+    """The command that runs Python 3 here, found at setup (config.json python_cmd)."""
+    return cfg.get("python_cmd") or "python"
+
+
+def learn_cmd(home, cfg=None):
     for p in (home / "bin" / "learn.py", Path(__file__).resolve().parent.parent / "entry" / "learn.py"):
         if p.exists():
-            return 'python "%s"' % p.as_posix()
-    return "python ~/.sbk/bin/learn.py"
+            return '%s "%s"' % (py(cfg or {}), p.as_posix())
+    return "%s ~/.sbk/bin/learn.py" % py(cfg or {})
+
+
+def review_closed_recently(home, now):
+    """True when the maintenance session recorded its weekly review ("[review] YYYY-MM-DD ...") as a
+    done/verified tracker item in the last REVIEW_FALLBACK_DAYS days."""
+    try:
+        lines = (home / "ledger.md").read_text(encoding="utf-8").splitlines()
+    except Exception:
+        return False
+    for l in lines:
+        m = LEDGER_LINE.match(l)
+        if not m or m.group(2) not in ("done", "verified"):
+            continue
+        t = re.match(r"\[review\]\s*(\d{4}-\d{2}-\d{2})", m.group(4).strip())
+        if t:
+            try:
+                if 0 <= (now - datetime.strptime(t.group(1), "%Y-%m-%d")).days <= REVIEW_FALLBACK_DAYS:
+                    return True
+            except Exception:
+                pass
+    return False
 
 
 def learn_review(cfg, home, now, state):
-    """One line of context for the light weekly review, or None. Basic only; sets last_learn_review."""
-    if cfg.get("level") == "full" and (home / "managers" / "maintenance").is_dir():
-        return None  # Full: the maintenance session's weekly review does this
+    """One line of context for the light review of the learning loop, or None.
+
+    Lines are chosen by position: the lines after the last one a review marked as reviewed
+    (<SBK_HOME>/state/learn_review.json, written by `learn.py reviewed` and `learn.py pref`), never by
+    date. Showing the line does not use the review up: it is offered again the next day until marked."""
+    if cfg.get("level") == "full" and (home / "managers" / "maintenance").is_dir() \
+            and review_closed_recently(home, now):
+        return None  # Full: the maintenance session's weekly review is running
     vault = cfg.get("vault") or os.environ.get("SBK_VAULT")
     if not vault:
         return None
-    note = Path(vault) / LEARN_REL
+    note = Path(vault) / learn_rel(cfg)
     try:
         text = note.read_text(encoding="utf-8")
     except Exception:
         return None
-    since = state.get("last_learn_review") or day(now - timedelta(days=7))
-    total, new = {}, {}
-    nc = ng = 0
+    rows = []
     for l in text.splitlines():
         m = LEARN_LINE.match(l.strip())
         if not m:
             continue
         k = m.group(2).strip().lower()
-        if k not in CORR_WORDS and k not in GOOD_WORDS:
-            continue
-        kind = m.group(3).strip()
-        total[kind] = total.get(kind, 0) + 1
-        if since < m.group(1) <= day(now):
-            new[kind] = new.get(kind, 0) + 1
-            if k in CORR_WORDS:
-                nc += 1
-            else:
-                ng += 1
-    if not new:
+        if k in CORR_WORDS or k in GOOD_WORDS:
+            rows.append((m.group(1), k in CORR_WORDS, m.group(3).strip()))
+    mark = read_json(home / "state" / "learn_review.json", {})
+    try:
+        done_n = max(0, int(mark.get("entries", 0)))
+    except Exception:
+        done_n = 0
+    new_rows = rows[done_n:]
+    if not new_rows:
         return None
-    state["last_learn_review"] = day(now)
+    last = mark.get("date")
+    try:
+        if last and (now - datetime.strptime(last, "%Y-%m-%d")).days < REVIEW_EVERY_DAYS:
+            return None
+    except Exception:
+        pass
+    if state.get("last_learn_offer") == day(now):
+        return None  # offered today already; if nobody acted on it, it comes again tomorrow
+    state["last_learn_offer"] = day(now)
+    total = {}
+    for _, _, kind in rows:
+        total[kind] = total.get(kind, 0) + 1
+    new = {}
+    for _, _, kind in new_rows:
+        new[kind] = new.get(kind, 0) + 1
+    nc = sum(1 for r in new_rows if r[1])
+    ng = len(new_rows) - nc
+    since = new_rows[0][0]
     kinds = "; ".join("%s x%d%s" % (k, n, " (came back: x%d in all)" % total[k] if total[k] > n else "")
                       for k, n in sorted(new.items(), key=lambda kv: -kv[1]))
-    cmd = learn_cmd(home)
-    return ("[second-brain-kit weekly light review] The 和 AI 協作 note (%s) has %d new line(s) since %s: "
-            "%d correction(s), %d confirmation(s). By kind: %s. In your first reply, after answering the user, "
-            "do the light review as ONE short message in the user's language: run `%s group --since %s`; for "
-            "each kind with 2 or more lines (and any clear single preference) draft one preference sentence "
-            "(what to do, not what went wrong); name any confirmed way of working worth adding to a skill or "
-            "the notes folder's AGENTS.md; propose a hook only for a correction kind that came back and that "
-            "a program can see at the moment of action (it would start in log mode). Ask one question: OK to "
-            "add these? Change nothing before the user says yes. On yes, write each preference with `%s pref "
-            "\"<kind>\" \"<sentence>\"` and make the other changes; on no, change nothing."
-            % (note.as_posix(), nc + ng, since, nc, ng, kinds, cmd, since, cmd))
+    cmd = learn_cmd(home, cfg)
+    return ("[second-brain-kit light review] The 和 AI 協作 note (%s) has %d line(s) nobody has reviewed yet, "
+            "since %s: %d correction(s), %d confirmation(s). By kind: %s. In your first reply, after answering "
+            "the user, do the light review as ONE short message in the user's language: run `%s group --since %s` "
+            "and `%s trend`; for each kind with 2 or more lines (and any clear single preference) draft one "
+            "preference sentence (what to do, not what went wrong; `pref` replaces an older line of the same "
+            "kind); a kind that came back after its preference was written needs a firmer home than a sentence: "
+            "propose skill text, or a hook that starts in log mode, when a program can see it at the moment of "
+            "action; name any confirmed way of working worth adding to a skill or the notes folder's AGENTS.md. "
+            "If the user's own preferences are over %d lines, also propose which to merge, retire (`%s retire "
+            "\"<kind>\"`) or which two contradict each other. Ask one question: OK to do these? Change nothing "
+            "before the user says yes. On yes, write each preference with `%s pref \"<kind>\" \"<sentence>\"` and "
+            "make the other changes. Whatever the answer, finish with `%s reviewed` (that is what marks the "
+            "review done; without it the review is offered again tomorrow)."
+            % (note.as_posix(), len(new_rows), since, nc, ng, kinds, cmd, since, cmd, PREF_BUDGET, cmd, cmd, cmd))
 
 
 # ---------- the check ----------
@@ -570,23 +635,55 @@ def why(k, n):
     return "you said you have: " + ", ".join(n["other_tools"])
 
 
-def hook_line(trigs, numbers):
+def hook_line(trigs, numbers, cmd="python ~/.sbk/bin/level_check.py"):
     parts = "; ".join("%s [%s, docs/ADVANCED.md %s]: %s" % (NAMES[k], k, PARTS[k], why(k, numbers)) for k in trigs)
     return ("[second-brain-kit weekly check] An upgrade would help: %s. In your first reply ask the user ONE "
             "yes/no question in their language whether to switch this on, quoting these numbers in plain "
             "words. Yes: follow docs/ADVANCED.md for that part and keep everything else. No: run "
-            "`python ~/.sbk/bin/level_check.py --decline %s` (it will not ask again for %d days). "
-            "Never switch anything on without a yes." % (parts, " ".join(trigs), DECLINE_DAYS))
+            "`%s --decline %s` (it will not ask again for %d days). "
+            "Never switch anything on without a yes." % (parts, cmd, " ".join(trigs), DECLINE_DAYS))
 
 
 def in_scope(cwd, cfg, home):
+    """Only a session where the user types: the notes folder, or the entry folder. Not SBK_HOME/state
+    (the courier), not managers/* (topic sessions): they cannot ask the user, and one of them would use
+    up the weekly question."""
     c = norm(cwd)
-    for root in (cfg.get("vault") or os.environ.get("SBK_VAULT"), str(home)):
+    for root in (cfg.get("vault") or os.environ.get("SBK_VAULT"), str(home / "entry")):
         if root:
             r = norm(root)
             if c == r or c.startswith(r + os.sep):
                 return True
     return False
+
+
+def kit_version():
+    """The plugin's own version (only when this file sits in a plugin or clone, not in SBK_HOME/bin)."""
+    p = Path(__file__).resolve().parent.parent / ".claude-plugin" / "plugin.json"
+    try:
+        return str(json.loads(p.read_text(encoding="utf-8")).get("version") or "")
+    except Exception:
+        return ""
+
+
+def update_line(home, cfg, now, state):
+    """One line when the tools copied to SBK_HOME/bin are not this kit's version, once a day."""
+    v = kit_version()
+    if not v or not (home / "bin").is_dir():
+        return None
+    try:
+        have = (home / "bin" / "VERSION").read_text(encoding="utf-8").strip()
+    except Exception:
+        have = ""
+    if have == v or state.get("last_update_notice") == day(now):
+        return None
+    state["last_update_notice"] = day(now)
+    kit = Path(__file__).resolve().parent.parent
+    return ("[second-brain-kit update] The kit is version %s but the tools in %s are %s. In your first reply "
+            "tell the user in one line that the kit was updated, then copy the tools again: do docs/SETUP.md "
+            "Step 1 point 2 from %s (the .py tools, the commands folder, and write the version into "
+            "bin/VERSION). Do nothing else to their files."
+            % (v, (home / "bin").as_posix(), have or "older (no VERSION file)", kit.as_posix()))
 
 
 def run_hook(data, now):
@@ -599,18 +696,25 @@ def run_hook(data, now):
         return None
     state = read_json(state_path(home), {})
     last = state.get("last_hook_run")
+    due = True
     try:
         if last and (now - datetime.strptime(last, "%Y-%m-%d")).days < THROTTLE_DAYS:
-            return None
+            due = False
     except Exception:
         pass
-    state["last_hook_run"] = day(now)
-    trigs, numbers, _, _ = compute(now, state)
+    trigs, numbers = [], {}
+    if due:
+        state["last_hook_run"] = day(now)
+        trigs, numbers, _, _ = compute(now, state)
     review = learn_review(cfg, home, now, state) if m != "log" else None
+    update = update_line(home, cfg, now, state) if m != "log" else None
     save_state(home, state)
-    lines = [hook_line(trigs, numbers)] if trigs and m != "log" else []
+    lines = [hook_line(trigs, numbers, '%s "%s"' % (py(cfg), (home / "bin" / "level_check.py").as_posix()))] \
+        if trigs and m != "log" else []
     if review:
         lines.append(review)
+    if update:
+        lines.append(update)
     return "\n\n".join(lines) or None
 
 

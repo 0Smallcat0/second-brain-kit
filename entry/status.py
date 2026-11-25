@@ -28,10 +28,44 @@ def open_lines(p):
         return None
 
 
+def hooks_line(home, now=None):
+    """'hooks: last ran ...' from the one stamp hooks/run.sh writes each time it starts a hook."""
+    import datetime
+    try:
+        hb = json.loads((home / "state" / "hooks-heartbeat.json").read_text(encoding="utf-8"))
+        t = datetime.datetime.strptime(hb["time"][:19], "%Y-%m-%dT%H:%M:%S")
+    except Exception:
+        return ("hooks: NO STAMP - the safety hooks have never run on this computer. Python or Git Bash is missing, "
+                "or the app was not restarted after installing them. Quit and reopen the Claude app (terminal: open a "
+                "new window), start a new conversation, then run this again.")
+    age = (now or datetime.datetime.now()) - t
+    return "hooks: last ran %s (%s)%s" % (hb["time"][:16].replace("T", " "), hb.get("hook", "?"),
+                                          "  - more than 7 days ago: are the hooks still on?" if age.days >= 7 else "")
+
+
+def hand_lines(home):
+    """A hand-over written by a long conversation that no new conversation has picked up yet."""
+    try:
+        hand = json.loads((home / "state" / "handover.json").read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    return ["%s: from %s, %s (%s)" % (scope, rec.get("date", "?"), "picked up" if rec.get("picked") else
+                                       "WAITING: the next conversation in that folder will read it", rec.get("task", ""))
+            for scope, rec in hand.items() if isinstance(rec, dict)]
+
+
 def main():
-    sys.stdout.reconfigure(encoding="utf-8")
+    ledger.setup_output()
     show_all = "--all" in sys.argv
     home = send.home()
+    print("== Hooks ==")
+    print("  " + hooks_line(home))
+    waiting = hand_lines(home)
+    if waiting:
+        print("\n== Hand-over ==")
+        for l in waiting:
+            print("  " + l)
+    print()
     print("== Ledger ==")
     _, items = ledger.load()
     live = [i for i in items if i[1] not in ledger.CLOSED]
@@ -84,8 +118,8 @@ def main():
         if p and p.exists():
             s = learn.stats(p.read_text(encoding="utf-8"), datetime.date.today())
             rep = ", ".join("%s x%d" % kv for kv in s["repeats"].items()) or "none"
-            print("  lines recorded: %d (corrections %d, confirmations %d); preferences written: %d (plus %d starter ones from the kit)"
-                  % (s["lines"], s["corrections"], s["confirmations"], s["preferences"], s["starter_preferences"]))
+            print("  lines recorded: %d (corrections %d, confirmations %d); preferences written: %d of a budget of %d (plus %d starter ones from the kit)"
+                  % (s["lines"], s["corrections"], s["confirmations"], s["preferences"], s["preference_budget"], s["starter_preferences"]))
             print("  corrections this week: %d (last week %d)" % (s["corrections_this_week"], s["last_week"]))
             print("  same kind again: " + rep)
         else:
