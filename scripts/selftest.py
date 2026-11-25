@@ -1473,6 +1473,20 @@ def main():
               rc == 0 and gate_dir and (Path(gate_dir) / "sitecustomize.py").exists()
               and ran_t == "kept_check.py ran\nother ran\nold_check.py ran\n"
               and skipped.exists() and skipped.read_text(encoding="utf-8").strip() == "old_check.py", out + err + ran_t)
+        (hb / "config.json").write_text(json.dumps({"routing": "live", "skip_hooks": {"under": [str(legacy)], "keep": ["kept_check.py"],
+                                                                                   "keep_for": {"topic": ["old_check.py"]}}}), encoding="utf-8")
+        penv2 = tmp / "penv2.py"
+        penv2.write_text("import os, sys\nsys.path.insert(0, %r)\nimport session\n"
+                         "print(session.child_env('study').get('PYTHONPATH', '').split(os.pathsep)[0])\n"
+                         "print(session.child_env('entry').get('PYTHONPATH', '').split(os.pathsep)[0])\n" % str(KIT / "entry"), encoding="utf-8")
+        rc, out, err = run([penv2], env=dict(envm, PYTHONPATH=""))
+        gates = out.strip().splitlines()
+        ran2 = tmp / "ran2.txt"
+        for g_ in gates[:2]:
+            run([legacy / "old_check.py", ran2], env={"PYTHONPATH": g_})
+        check("skip_hooks: keep_for keeps an older hook on for one role only (a topic runs it, the entry does not)",
+              rc == 0 and len(gates) == 2 and gates[0] != gates[1] and Path(gates[0]).name == "topic"
+              and ran2.exists() and ran2.read_text(encoding="utf-8") == "old_check.py ran\n", out + err)
         (hb / "config.json").write_text(json.dumps({"routing": "live", "session_hooks": True}), encoding="utf-8")
         rc, out, err = run([penv], env=dict(envm, PYTHONPATH=""))
         check("skip_hooks: nothing is put on PYTHONPATH when it is not configured", rc == 0 and out.strip() == "", out + err)

@@ -242,7 +242,7 @@ def worker(name, row_id, text, now=None):
     if c.get("vault"):
         args += ["--add-dir", c["vault"]]
     args += ["--", "Read %s in full and carry it out to the end. Work autonomously." % brief]
-    env = child_env()
+    env = child_env(name)
     other = w.get("config_dir") if not chrome else None
     if other:
         env["CLAUDE_CONFIG_DIR"] = str(other)
@@ -308,13 +308,15 @@ if _me and os.path.basename(_me) not in KEEP and any(_me.startswith(u) for u in 
 """
 
 
-def gate(env):
+def gate(env, name=None):
     """config.json "skip_hooks": {"under": ["<folder of the user's older hooks>"], "keep": ["name.py"]}: for a
     computer whose settings.json already runs hooks of the user's own on every conversation. The kit's
     sessions bring their own hooks (session_hooks), and running both sets doubles every check. Nothing in
     settings.json and none of those hooks is edited, and conversations the kit did not start are not
     touched: the sessions the kit starts get a folder on PYTHONPATH whose sitecustomize.py ends a Python
-    hook under one of those folders before it does anything. "keep" names hooks that stay on. Works for
+    hook under one of those folders before it does anything. "keep" names hooks that stay on;
+    "keep_for": {"topic": ["cap.py"], "<session name>": [...]} keeps a hook on for one role or one session
+    only (a limit that should hold the topic sessions but not the entry the user talks to). Works for
     hooks started as `python <script>` (not with -I, -E or -S; not for hooks that are not Python). If the
     user's Python already has a sitecustomize of its own, that one is not loaded in these sessions."""
     g = cfg().get("skip_hooks")
@@ -324,6 +326,11 @@ def gate(env):
         return env
     keep = [str(k).lower() for k in (g.get("keep") or [])]
     d = send.home() / "state" / "gate"
+    extra = g.get("keep_for") if isinstance(g.get("keep_for"), dict) else {}
+    key = name if name in extra else role_of(name) if name and role_of(name) in extra else None
+    if key and re.fullmatch(r"[A-Za-z0-9_-]+", key):  # its own folder: sessions of other roles keep their own list
+        keep = sorted(set(keep + [str(k).lower() for k in (extra.get(key) or [])]))
+        d = d / key
     try:
         d.mkdir(parents=True, exist_ok=True)
         text = GATE % (json.dumps(under), json.dumps(keep))
@@ -336,8 +343,8 @@ def gate(env):
     return env
 
 
-def child_env():
-    """The environment for claude: a session started from cron or the Windows task inherits a minimal PATH
+def child_env(name=None):
+    """The environment for claude (NAME: the session being started, for skip_hooks keep_for): a session started from cron or the Windows task inherits a minimal PATH
     (agent view docs: a background session runs with the PATH of the shell it was dispatched from), so put
     the folders of claude and of this Python, and the usual install folders, in front."""
     env = dict(os.environ)
@@ -353,7 +360,7 @@ def child_env():
         if Path(d).is_dir():
             extra.append(d)
     env["PATH"] = os.pathsep.join(extra + [env.get("PATH", "")])
-    return gate(env)
+    return gate(env, name)
 
 
 def folder(name):
@@ -501,14 +508,14 @@ def count_wake(st, name, now):
     wakes_file().write_text(json.dumps(st, indent=1), encoding="utf-8")
 
 
-def run_claude(args, cwd=None, timeout=300):
+def run_claude(args, cwd=None, timeout=300, name=None):
     if dry():
         shown = [a if (len(a) < 60 or (i and args[i - 1] == "--allowedTools")) else a[:57] + "..." for i, a in enumerate(args)]
         print("dry run: claude" + (" (%s)" % exe() if cfg().get("claude_path") else "") + " " + " ".join(shown))
         return 0, ""
     r = subprocess.run([exe()] + args, cwd=str(cwd) if cwd else None, capture_output=True, text=True,
                        encoding="utf-8", errors="replace", timeout=timeout, stdin=subprocess.DEVNULL,
-                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), env=child_env())
+                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), env=child_env(name))
     return r.returncode, (r.stdout or "") + (r.stderr or "")
 
 
@@ -566,13 +573,13 @@ def open_session(name, first="", replace_ok=False, text=None, fresh=False):
         common += ["--add-dir", c["vault"]]
     if old:
         msg = text if text is not None else (first or "Your inbox has new work.")
-        rc, out = run_claude(["--resume", old["sessionId"], "--bg"] + common + ["--", msg], cwd=d, timeout=120)
+        rc, out = run_claude(["--resume", old["sessionId"], "--bg"] + common + ["--", msg], cwd=d, timeout=120, name=name)
         if rc == 0 or dry():
             print("resumed %s %s (its earlier conversation continues)" % (name, old["id"]))
             return 0
         print("resume failed for %s (%s); starting a new conversation" % (name, out.strip()[-200:]))
     args = ["--bg", "-n", name] + common + ["--", text if text is not None else intro(name, first)]
-    rc, out = run_claude(args, cwd=d, timeout=120)
+    rc, out = run_claude(args, cwd=d, timeout=120, name=name)
     m = re.search(r"backgrounded\W+([0-9a-f]{6,})", out)
     if rc != 0 and not dry():
         print("open failed for %s: %s" % (name, out.strip()[-300:]))
