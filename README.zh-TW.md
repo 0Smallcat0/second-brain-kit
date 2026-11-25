@@ -53,6 +53,7 @@
 
 - **費用：** 這套工具免費，和一般對話一樣用你的 Claude 方案。
 - **需要的方案：** 有 Claude Code 的付費方案（Pro、Max、Ultra、Team、Enterprise）或 Console 帳號，另外要有 [Python 3](https://www.python.org/downloads/)（免費）。免費的 claude.ai 方案和網頁聊天用不了。
+
 ## 安全與資料
 
 - **有風險的事先問你：** 要推上遠端、刪掉整個資料夾、丟掉 git 裡的工作、跳過 git 檢查、改受保護的規則檔，或把一張筆記砍到剩一小部分之前。

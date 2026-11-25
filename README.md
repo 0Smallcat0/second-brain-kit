@@ -53,6 +53,7 @@ Just say it in your own words:
 
 - **Cost:** the kit is free and uses your Claude plan like any conversation does.
 - **Plan needed:** Claude Code on a paid plan (Pro, Max, Ultra, Team, Enterprise) or a Console account, plus [Python 3](https://www.python.org/downloads/) (free). The free claude.ai plan and the web chat cannot run it.
+
 ## Safety and data
 
 - **It asks before the risky steps:** pushing to the internet, deleting a whole folder, throwing away git work, skipping git checks, changing protected rule files, or shrinking a note to a fraction of it.
