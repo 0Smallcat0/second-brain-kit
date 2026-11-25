@@ -1468,6 +1468,38 @@ def main():
         rc, out, err = run([AL, "--tick", "--now", "2026-11-23T10:30"], env=envr2)
         check("report: an item still waiting in the topic's inbox is not called stalled (the tick starts the topic instead)",
               "report:" not in out, out + err)
+        # worker rows: gathering is done by a one-off worker, not by the topic's long conversation
+        hw = tmp / "home-worker"
+        for d in ("entry", "managers/study", "inbox", "state"):
+            (hw / d).mkdir(parents=True)
+        (hw / "config.json").write_text(json.dumps({"routing": "live", "worker": {"model": "haiku", "config_dir": str(tmp / "second")},
+                                                    "wake_limits": {"per_day": 2, "min_gap_min": 0}}), encoding="utf-8")
+        (hw / "alarms.md").write_text("| id | when | to | text |\n|---|---|---|---|\n"
+                                      "| A05 | daily 08:10 | study | [worker] check the course page for new files |\n"
+                                      "| A06 | daily 08:10 | study | [worker] [chrome] read the mailbox |\n"
+                                      "| A07 | daily 08:10 | study | [worker] third one, over the daily limit |\n", encoding="utf-8")
+        agw = tmp / "agents-worker.json"
+        agw.write_text("[]", encoding="utf-8")
+        envw = {"SBK_HOME": str(hw), "SBK_VAULT": "", "ANTHROPIC_API_KEY": "", "SBK_AGENTS_JSON": str(agw),
+                "SBK_SESSION_DRYRUN": "1", "CLAUDE_CONFIG_DIR": str(tmp / "cc-worker")}
+        rc, out, err = run([AL, "--tick", "--now", "2026-11-23T08:12"], env=envw)
+        briefs = sorted(p.name for p in (hw / "workers").glob("*.md")) if (hw / "workers").is_dir() else []
+        b5 = (hw / "workers" / "A05-20261123-0812.md").read_text(encoding="utf-8") if "A05-20261123-0812.md" in briefs else ""
+        inbox_w = (hw / "inbox" / "study.md").read_text(encoding="utf-8") if (hw / "inbox" / "study.md").exists() else ""
+        check("worker row: a one-off worker is started with a brief, on the worker model, and the topic's inbox stays empty",
+              "worker started for study on the second account" in out and "-p --name study-A05" in out and "--model haiku" in out
+              and "check the course page" in b5 and "[worker]" not in b5.split("\n")[0].replace("[alarm A05]", "")
+              and "task.md" in b5 and "deliver study" in b5 and "A05" not in inbox_w, out + err + b5[:300])
+        check("worker row: [chrome] adds the browser flag and stays on the main account",
+              "study-A06" in out and "--chrome" in out and out.count("on the second account") == 1, out + err)
+        check("worker row: over the daily limit the work waits in the topic's inbox like any alarm",
+              briefs == ["A05-20261123-0812.md", "A06-20261123-0812.md"] and "[alarm A07]" in inbox_w, str(briefs) + inbox_w + out + err)
+        wst = json.loads((hw / "state" / "workers.json").read_text(encoding="utf-8"))
+        wst["A05"]["pid"] = os.getpid()
+        (hw / "state" / "workers.json").write_text(json.dumps(wst), encoding="utf-8")
+        (hw / "config.json").write_text(json.dumps({"routing": "live", "wake_limits": {"per_day": 9, "min_gap_min": 0}}), encoding="utf-8")
+        rc, out, err = run([AL, "--fire", "A05"], env=envw)
+        check("worker row: not started twice while the last one is still running", "still running" in out, out + err)
         # learning loop numbers (learn.py)
         LE = KIT / "entry" / "learn.py"
         lv = tmp / "lvault2"

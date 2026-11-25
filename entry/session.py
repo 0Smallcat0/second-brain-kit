@@ -151,6 +151,118 @@ def settings_arg():
         return INBOUND
 
 
+def pid_alive(pid):
+    """Is that process still running? (os.kill(pid, 0) must not be used on Windows: it ends the process.)"""
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        import ctypes
+        k = ctypes.windll.kernel32
+        h = k.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not h:
+            return False
+        code = ctypes.c_ulong()
+        ok = k.GetExitCodeProcess(h, ctypes.byref(code))
+        k.CloseHandle(h)
+        return bool(ok) and code.value == 259  # STILL_ACTIVE
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def workers_file():
+    return send.home() / "state" / "workers.json"
+
+
+def worker(name, row_id, text, now=None):
+    """One-off worker for an alarm row whose text starts with [worker]: gathering that needs no judgement
+    (read a mailbox, check a page, compare two files) is done by a fresh `claude -p` run on a cheap model
+    instead of waking the topic's long conversation, which rereads its whole history at every wake. The
+    worker writes what it found into the topic's task.md and starts the topic session only when something
+    needs its judgement. `[worker] [chrome] ...` adds --chrome (the browser extension). config.json
+    "worker": {"model": "sonnet", "effort": "medium", "config_dir": "<folder of a second account the user
+    owns>"}; config_dir is not used for [chrome] rows (the extension belongs to the account signed in to
+    it). It runs in <SBK_HOME>/workers, so the hooks do not take it for the topic session, with the topic's
+    tool list and permission mode. Counted in wake_limits like a wake. Returns a status line, or None when
+    the work has to go the normal way (the topic's inbox): no live routing, no claude, or over the limit."""
+    c = cfg()
+    now = now or datetime.datetime.now().replace(second=0, microsecond=0)
+    if (c.get("routing") != "live" or not exe()) and not dry():
+        return None
+    try:
+        st = json.loads(workers_file().read_text(encoding="utf-8"))
+    except Exception:
+        st = {}
+    old = st.get(row_id) or {}
+    if pid_alive(old.get("pid")):
+        return "skipped (the worker this alarm started at %s is still running)" % old.get("started")
+    ok, _why, wst = wake_ok("worker:" + row_id, c, now)
+    if not ok:
+        return None
+    w = c.get("worker") if isinstance(c.get("worker"), dict) else {}
+    m = re.match(r"^\[worker\]\s*(\[chrome\]\s*)?", text, re.I)
+    chrome, body = bool(m and m.group(1)), text[m.end():] if m else text
+    stamp = now.strftime("%Y%m%d-%H%M")
+    wdir = send.home() / "workers"
+    wdir.mkdir(parents=True, exist_ok=True)
+    brief = wdir / ("%s-%s.md" % (row_id, stamp))
+    here = Path(__file__).resolve().parent
+    py = (c.get("python_cmd") or "python3").strip()
+    brief.write_text(
+        "[alarm %s] %s\n\n"
+        "You are a one-off worker for the topic \"%s\", not that topic's session, and nobody reads your replies.\n"
+        "1. Read %s (the topic's rules) and %s (where its work stands).\n"
+        "2. Do the work above to the end.\n"
+        "3. Append to that task.md a section headed \"%s worker %s\": what you opened and what you found "
+        "(facts, paths, links), nothing else.\n"
+        "4. Only if something in it needs the topic's judgement or a decision of the user's, run\n"
+        "   %s \"%s\" deliver %s \"<one line: what needs deciding and where the result is>\" --ledger ALARM\n"
+        "   which starts the topic session for it. If nothing does, do not.\n"
+        % (row_id, body, name, folder(name) / "CLAUDE.md", folder(name) / "task.md", row_id, stamp,
+           py, here / "session.py", name), encoding="utf-8")
+    args = ["-p", "--name", "%s-%s" % (name, row_id), "--permission-mode", permission_mode(name),
+            "--settings", settings_arg(), "--allowedTools", tools_for(name),
+            "--output-format", "stream-json", "--verbose", "--add-dir", str(folder(name))]
+    for key, default in (("model", "sonnet"), ("effort", "medium")):
+        val = w.get(key, default)
+        if isinstance(val, str) and re.fullmatch(r"[A-Za-z0-9._\[\]-]+", val.strip()):
+            args += ["--" + key, val.strip()]
+    if chrome:
+        args.append("--chrome")
+    if c.get("vault"):
+        args += ["--add-dir", c["vault"]]
+    args += ["--", "Read %s in full and carry it out to the end. Work autonomously." % brief]
+    env = child_env()
+    other = w.get("config_dir") if not chrome else None
+    if other:
+        env["CLAUDE_CONFIG_DIR"] = str(other)
+    if other or chrome:  # a token or key in the environment would override that login / disable the extension
+        env.pop("CLAUDE_CODE_OAUTH_TOKEN", None)
+        env.pop("ANTHROPIC_API_KEY", None)
+    log = send.home() / "logs" / ("worker-%s-%s.log" % (row_id, stamp))
+    if dry():
+        run_claude(args)
+        pid = 0
+    else:
+        log.parent.mkdir(parents=True, exist_ok=True)
+        kw = {"start_new_session": True} if os.name != "nt" else {
+            "creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)}
+        with open(str(log), "ab") as f:
+            pid = subprocess.Popen([exe()] + args, cwd=str(wdir), stdin=subprocess.DEVNULL, stdout=f,
+                                   stderr=subprocess.STDOUT, env=env, **kw).pid
+    st[row_id] = {"pid": pid, "started": now.strftime("%Y-%m-%dT%H:%M"), "brief": str(brief), "log": str(log)}
+    workers_file().parent.mkdir(parents=True, exist_ok=True)
+    workers_file().write_text(json.dumps(st, indent=1), encoding="utf-8")
+    count_wake(wst, "worker:" + row_id, now)
+    return "worker started for %s%s (%s)" % (name, " on the second account" if other else "", brief.name)
+
+
 def model_args(name):
     """--model / --effort for one session, from config.json "session_models":
     {"<session name>" or "<role>": {"model": "...", "effort": "..."}} (a name wins over its role: entry,

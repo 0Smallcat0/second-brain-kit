@@ -12,6 +12,11 @@ Table rows:   | A01 | daily 21:00 | entry | text |
               | A03 | monthly 1 10:00 | maintenance | text |   (day 1-31; a short month uses its last day)
               | A04 | once 2030-01-31 18:00 | entry | text |
               | H01 | daily 21:30 | handover | long conversations: hand over to a fresh one |
+              | A05 | daily 08:10 | study | [worker] check the course page for new files |
+              | A06 | daily 08:15 | admin | [worker] [chrome] read the mailbox, list what needs an answer |
+A row whose text starts with [worker] is gathering that needs no judgement: a one-off worker on a cheap
+model does it, writes what it found into that topic's task.md, and starts the topic session only when
+something needs deciding (session.py worker). [chrome] gives the worker the browser extension.
 Firing first writes: to "entry" a tracker item (ledger.md), to a session (maintenance or a topic) a
 line in its inbox. The same unfinished alarm is never added twice, so a missed reply cannot make
 alarms pile up. Then, with live routing (config "routing": "live"), the work goes in at once: into
@@ -152,6 +157,10 @@ def fire(row, late=False, now=None):
         return res
     if not (send.home() / "managers" / row["to"]).is_dir():
         return "no session folder: " + row["to"]
+    if row["text"].lower().startswith("[worker]"):
+        res = session.worker(row["to"], row["id"], text, now)
+        if res:
+            return res  # None: no live routing or over the limit, so it waits in the inbox like any alarm
     try:
         inbox = (send.home() / "inbox" / (row["to"] + ".md")).read_text(encoding="utf-8").splitlines()
     except Exception:
