@@ -817,8 +817,8 @@ def v8_tests(tmp, cfg):
           and "`vault_snapshot`" in ag, "")
 
     # ---- item 14: README and diagram say what the guard does ----
-    rd = (KIT / "README.md").read_text(encoding="utf-8")
-    rz = (KIT / "README.zh-TW.md").read_text(encoding="utf-8")
+    rd = "\n".join((KIT / n).read_text(encoding="utf-8") for n in ("README.md", "docs/SAFETY.md", "docs/GUIDE.md", "docs/FAQ.md", "docs/HOW-IT-WORKS.md"))
+    rz = "\n".join((KIT / n).read_text(encoding="utf-8") for n in ("README.zh-TW.md", "docs/zh-TW/安全與資料.md", "docs/zh-TW/指南.md", "docs/zh-TW/常見問題.md", "docs/zh-TW/運作原理.md"))
     sv = (KIT / "docs" / "diagrams" / "00-basic.svg").read_text(encoding="utf-8")
     check("v8 item 14: README (both), the Basic diagram no longer promise 'asks before deleting, uploading or overwriting'",
           "asks before deleting, uploading or overwriting" not in rd.lower() and "刪除、上傳、覆寫之前先問你" not in rz
@@ -972,9 +972,9 @@ def v8_tests(tmp, cfg):
     rc, out, err = run([LC, "--hook", "--now", "2026-12-31T09:00:00"], {"cwd": str(v), "hook_event_name": "SessionStart"},
                        dict(env, SBK_HOME=str(hv)))
     check("v8 item 22: ... and silent when the versions match", "second-brain-kit update" not in out, out + err)
-    check("v8 item 22: SETUP writes bin/VERSION and copies commands/ on the clone route; plugin and marketplace say 0.2.8",
-          "bin/VERSION" in se and "KIT/commands/*.md" in se and pv == "0.2.8"
-          and json.loads((KIT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))["plugins"][0]["version"] == "0.2.8", pv)
+    check("v8 item 22: SETUP writes bin/VERSION and copies commands/ on the clone route; plugin and marketplace say 0.2.9",
+          "bin/VERSION" in se and "KIT/commands/*.md" in se and pv == "0.2.9"
+          and json.loads((KIT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))["plugins"][0]["version"] == "0.2.9", pv)
 
     # ---- item 23: SessionStart covers /clear and forks ----
     ss = hj["hooks"]["SessionStart"]
@@ -1508,10 +1508,13 @@ def main():
               "@echo off" in term and "#!/bin/sh" in term and "claude --continue" in term and "cd \"<VAULT>\"" in term)
         check("setup: Step 6 and 7 do not assume a shortcut or claude -p for App users",
               "**+ New**" in st and st.count("**Open folder…**") >= 4)
-        for lang, readme in (("en", KIT / "README.md"), ("zh", KIT / "README.zh-TW.md")):
+        # 0.2.9: the front page is short; the sections moved to docs pages (guide = how to use, how-it-works = the Mermaid picture)
+        for lang, readme, hiw in (("en", KIT / "docs" / "GUIDE.md", KIT / "docs" / "HOW-IT-WORKS.md"),
+                                  ("zh", KIT / "docs" / "zh-TW" / "指南.md", KIT / "docs" / "zh-TW" / "運作原理.md")):
             rd = readme.read_text(encoding="utf-8")
-            mm = rd[rd.find("```mermaid"):rd.find("```", rd.find("```mermaid") + 10)]
-            check("readme %s: both ways in (App steps + terminal), diagram names both" % lang,
+            hw = hiw.read_text(encoding="utf-8")
+            mm = hw[hw.find("```mermaid"):hw.find("```", hw.find("```mermaid") + 10)]
+            check("guide %s: both ways in (App steps + terminal), diagram names both" % lang,
                   "**Open folder…**" in rd and "**Code**" in rd and "`claude`" in rd and ("Open folder" if lang == "en" else "選筆記資料夾") in mm and "claude" in mm
                   and "desktop launcher" not in mm)
         svg = (KIT / "docs" / "diagrams" / "00-basic.svg").read_text(encoding="utf-8")
@@ -1520,7 +1523,7 @@ def main():
 
         # ---- docs: plan labels, tracker wording, fixed sessions, wake choice, hook list ----
         zh_files = [KIT / "README.zh-TW.md"] + sorted((KIT / "docs" / "zh-TW").glob("*.md")) + sorted((KIT / "templates").glob("*.md")) \
-            + sorted((KIT / "skills").rglob("*.md")) + sorted((KIT / "docs" / "diagrams").glob("*.svg"))
+            + sorted((KIT / "skills").rglob("*.md")) + sorted((KIT / "docs" / "diagrams").glob("*.svg")) + sorted((KIT / "docs" / "diagrams" / "readme").glob("*.zh.svg"))
         old = [str(p.relative_to(KIT)) for p in zh_files if any(w in p.read_text(encoding="utf-8") for w in ("帳本", "工作清單"))]
         check("docs: zh text says 追蹤表, never 帳本 or 工作清單", not old, ", ".join(old))
         en_old = [str(p.relative_to(KIT)) for p in [KIT / "README.md", KIT / ".claude-plugin" / "plugin.json", KIT / ".claude-plugin" / "marketplace.json"]
@@ -1533,7 +1536,8 @@ def main():
                 untitled.append(p.name)
         check("diagrams: every drawn picture says Basic or Full (EN and zh)", not untitled, ", ".join(untitled))
         mm_untitled = []
-        for p in (KIT / "README.md", KIT / "README.zh-TW.md", KIT / "docs" / "ADVANCED.md", KIT / "docs" / "zh-TW" / "進階功能.md"):
+        for p in (KIT / "README.md", KIT / "README.zh-TW.md", KIT / "docs" / "ADVANCED.md", KIT / "docs" / "zh-TW" / "進階功能.md",
+                  KIT / "docs" / "HOW-IT-WORKS.md", KIT / "docs" / "zh-TW" / "運作原理.md"):
             t = p.read_text(encoding="utf-8")
             for blk in t.split("```mermaid")[1:]:
                 head = blk[:200]
@@ -1542,7 +1546,7 @@ def main():
         check("docs: every Mermaid picture has a Basic/Full title", not mm_untitled, ", ".join(mm_untitled))
         hooks8 = ("vault_guard", "read_whole", "requests_reinject", "stop_evidence", "level_notice", "learn_notice",
                   "inbox_notice", "usage_warn")
-        for p in (KIT / "README.md", KIT / "README.zh-TW.md", KIT / "docs" / "ADVANCED.md", KIT / "docs" / "zh-TW" / "進階功能.md"):
+        for p in (KIT / "docs" / "SAFETY.md", KIT / "docs" / "zh-TW" / "安全與資料.md", KIT / "docs" / "ADVANCED.md", KIT / "docs" / "zh-TW" / "進階功能.md"):
             t = p.read_text(encoding="utf-8")
             listed = [h for h in hooks8 if ("- `%s`" % h) in t]
             check("docs %s: one line per hook, all 8, with Basic on/off" % p.name, len(listed) == 8 and t.count("Basic: o") + t.count("基本款：") >= 8, listed)
@@ -1580,10 +1584,11 @@ def main():
         check("docs: no separate supervisor, no wake choice, 外部資源 not 外部模型", not stale, "; ".join(stale))
         check("advanced: hooks vs weekly review in one sentence, both languages",
               "hooks catch what a program can see at the moment Claude acts" in adv and "hook 擋的是 Claude 動手那一刻程式就看得出來的錯" in advz)
-        check("readme: a costs section saying the 5-minute check uses no quota, limits by plan, computer off",
-              "## Costs" in (KIT / "README.md").read_text(encoding="utf-8") and "uses **none** of your limit" in (KIT / "README.md").read_text(encoding="utf-8")
-              and "## 費用" in (KIT / "README.zh-TW.md").read_text(encoding="utf-8") and "**完全不用**額度" in (KIT / "README.zh-TW.md").read_text(encoding="utf-8")
-              and "asleep" in (KIT / "README.md").read_text(encoding="utf-8") and "睡眠" in (KIT / "README.zh-TW.md").read_text(encoding="utf-8"))
+        faq_en = (KIT / "docs" / "FAQ.md").read_text(encoding="utf-8")
+        faq_zh = (KIT / "docs" / "zh-TW" / "常見問題.md").read_text(encoding="utf-8")
+        check("faq: a costs section saying the 5-minute check uses no quota, limits by plan, computer off (both languages)",
+              "## Costs" in faq_en and "uses **none** of your limit" in faq_en and "## 費用" in faq_zh and "**完全不用**額度" in faq_zh
+              and "asleep" in faq_en and "睡眠" in faq_zh)
         check("learning loop: the 和 AI 協作 note is in the templates and read before acting",
               (KIT / "templates" / "和AI協作.md").exists() and "和 AI 協作" in (KIT / "templates" / "CLAUDE.md").read_text(encoding="utf-8")
               and "和 AI 協作" in (KIT / "templates" / "AGENTS.md").read_text(encoding="utf-8")
@@ -1638,6 +1643,37 @@ def main():
                     broken.append("%s -> %s" % (p.relative_to(KIT), link))
         check("docs: every relative link points to a file that exists", not broken, "; ".join(broken))
         zr = (KIT / "README.zh-TW.md").read_text(encoding="utf-8")
+        # ---- 0.2.9: picture-first short front page ----
+        pics = ("a-what-you-get", "b-install", "c-basic-vs-full", "d-how-it-learns")
+        for lang, rp_ in (("en", KIT / "README.md"), ("zh", KIT / "README.zh-TW.md")):
+            t9 = rp_.read_text(encoding="utf-8")
+            n9 = len(t9.splitlines())
+            check("front page %s: 60-90 lines, the four pictures in order, install sentence in one code block, no programming needed, Code tab" % lang,
+                  60 <= n9 <= 90 and [t9.find("diagrams/readme/%s.%s.png" % (p9, lang)) for p9 in pics] == sorted(t9.find("diagrams/readme/%s.%s.png" % (p9, lang)) for p9 in pics)
+                  and all(("diagrams/readme/%s.%s.png" % (p9, lang)) in t9 for p9 in pics)
+                  and t9.count("```") == 2 and "docs/SETUP.md" in t9 and "**Code**" in t9
+                  and ("No programming needed" in t9 if lang == "en" else "不用會寫程式" in t9), n9)
+            check("front page %s: plan list keeps Ultra; links row reaches guide, safety, faq, install, how-it-works" % lang,
+                  "Ultra" in t9 and all(x in t9 for x in (("docs/GUIDE.md", "docs/SAFETY.md", "docs/FAQ.md", "docs/INSTALL.md", "docs/HOW-IT-WORKS.md") if lang == "en"
+                                                           else ("docs/zh-TW/指南.md", "docs/zh-TW/安全與資料.md", "docs/zh-TW/常見問題.md", "docs/zh-TW/安裝.md", "docs/zh-TW/運作原理.md"))))
+        bad9 = []
+        for p9 in pics:
+            for lang in ("en", "zh"):
+                sv9 = KIT / "docs" / "diagrams" / "readme" / ("%s.%s.svg" % (p9, lang))
+                pn9 = sv9.with_suffix(".png")
+                if not sv9.exists() or not pn9.exists():
+                    bad9.append("missing %s.%s" % (p9, lang))
+                    continue
+                tx = sv9.read_text(encoding="utf-8")
+                sizes = [float(x) for x in re.findall(r'font-size="([0-9.]+)"', tx)]
+                if 'viewBox="0 0 880 ' not in tx or not sizes or min(sizes) < 14 or 'stroke-width="3"' not in tx or re.search(r"\b[A-Za-z]:\\|@|Users", tx):
+                    bad9.append("%s.%s: width/font/border/personal" % (p9, lang))
+                if lang == "zh" and not re.search(r"[一-鿿]", tx):
+                    bad9.append("%s.zh has no Chinese" % p9)
+                if lang == "en" and re.search(r"[一-鿿]", tx):
+                    bad9.append("%s.en has Chinese" % p9)
+        check("front page pictures: 8 SVG + PNG, 880 wide, text >= 14 px, opaque background with a border, zh on zh and en on en, no paths or addresses",
+              not bad9, "; ".join(bad9))
         check("readme zh: the install sentence uses docs/SETUP.md and asks for Chinese replies",
               "照 docs/SETUP.md 幫我設定" in zr and "zh-TW/SETUP" not in zr)
         mt = (KIT / "docs" / "MULTI-TOOL.md").read_text(encoding="utf-8")
@@ -1754,9 +1790,9 @@ def main():
             if not m or m.group(1).strip() != n or not m.group(2).startswith("Use ") or len(m.group(2)) < 60:
                 bad_sk.append(n + ": frontmatter")
         check("skills: the 4 general skills exist, name = folder, a one-line description starting 'Use'", not bad_sk, bad_sk)
-        rd_en = (KIT / "README.md").read_text(encoding="utf-8")
-        rd_zh = (KIT / "README.zh-TW.md").read_text(encoding="utf-8")
-        check("readme (en + zh): the section on what is installed vs what grows names the principles, the starter preferences and the 4 skills",
+        rd_en = (KIT / "docs" / "GUIDE.md").read_text(encoding="utf-8")
+        rd_zh = (KIT / "docs" / "zh-TW" / "指南.md").read_text(encoding="utf-8")
+        check("guide (en + zh): the section on what is installed vs what grows names the principles, the starter preferences and the 4 skills",
               all(n in rd_en and n in rd_zh for n in general) and "starter preferences" in rd_en.lower() and "起始偏好" in rd_zh
               and "（來自原作者，可刪）" in rd_zh and "(from the original author" in rd_en)
         se7 = (KIT / "docs" / "SETUP.md").read_text(encoding="utf-8")

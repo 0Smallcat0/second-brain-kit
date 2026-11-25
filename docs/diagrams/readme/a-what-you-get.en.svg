@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 352" width="880" height="352" role="img" aria-labelledby="aen-t aen-d">
+<title id="aen-t">What you get</title>
+<desc id="aen-d">You talk to one Claude session in your notes folder. Safety checks watch it. It keeps a notes folder it finds again in any new conversation, a tracker of what is still open, and a note of your corrections that it learns from.</desc>
+<defs><marker id="aen-ah" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto"><polygon points="0 0, 12 5, 0 10" fill="#2d3142"/></marker><marker id="aen-aha" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto"><polygon points="0 0, 12 5, 0 10" fill="#bf4520"/></marker></defs>
+<rect x="1.5" y="1.5" width="877" height="349" rx="14" fill="#f5f5f5" stroke="#7d8496" stroke-width="3"/>
+<rect x="24" y="134" width="140" height="92" rx="10" fill="#e4e6ea" stroke="#2d3142" stroke-width="1.5"/>
+<text x="94" y="176.5" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="20" font-weight="700" fill="#2d3142" data-max="124">You</text>
+<text x="94" y="199.2" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#4f5d75" data-max="124">just talk</text>
+<rect x="214" y="24" width="296" height="304" rx="12" fill="#efefef" stroke="#7d8496" stroke-width="1.5" stroke-dasharray="7,5"/>
+<text x="362" y="50" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="600" fill="#bf4520" data-max="270">Safety checks around it</text>
+<rect x="238" y="66" width="248" height="140" rx="10" fill="#f3e4df" stroke="#bf4520" stroke-width="2"/>
+<text x="362" y="122.7" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="22" font-weight="700" fill="#2d3142" data-max="228">Claude</text>
+<text x="362" y="146.2" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#4f5d75" data-max="228">one session in your</text>
+<text x="362" y="167.2" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#4f5d75" data-max="228">notes folder</text>
+<path d="M238,228 l6,7 l11,-14" fill="none" stroke="#bf4520" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="264" y="234" text-anchor="start" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#2d3142" data-max="236">Asks before risky steps</text>
+<path d="M238,258 l6,7 l11,-14" fill="none" stroke="#bf4520" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="264" y="264" text-anchor="start" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#2d3142" data-max="236">Reminds it to check results</text>
+<path d="M238,288 l6,7 l11,-14" fill="none" stroke="#bf4520" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="264" y="294" text-anchor="start" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#2d3142" data-max="236">Keeps your words in long chats</text>
+<path d="M164,180 L238,180" fill="none" stroke="#2d3142" stroke-width="2" marker-end="url(#aen-ah)"/>
+<rect x="570" y="24" width="286" height="92" rx="10" fill="#e4e6ea" stroke="#2d3142" stroke-width="1.5"/>
+<text x="713" y="55.3" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="18" font-weight="700" fill="#2d3142" data-max="266">Notes folder</text>
+<text x="713" y="77.2" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#4f5d75" data-max="266">found again in</text>
+<text x="713" y="98.2" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#4f5d75" data-max="266">any new conversation</text>
+<rect x="570" y="130" width="286" height="92" rx="10" fill="#e4e6ea" stroke="#2d3142" stroke-width="1.5"/>
+<text x="713" y="161.3" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="18" font-weight="700" fill="#2d3142" data-max="266">Tracker</text>
+<text x="713" y="183.2" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#4f5d75" data-max="266">what is still open,</text>
+<text x="713" y="204.2" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#4f5d75" data-max="266">closed only after a check</text>
+<rect x="570" y="236" width="286" height="92" rx="10" fill="#f3e4df" stroke="#bf4520" stroke-width="2"/>
+<text x="713" y="267.3" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="18" font-weight="700" fill="#2d3142" data-max="266">Learns from you</text>
+<text x="713" y="289.2" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#4f5d75" data-max="266">one line per correction,</text>
+<text x="713" y="310.2" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#4f5d75" data-max="266">a preference after your yes</text>
+<path d="M486,100 L528,100 L528,70 L570,70" fill="none" stroke="#2d3142" stroke-width="2" marker-end="url(#aen-ah)"/>
+<path d="M486,176 L570,176" fill="none" stroke="#2d3142" stroke-width="2" marker-end="url(#aen-ah)"/>
+<path d="M486,196 L528,196 L528,282 L570,282" fill="none" stroke="#bf4520" stroke-width="2" marker-end="url(#aen-aha)"/>
+</svg>

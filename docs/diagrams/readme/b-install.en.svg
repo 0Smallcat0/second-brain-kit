@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 330" width="880" height="330" role="img" aria-labelledby="ben-t ben-d">
+<title id="ben-t">Install in 3 steps</title>
+<desc id="ben-d">Step 1: open Claude Code - in the desktop app click Code, then Local, then Open folder; or type claude in a terminal. Step 2: paste one sentence. Step 3: answer 6 questions and you are done.</desc>
+<defs><marker id="ben-ah" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto"><polygon points="0 0, 12 5, 0 10" fill="#2d3142"/></marker><marker id="ben-aha" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto"><polygon points="0 0, 12 5, 0 10" fill="#bf4520"/></marker></defs>
+<rect x="1.5" y="1.5" width="877" height="327" rx="14" fill="#f5f5f5" stroke="#7d8496" stroke-width="3"/>
+<rect x="24" y="24" width="258" height="282" rx="12" fill="#ffffff" stroke="#2d3142" stroke-width="1.5"/>
+<circle cx="54" cy="58" r="15" fill="#bf4520"/>
+<text x="54" y="64" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="17" font-weight="700" fill="#ffffff">1</text>
+<text x="80" y="64" text-anchor="start" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="19" font-weight="700" fill="#2d3142" data-max="192">Open Claude Code</text>
+<rect x="40" y="92" width="226" height="124" rx="8" fill="#eef0f4" stroke="#bfc0c0" stroke-width="1.2"/>
+<rect x="52" y="104" width="70" height="28" rx="14" fill="#ffffff" stroke="#5a6580" stroke-width="1.2"/>
+<text x="87" y="124" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#4f5d75" data-max="60">Chat</text>
+<rect x="130" y="104" width="70" height="28" rx="14" fill="#bf4520" stroke="#bf4520" stroke-width="1.2"/>
+<text x="165" y="124" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="700" fill="#ffffff" data-max="60">Code</text>
+<rect x="52" y="142" width="84" height="28" rx="14" fill="#ffffff" stroke="#5a6580" stroke-width="1.2"/>
+<text x="94" y="162" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#2d3142" data-max="74">Local ▾</text>
+<rect x="144" y="142" width="110" height="28" rx="14" fill="#ffffff" stroke="#bf4520" stroke-width="2"/>
+<text x="199.0" y="162" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="600" fill="#2d3142" data-max="100">Open folder…</text>
+<rect x="52" y="180" width="202" height="26" rx="6" fill="#2d3142" stroke="#2d3142" stroke-width="1"/>
+<text x="62" y="198" text-anchor="start" font-family="'Geist Mono',ui-monospace,Consolas,'Courier New',monospace" font-size="14" font-weight="400" fill="#ffffff" data-max="186">terminal $ claude</text>
+<text x="40" y="246" text-anchor="start" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#4f5d75" data-max="234">Desktop app: Code → Local →</text>
+<text x="40" y="267" text-anchor="start" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#4f5d75" data-max="234">Open folder, pick any folder.</text>
+<text x="40" y="288" text-anchor="start" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#4f5d75" data-max="234">Or in a terminal: claude</text>
+<path d="M285,165 L308,165" fill="none" stroke="#bf4520" stroke-width="3" marker-end="url(#ben-aha)"/>
+<rect x="311" y="24" width="258" height="282" rx="12" fill="#ffffff" stroke="#2d3142" stroke-width="1.5"/>
+<circle cx="341" cy="58" r="15" fill="#bf4520"/>
+<text x="341" y="64" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="17" font-weight="700" fill="#ffffff">2</text>
+<text x="367" y="64" text-anchor="start" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="19" font-weight="700" fill="#2d3142" data-max="192">Paste one sentence</text>
+<rect x="327" y="92" width="226" height="124" rx="8" fill="#eef0f4" stroke="#bfc0c0" stroke-width="1.2"/>
+<rect x="339" y="106" width="202" height="96" rx="10" fill="#ffffff" stroke="#5a6580" stroke-width="1.5"/>
+<text x="351" y="136" text-anchor="start" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#2d3142" data-max="186">Install second-brain-kit</text>
+<text x="351" y="160" text-anchor="start" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#2d3142" data-max="186">from github.com/…</text>
+<circle cx="519" cy="180" r="13" fill="#bf4520"/>
+<path d="M519,187 V173 M513,178 L519,172 L525,178" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="327" y="246" text-anchor="start" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#4f5d75" data-max="234">Paste the sentence from</text>
+<text x="327" y="267" text-anchor="start" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#4f5d75" data-max="234">just below and press Enter.</text>
+<path d="M572,165 L595,165" fill="none" stroke="#bf4520" stroke-width="3" marker-end="url(#ben-aha)"/>
+<rect x="598" y="24" width="258" height="282" rx="12" fill="#ffffff" stroke="#2d3142" stroke-width="1.5"/>
+<circle cx="628" cy="58" r="15" fill="#bf4520"/>
+<text x="628" y="64" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="17" font-weight="700" fill="#ffffff">3</text>
+<text x="654" y="64" text-anchor="start" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="19" font-weight="700" fill="#2d3142" data-max="192">Answer 6 questions</text>
+<rect x="614" y="92" width="226" height="124" rx="8" fill="#eef0f4" stroke="#bfc0c0" stroke-width="1.2"/>
+<rect x="626" y="104" width="202" height="30" rx="8" fill="#ffffff" stroke="#5a6580" stroke-width="1.2"/>
+<text x="638" y="125" text-anchor="start" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#2d3142" data-max="156">Where to keep notes?</text>
+<path d="M800,119 l6,7 l11,-14" fill="none" stroke="#bf4520" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="626" y="140" width="202" height="30" rx="8" fill="#ffffff" stroke="#5a6580" stroke-width="1.2"/>
+<text x="638" y="161" text-anchor="start" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#2d3142" data-max="156">Which language?</text>
+<path d="M800,155 l6,7 l11,-14" fill="none" stroke="#bf4520" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="626" y="176" width="202" height="30" rx="8" fill="#ffffff" stroke="#5a6580" stroke-width="1.2"/>
+<text x="638" y="197" text-anchor="start" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#2d3142" data-max="156">4 more short ones</text>
+<text x="804" y="197" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="18" font-weight="700" fill="#bf4520" data-max="20">…</text>
+<text x="614" y="246" text-anchor="start" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#4f5d75" data-max="234">About 15–30 minutes, mostly</text>
+<text x="614" y="267" text-anchor="start" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#4f5d75" data-max="234">Claude working. Then it runs</text>
+<text x="614" y="288" text-anchor="start" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#4f5d75" data-max="234">a short test and you are done.</text>
+</svg>

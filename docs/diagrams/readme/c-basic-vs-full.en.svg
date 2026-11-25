@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 322" width="880" height="322" role="img" aria-labelledby="cen-t cen-d">
+<title id="cen-t">Basic and Full</title>
+<desc id="cen-d">Basic: you talk to one Claude session that keeps the notes and the tracker. Full: you talk to an entry session that sends each job into its own subject session, with a maintenance session and reminders. Basic is always installed; Full parts are switched on one by one.</desc>
+<defs><marker id="cen-ah" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto"><polygon points="0 0, 12 5, 0 10" fill="#2d3142"/></marker><marker id="cen-aha" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto"><polygon points="0 0, 12 5, 0 10" fill="#bf4520"/></marker></defs>
+<rect x="1.5" y="1.5" width="877" height="319" rx="14" fill="#f5f5f5" stroke="#7d8496" stroke-width="3"/>
+<rect x="24" y="24" width="340" height="274" rx="14" fill="#ffffff" stroke="#bf4520" stroke-width="2.5"/>
+<path d="M24,38 a14,14 0 0 1 14,-14 H350 a14,14 0 0 1 14,14 V64 H24 Z" fill="#bf4520"/>
+<text x="44" y="52" text-anchor="start" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="22" font-weight="700" fill="#ffffff" data-max="120">Basic</text>
+<text x="344" y="51" text-anchor="end" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#ffffff" data-max="170">always installed</text>
+<rect x="40" y="93" width="86" height="100" rx="10" fill="#e4e6ea" stroke="#2d3142" stroke-width="1.5"/>
+<text x="83.0" y="148.9" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="17" font-weight="700" fill="#2d3142" data-max="74">You</text>
+<rect x="148" y="93" width="86" height="100" rx="10" fill="#f3e4df" stroke="#bf4520" stroke-width="2"/>
+<text x="191.0" y="137.6" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="16" font-weight="700" fill="#2d3142" data-max="74">One</text>
+<text x="191.0" y="159.6" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="16" font-weight="700" fill="#2d3142" data-max="74">session</text>
+<rect x="256" y="93" width="86" height="100" rx="10" fill="#e4e6ea" stroke="#2d3142" stroke-width="1.5"/>
+<text x="299.0" y="137.6" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="16" font-weight="700" fill="#2d3142" data-max="74">Notes +</text>
+<text x="299.0" y="159.6" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="16" font-weight="700" fill="#2d3142" data-max="74">tracker</text>
+<path d="M126,143 L148,143" fill="none" stroke="#2d3142" stroke-width="2" marker-end="url(#cen-ah)"/>
+<path d="M234,143 L256,143" fill="none" stroke="#2d3142" stroke-width="2" marker-end="url(#cen-ah)"/>
+<text x="194" y="277.2" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#4f5d75" data-max="316">For starting out, a few things at a time</text>
+<rect x="396" y="24" width="460" height="274" rx="14" fill="#ffffff" stroke="#2d3142" stroke-width="2" stroke-dasharray="8,5"/>
+<path d="M396,38 a14,14 0 0 1 14,-14 H842 a14,14 0 0 1 14,14 V64 H396 Z" fill="#2d3142"/>
+<text x="416" y="52" text-anchor="start" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="22" font-weight="700" fill="#ffffff" data-max="100">Full</text>
+<text x="838" y="51" text-anchor="end" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#ffffff" data-max="300">switched on later, one part at a time</text>
+<rect x="412" y="111" width="70" height="64" rx="10" fill="#e4e6ea" stroke="#2d3142" stroke-width="1.5"/>
+<text x="447" y="148.9" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="17" font-weight="700" fill="#2d3142" data-max="56">You</text>
+<rect x="512" y="103" width="98" height="80" rx="10" fill="#f3e4df" stroke="#bf4520" stroke-width="2"/>
+<text x="561" y="148.9" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="17" font-weight="700" fill="#2d3142" data-max="86">Entry</text>
+<path d="M482,143 L512,143" fill="none" stroke="#2d3142" stroke-width="2" marker-end="url(#cen-ah)"/>
+<rect x="668" y="78" width="168" height="38" rx="8" fill="#e4e6ea" stroke="#2d3142" stroke-width="1.5"/>
+<text x="752" y="103" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="16" font-weight="600" fill="#2d3142" data-max="150">Subject A</text>
+<path d="M610,143 L639,143 L639,97 L668,97" fill="none" stroke="#2d3142" stroke-width="2" marker-end="url(#cen-ah)"/>
+<rect x="668" y="124" width="168" height="38" rx="8" fill="#e4e6ea" stroke="#2d3142" stroke-width="1.5"/>
+<text x="752" y="149" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="16" font-weight="600" fill="#2d3142" data-max="150">Subject B</text>
+<path d="M610,143 L668,143" fill="none" stroke="#2d3142" stroke-width="2" marker-end="url(#cen-ah)"/>
+<rect x="668" y="170" width="168" height="38" rx="8" fill="#e4e6ea" stroke="#2d3142" stroke-width="1.5"/>
+<text x="752" y="195" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="16" font-weight="600" fill="#2d3142" data-max="150">Subject C</text>
+<path d="M610,143 L639,143 L639,189 L668,189" fill="none" stroke="#2d3142" stroke-width="2" marker-end="url(#cen-ah)"/>
+<rect x="412" y="222" width="132" height="34" rx="17" fill="#ffffff" stroke="#5a6580" stroke-width="1.5" stroke-dasharray="4,3"/>
+<text x="478.0" y="245" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#2d3142" data-max="118">Maintenance</text>
+<rect x="556" y="222" width="104" height="34" rx="17" fill="#ffffff" stroke="#5a6580" stroke-width="1.5" stroke-dasharray="4,3"/>
+<text x="608.0" y="245" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#2d3142" data-max="90">Reminders</text>
+<rect x="672" y="222" width="168" height="34" rx="17" fill="#ffffff" stroke="#5a6580" stroke-width="1.5" stroke-dasharray="4,3"/>
+<text x="756.0" y="245" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#2d3142" data-max="154">Outside resources</text>
+<text x="626" y="284.2" text-anchor="middle" font-family="'Geist','Segoe UI','Noto Sans TC','Microsoft JhengHei',system-ui,sans-serif" font-size="15" font-weight="400" fill="#4f5d75" data-max="440">For several subjects and deadlines you forget</text>
+</svg>
