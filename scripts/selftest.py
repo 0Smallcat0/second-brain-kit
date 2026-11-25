@@ -4,6 +4,7 @@ folder, and prints PASS / FAIL per case. Nothing outside the temp folder is touc
 
     python scripts/selftest.py [--keep]        exit code 1 if any case fails
 """
+import datetime
 import json
 import os
 import re
@@ -1427,6 +1428,46 @@ def main():
         rc, out, err = run([KIT / "entry" / "session.py", "open", "work", "go"], env=envm)
         check("session hooks: an unreadable file is reported and the session still starts",
               "session_hooks: cannot use" in out and "crossSessionInbound" in out and "dry run: claude" in out, out + err)
+        # report without being asked: the tick tells the entry about finished and stalled work
+        hr = tmp / "home-report"
+        for d in ("entry", "managers/study", "inbox", "state"):
+            (hr / d).mkdir(parents=True)
+        (hr / "config.json").write_text(json.dumps({"routing": "live"}), encoding="utf-8")
+        (hr / "alarms.md").write_text("| id | when | to | text |\n|---|---|---|---|\n", encoding="utf-8")
+        (hr / "inbox" / "study.md").write_text("- [x] L0002 summarise chapter 9\n", encoding="utf-8")
+        (hr / "ledger.md").write_text("# Ledger\n\n- L0001 | done | 2026-11-23T08:00:00 | tidy the notes | ev: opened the folder, 3 files renamed\n"
+                                      "- L0002 | dispatched:study | 2026-11-23T08:00:00 | summarise chapter 9 | ev: \n", encoding="utf-8")
+        sid_s = "33333333-aaaa-bbbb-cccc-000000000003"
+        ccr = tmp / "cc-report"
+        (ccr / "projects" / "p").mkdir(parents=True)
+        trs = ccr / "projects" / "p" / (sid_s + ".jsonl")
+        jl(trs, [user("go")])
+        quiet_since = datetime.datetime(2026, 11, 23, 8, 0).timestamp()
+        os.utime(trs, (quiet_since, quiet_since))
+        agr = tmp / "agents-report.json"
+        agr.write_text(json.dumps([
+            {"id": "e1", "name": "entry", "kind": "background", "cwd": str(hr / "entry"), "pid": 1, "status": "idle",
+             "startedAt": 5, "sessionId": "44444444-aaaa-bbbb-cccc-000000000004"},
+            {"id": "s1", "name": "study", "kind": "background", "cwd": str(hr / "managers" / "study"),
+             "startedAt": 6, "sessionId": sid_s, "state": "done"}]), encoding="utf-8")
+        envr2 = {"SBK_HOME": str(hr), "SBK_VAULT": "", "ANTHROPIC_API_KEY": "", "SBK_AGENTS_JSON": str(agr),
+                 "SBK_SESSION_DRYRUN": "1", "CLAUDE_CONFIG_DIR": str(ccr)}
+        AL = KIT / "entry" / "alarm.py"
+        rc, out, err = run([AL, "--tick", "--now", "2026-11-23T09:00"], env=envr2)
+        rep = json.loads((hr / "state" / "report.json").read_text(encoding="utf-8")) if (hr / "state" / "report.json").exists() else {}
+        check("report: an item handed to a topic that stopped without closing it is sent to the entry; a just-finished one waits one tick",
+              "report: 1 line(s) sent to the entry" in out and "L0002" in rep.get("stale", {}) and rep.get("done", {}).get("L0001") == "seen", out + err)
+        rc, out, err = run([AL, "--tick", "--now", "2026-11-23T09:05"], env=envr2)
+        rep = json.loads((hr / "state" / "report.json").read_text(encoding="utf-8"))
+        check("report: a finished item the entry has not checked one tick later is sent; the stalled one is not repeated",
+              "report: 1 line(s) sent to the entry" in out and rep["done"].get("L0001") == "pushed", out + err)
+        rc, out, err = run([AL, "--tick", "--now", "2026-11-23T09:10"], env=envr2)
+        check("report: nothing is sent twice", "report:" not in out, out + err)
+        (hr / "inbox" / "study.md").write_text("- [ ] L0003 one more\n", encoding="utf-8")
+        (hr / "ledger.md").write_text("# Ledger\n\n- L0003 | dispatched:study | 2026-11-23T09:00:00 | one more | ev: \n", encoding="utf-8")
+        rc, out, err = run([AL, "--tick", "--now", "2026-11-23T10:30"], env=envr2)
+        check("report: an item still waiting in the topic's inbox is not called stalled (the tick starts the topic instead)",
+              "report:" not in out, out + err)
         # learning loop numbers (learn.py)
         LE = KIT / "entry" / "learn.py"
         lv = tmp / "lvault2"

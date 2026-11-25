@@ -23,6 +23,13 @@ session does, so those are limited by config "wake_limits" {"per_day": N, "min_g
 N per day in total and M minutes between two for the same session; over the limit the work simply
 waits in the inbox and a later tick (or the user opening the session) picks it up.
 
+Report without being asked (live routing, the entry running): each tick also looks at the tracker.
+(a) An item a topic closed ("done") that the entry has not checked one tick later is sent to the entry.
+(b) An item handed to a topic that took it from its inbox and then stopped working for config
+"report_idle_min" minutes (default 10) without closing it is sent to the entry, once per idle period.
+Both are found by reading files and the session list; no model is used to find them. The entry then
+opens the evidence or the topic's task.md and tells the user what they need to know.
+
 Computer off or asleep: nothing runs then. At the next tick a recurring row that was missed fires
 once, marked "(late)", however many periods were missed; a one-time row fires late too. A row seen
 for the first time (just added) only fires if it is due within the last 10 minutes.
@@ -176,6 +183,71 @@ def drain(now):
             session.count_wake(st, name, now)
 
 
+def report_file():
+    return send.home() / "state" / "report.json"
+
+
+def report(now):
+    """See "Report without being asked" above. Returns the text sent to the entry, or ""."""
+    c = session.cfg()
+    if c.get("routing") != "live" and not session.dry():
+        return ""
+    _, items = ledger.load()
+    done = [i for i in items if i[1] == "done"]
+    handed = [i for i in items if i[1].startswith("dispatched:")]
+    try:
+        st = json.loads(report_file().read_text(encoding="utf-8"))
+    except Exception:
+        st = {}
+    seen = {k: v for k, v in (st.get("done") or {}).items() if k in {i[0] for i in done}}
+    stale = {k: v for k, v in (st.get("stale") or {}).items() if k in {i[0] for i in handed}}
+    notes, mark_done, mark_stale = [], [], {}
+    for lid, _st, _ts, text, ev in done:
+        if lid not in seen:
+            seen[lid] = "seen"      # first sight: the topic's own message to the entry gets one tick
+        elif seen[lid] == "seen":
+            notes.append("Done by a topic, not checked by you yet: %s %s (ev: %s)" % (lid, text[:200], ev[:200]))
+            mark_done.append(lid)
+    rows = session.rows_all() if handed else []
+    idle = float(c.get("report_idle_min", 10)) * 60
+    if handed:
+        import handover
+    for lid, status, _ts, text, _ev in handed:
+        name = status.split(":", 1)[1].strip()
+        if session.unticked(name):
+            continue                # not taken from the inbox yet: drain() starts the session
+        alive = [r for r in rows if r["name"] == name and r["alive"]]
+        r = alive[0] if alive else session.resumable(name, rows)
+        if not r or (r["alive"] and r["status"] == "busy"):
+            continue
+        src = handover.transcript(r["sessionId"])
+        if not src:
+            continue
+        last = int(src.stat().st_mtime)
+        if now.timestamp() - last < idle or stale.get(lid) == last:
+            continue
+        notes.append("Handed to %s, which stopped working at %s without closing it: %s %s"
+                     % (name, datetime.datetime.fromtimestamp(last).strftime("%m-%d %H:%M"), lid, text[:200]))
+        mark_stale[lid] = last
+    sent = ""
+    if notes and (session.find("entry") or session.dry()):
+        text = ("Report from the alarm tick (nobody asked for it). For a finished item: open the evidence itself; "
+                "if it holds, ledger.py verify and give the user the result now. For a stopped one: read that "
+                "topic's task.md; if the work is finished have it closed, if it waits for something tell the "
+                "user only what they must do or decide.\n- " + "\n- ".join(notes))
+        if session.push("entry", text):
+            sent = text
+            for lid in mark_done:
+                seen[lid] = "pushed"
+            stale.update(mark_stale)
+    try:
+        report_file().parent.mkdir(parents=True, exist_ok=True)
+        report_file().write_text(json.dumps({"done": seen, "stale": stale}, indent=1), encoding="utf-8")
+    except Exception:
+        pass
+    return sent
+
+
 def tick(now):
     st = load_state()
     rows = read_rows()
@@ -195,12 +267,15 @@ def tick(now):
         st[row["id"]] = key
     save_state(st)
     drain(now)
+    told = report(now)
+    if told:
+        print("report: %d line(s) sent to the entry" % told.count("\n- "))
     if (send.home() / "state" / "handover_due.json").exists():
         import handover
         res = handover.due()
         if res:
             print("handover: " + res)
-    if len(rows) > MAX_ROWS:
+    if len(rows) > int(session.cfg().get("alarm_rows_warn", MAX_ROWS)):
         print("WARNING: %d alarm rows. Alarms multiply; delete the ones nobody acts on." % len(rows))
 
 
