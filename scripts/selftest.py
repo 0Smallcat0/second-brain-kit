@@ -1405,6 +1405,28 @@ def main():
         rc, out, err = run([KIT / "entry" / "session.py", "open", "work", "go"], env=envm)
         check("session models: the role row applies to other topics; a value that is not a plain word is dropped",
               "--model sonnet" in out and "--effort" not in out and "rm -rf" not in out, out + err)
+        check("session settings: by default only cross-session messages are accepted and the mode is dontAsk",
+              "--permission-mode dontAsk" in out and "crossSessionInbound" in out
+              and not (hb / "state" / "session-settings.json").exists(), out + err)
+        # permission mode per session; the kit's hooks only for the sessions the kit starts
+        (hb / "config.json").write_text(json.dumps({
+            "routing": "live", "session_hooks": True,
+            "permission_modes": {"entry": "bypassPermissions", "topic": "whatever"}}), encoding="utf-8")
+        rc, out, err = run([KIT / "entry" / "session.py", "open", "entry"], env=envm)
+        ssf = hb / "state" / "session-settings.json"
+        ssd = json.loads(ssf.read_text(encoding="utf-8")) if ssf.exists() else {}
+        cmds = [h["command"] for ev in ssd.get("hooks", {}).values() for m in ev for h in m["hooks"]]
+        check("session settings: the entry can be given its own permission mode", "--permission-mode bypassPermissions" in out, out + err)
+        check("session hooks: the kit's hook set goes into a settings file for kit sessions only, with the real hooks folder",
+              ssd.get("crossSessionInbound") == "accept" and cmds and not any("__KIT__" in c for c in cmds)
+              and all((KIT / "hooks").as_posix() in c for c in cmds) and "_comment" not in ssd
+              and '{"crossSessionInbound"' not in out, out + err + str(ssd)[:300])
+        rc, out, err = run([KIT / "entry" / "session.py", "open", "work", "go"], env=envm)
+        check("session settings: a mode that is not a real one falls back to dontAsk", "--permission-mode dontAsk" in out, out + err)
+        (hb / "config.json").write_text(json.dumps({"routing": "live", "session_hooks": str(tmp / "no-such.json")}), encoding="utf-8")
+        rc, out, err = run([KIT / "entry" / "session.py", "open", "work", "go"], env=envm)
+        check("session hooks: an unreadable file is reported and the session still starts",
+              "session_hooks: cannot use" in out and "crossSessionInbound" in out and "dry run: claude" in out, out + err)
         # learning loop numbers (learn.py)
         LE = KIT / "entry" / "learn.py"
         lv = tmp / "lvault2"

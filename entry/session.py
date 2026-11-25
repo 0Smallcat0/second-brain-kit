@@ -32,7 +32,9 @@ conversation, same ID when Claude Code can) instead of starting a second empty c
 `claude respawn <id>` also restarts a stopped session with its conversation but takes no message, so it is
 not used for delivery.
 
-A session can be given its model and effort (config.json "session_models", see model_args).
+A session can be given its model and effort (config.json "session_models", see model_args), its
+permission mode ("permission_modes", see permission_mode), and the kit's hooks without installing them
+for every conversation ("session_hooks", see settings_arg).
 
 Each role has its own tool allowlist (config.json "allowed_tools": {"entry": ..., "topic": ..., "maintenance":
 ...}; the defaults are below). A tool call outside it is refused without a prompt (dontAsk), which a
@@ -106,6 +108,47 @@ def tools_for(name):
         exe_ = py.split()[0].replace("\\", "/")
         base += ",Bash(%s:*),PowerShell(%s:*)" % (exe_, exe_)
     return base
+
+
+PERMISSION_MODES = ("default", "acceptEdits", "dontAsk", "bypassPermissions", "plan", "auto")
+
+
+def permission_mode(name):
+    """The permission mode of one session: config.json "permission_modes": {"<session name>" or "<role>":
+    "<mode>"}, else dontAsk (a background session nobody watches must never wait at a prompt; a tool call
+    outside its list, or one a guard hook asks about, is refused and reported to the entry). An entry the
+    user sits in front of can be given a mode in which the prompts appear."""
+    table = cfg().get("permission_modes")
+    pick = None
+    if isinstance(table, dict):
+        pick = table.get(name) or table.get(role_of(name))
+    return pick if pick in PERMISSION_MODES else "dontAsk"
+
+
+def settings_arg():
+    """The --settings value of a kit session. Default: only "accept messages from the user's other
+    sessions". With config.json "session_hooks" (true = the kit's own hook set,
+    templates/settings.hooks.example.json; or the path of a settings file of the user's), that file's
+    content is given to the sessions the kit starts and to no other conversation. This is for a computer
+    whose settings.json already carries hooks: installing the plugin there would put the kit's hooks on
+    every conversation, next to the ones already running. "__KIT__" in the file becomes the kit's hooks
+    folder. The merged file is written to <SBK_HOME>/state/session-settings.json at each start."""
+    which = cfg().get("session_hooks")
+    if not which:
+        return INBOUND
+    kit = Path(__file__).resolve().parent.parent
+    src = kit / "templates" / "settings.hooks.example.json" if which is True else Path(str(which))
+    try:
+        data = json.loads(src.read_text(encoding="utf-8").replace("__KIT__", (kit / "hooks").as_posix()))
+        data.pop("_comment", None)
+        data["crossSessionInbound"] = "accept"
+        out = send.home() / "state" / "session-settings.json"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(data, indent=1, ensure_ascii=False), encoding="utf-8")
+        return str(out)
+    except Exception as e:
+        print("session_hooks: cannot use %s (%r); the session starts without them" % (src, e))
+        return INBOUND
 
 
 def model_args(name):
@@ -347,7 +390,8 @@ def open_session(name, first="", replace_ok=False, text=None, fresh=False):
         print("inbox: no claude command; %s waits until the user opens it" % name)
         return 4
     old = None if fresh else resumable(name, allrows)
-    common = ["--permission-mode", "dontAsk", "--settings", INBOUND, "--allowedTools", tools_for(name)]
+    common = ["--permission-mode", permission_mode(name), "--settings", settings_arg(),
+              "--allowedTools", tools_for(name)]
     common += model_args(name)
     if c.get("vault"):
         common += ["--add-dir", c["vault"]]
