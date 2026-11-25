@@ -66,18 +66,23 @@ def main():
         jl(t, [user("fix a.txt"), tool("Write", {"file_path": "a.txt", "content": "x"}), result(),
                say("Done, I fixed it.")])
         rc, out, _ = run([H / "stop_evidence.py"], {"transcript_path": str(t)}, env)
-        check("stop: done without a check is blocked", rc == 0 and '"decision": "block"' in out, out)
-        rc, out, _ = run([H / "stop_evidence.py"], {"transcript_path": str(t), "stop_hook_active": True}, env)
+        logf = home / "logs" / "stop_evidence.log"
+        check("stop: Basic default only logs, never blocks", rc == 0 and out.strip() == "" and logf.exists()
+              and "log:" in logf.read_text(encoding="utf-8"), out)
+        envb = dict(env, SBK_MODE_STOP_EVIDENCE="block")
+        rc, out, _ = run([H / "stop_evidence.py"], {"transcript_path": str(t)}, envb)
+        check("stop: block mode (Advanced) blocks done without a check", rc == 0 and '"decision": "block"' in out, out)
+        rc, out, _ = run([H / "stop_evidence.py"], {"transcript_path": str(t), "stop_hook_active": True}, envb)
         check("stop: second stop passes (no trap)", rc == 0 and out.strip() == "", out)
         jl(t, [user("fix a.txt"), tool("Write", {"file_path": "a.txt", "content": "x"}), result(),
                tool("Read", {"file_path": "a.txt"}), result(), say("Done, a.txt now says x.")])
-        rc, out, _ = run([H / "stop_evidence.py"], {"transcript_path": str(t)}, env)
+        rc, out, _ = run([H / "stop_evidence.py"], {"transcript_path": str(t)}, envb)
         check("stop: done after a read-back passes", rc == 0 and out.strip() == "", out)
         jl(t, [user("fix a.txt"), tool("Write", {"file_path": "a.txt", "content": "x"}), result(),
                say("Fixed, but not verified yet.")])
-        rc, out, _ = run([H / "stop_evidence.py"], {"transcript_path": str(t)}, env)
+        rc, out, _ = run([H / "stop_evidence.py"], {"transcript_path": str(t)}, envb)
         check("stop: admitting 'not verified' passes", rc == 0 and out.strip() == "", out)
-        rc, out, _ = run([H / "stop_evidence.py"], {"transcript_path": str(tmp / "missing.jsonl")}, env)
+        rc, out, _ = run([H / "stop_evidence.py"], {"transcript_path": str(tmp / "missing.jsonl")}, envb)
         check("stop: missing transcript fails open", rc == 0 and out.strip() == "", out)
         rc, out, _ = run([H / "stop_evidence.py"], {"transcript_path": str(t)}, dict(env, SBK_MODE_STOP_EVIDENCE="log"))
         check("stop: log mode never blocks", rc == 0 and out.strip() == "", out)
@@ -137,11 +142,14 @@ def main():
         fake = json.dumps({"seven_day": {"utilization": 91, "resets_at": "2030-01-01T00:00:00Z"}})
         ev = {"session_id": "u1", "hook_event_name": "UserPromptSubmit"}
         rc, out, _ = run([H / "usage_warn.py"], ev, dict(env, SBK_USAGE_FAKE=fake))
-        check("usage: warns above the threshold", "91%" in out, out)
-        rc, out, _ = run([H / "usage_warn.py"], ev, dict(env, SBK_USAGE_FAKE=fake))
+        check("usage: off by default (Basic), even above the threshold", rc == 0 and out.strip() == "", out)
+        envu = dict(env, SBK_USAGE_FAKE=fake, SBK_MODE_USAGE_WARN="warn")
+        rc, out, _ = run([H / "usage_warn.py"], ev, envu)
+        check("usage: warn mode (Advanced) warns above the threshold", "91%" in out, out)
+        rc, out, _ = run([H / "usage_warn.py"], ev, envu)
         check("usage: warns only once per window", out.strip() == "", out)
         rc, out, _ = run([H / "usage_warn.py"], dict(ev, session_id="u2"),
-                         dict(env, SBK_USAGE_FAKE=fake.replace("91", "10")))
+                         dict(envu, SBK_USAGE_FAKE=fake.replace("91", "10")))
         check("usage: quiet below the threshold", out.strip() == "", out)
 
         # ---- ledger / send / alarm / status / inbox ----
@@ -159,8 +167,11 @@ def main():
         rc, out, err = run([KIT / "entry" / "send.py", "study", "summarise chapter 3", "--ledger", "L0002"], env=env)
         check("send: same text is not added twice", "already in the inbox" in out, out + err)
         rc, out, _ = run([H / "inbox_notice.py"], {"cwd": str(home / "managers" / "study"), "hook_event_name": "SessionStart"}, env)
-        check("inbox: manager sees its inbox and open tasks", "summarise chapter 3" in out and "1 open" in out, out)
-        rc, out, _ = run([H / "inbox_notice.py"], {"cwd": str(tmp), "hook_event_name": "SessionStart"}, env)
+        check("inbox: off by default (Basic)", rc == 0 and out.strip() == "", out)
+        envi = dict(env, SBK_MODE_INBOX_NOTICE="warn")
+        rc, out, _ = run([H / "inbox_notice.py"], {"cwd": str(home / "managers" / "study"), "hook_event_name": "SessionStart"}, envi)
+        check("inbox: warn mode (Advanced): manager sees its inbox and open tasks", "summarise chapter 3" in out and "1 open" in out, out)
+        rc, out, _ = run([H / "inbox_notice.py"], {"cwd": str(tmp), "hook_event_name": "SessionStart"}, envi)
         check("inbox: other folders get nothing", out.strip() == "", out)
         rc, out, err = run([L, "done", "L0001", "--evidence", "opened notes folder, 3 files renamed"], env=env)
         check("ledger: done with evidence", rc == 0, out + err)
@@ -184,8 +195,43 @@ def main():
         check("alarm: same unfinished alarm is not added twice", "skipped (same alarm still open)" in out, out + err)
         rc, out, err = run([A, "--prune"], env=env)
         check("alarm: prune removes fired one-time rows", "removed 1" in out, out + err)
-        rc, out, err = run([KIT / "entry" / "status.py"], env=env)
+        (home / "task.md").write_text("# big job\n- [ ] step one\n- [ ] step two\n- [x] step zero\n", encoding="utf-8")
+        rc, out, err = run([KIT / "entry" / "status.py", "--all"], env=env)
         check("status: lists ledger, tasks, inbox", "== Ledger ==" in out and "study: 1 open" in out and "study: 1" in out, out + err)
+        check("status: shows the Basic task.md of one large job", "main: 2 open" in out and "step two" in out, out + err)
+
+        # ---- the Basic config that setup writes (templates/config.json) ----
+        cfg = json.loads((KIT / "templates" / "config.json").read_text(encoding="utf-8"))
+        check("config template: Basic level and modes", cfg.get("level") == "basic" and cfg["modes"] == {
+            "vault_guard": "ask", "read_whole": "deny", "requests_reinject": "warn",
+            "stop_evidence": "log", "usage_warn": "off", "inbox_notice": "off"}, cfg)
+        home2 = tmp / "home2"
+        (home2 / "managers" / "study").mkdir(parents=True)
+        (home2 / "inbox").mkdir()
+        (home2 / "inbox" / "study.md").write_text("- [ ] L0001 | x | something sent\n", encoding="utf-8")
+        (home2 / "config.json").write_text(json.dumps(dict(cfg, vault=str(vault))), encoding="utf-8")
+        envc = {"SBK_HOME": str(home2), "SBK_VAULT": "", "ANTHROPIC_API_KEY": ""}
+        jl(t, [user("fix a.txt"), tool("Write", {"file_path": "a.txt", "content": "x"}), result(), say("Done.")])
+        rc, out, _ = run([H / "stop_evidence.py"], {"transcript_path": str(t)}, envc)
+        check("config Basic: stop_evidence only logs", rc == 0 and out.strip() == "", out)
+        rc, out, _ = run([H / "usage_warn.py"], {"session_id": "c1"}, dict(envc, SBK_USAGE_FAKE=fake))
+        check("config Basic: usage_warn silent", rc == 0 and out.strip() == "", out)
+        rc, out, _ = run([H / "inbox_notice.py"], {"cwd": str(home2 / "managers" / "study"),
+                                                   "hook_event_name": "SessionStart"}, envc)
+        check("config Basic: inbox_notice silent", rc == 0 and out.strip() == "", out)
+        rc, out, _ = run([H / "vault_guard.py"], {"tool_name": "Bash", "cwd": str(vault),
+                                                  "tool_input": {"command": "git push"}}, envc)
+        check("config Basic: vault_guard asks", '"permissionDecision": "ask"' in out, out)
+        adv = dict(cfg, vault=str(vault), level="advanced",
+                   modes=dict(cfg["modes"], stop_evidence="block", inbox_notice="warn", usage_warn="warn"))
+        (home2 / "config.json").write_text(json.dumps(adv), encoding="utf-8")
+        rc, out, _ = run([H / "stop_evidence.py"], {"transcript_path": str(t)}, envc)
+        check("config Advanced: stop_evidence block read from config.json", '"decision": "block"' in out, out)
+        rc, out, _ = run([H / "inbox_notice.py"], {"cwd": str(home2 / "managers" / "study"),
+                                                   "hook_event_name": "SessionStart"}, envc)
+        check("config Advanced: inbox_notice read from config.json", "something sent" in out, out)
+        rc, out, _ = run([H / "usage_warn.py"], {"session_id": "c2"}, dict(envc, SBK_USAGE_FAKE=fake))
+        check("config Advanced: usage_warn read from config.json", "91%" in out, out)
 
         # ---- vault tools ----
         rc, out, _ = run([KIT / "scripts" / "gen_jdex.py", "--root", vault], env=env)
@@ -231,13 +277,14 @@ def main():
         else:
             print("SKIP overwrite tests: git not found")
 
-        # ---- vault built from the templates exactly as docs/SETUP.md step 3 says ----
+        # ---- Basic vault built from the templates as docs/SETUP.md step 3 says ----
         if shutil.which("git"):
             v2 = tmp / "vault2"
             today = __import__("time").strftime("%Y-%m-%d")
             rules = v2 / "00-09 系統與索引" / "01 規則"
             inbox = v2 / "00-09 系統與索引" / "02 收件匣"
-            for d in (rules, inbox, v2 / "00-09 系統與索引" / "00 索引", v2 / "scripts", v2 / "20-29 學習與讀書" / "21 課程"):
+            for d in (rules, inbox, v2 / "00-09 系統與索引" / "00 索引", v2 / "scripts", v2 / "20-29 學習與讀書",
+                      v2 / "90-99 封存"):
                 d.mkdir(parents=True, exist_ok=True)
             T = KIT / "templates"
 
@@ -276,6 +323,7 @@ def main():
             check("template vault: wiping a note is refused by pre-commit", r.returncode != 0, r.stdout + r.stderr)
             g2("reset", "-q", "--hard")
             bad = v2 / "20-29 學習與讀書" / "21 課程" / "21-01 壞.md"
+            bad.parent.mkdir(parents=True, exist_ok=True)  # categories are created when first needed
             bad.write_text("---\ntype: skill\nstatus: active\nsummary: s\ncreated: %s\nmodified: %s\norigin: user\n---\n[[沒有這張]]\n" % (today, today), encoding="utf-8")
             g2("add", str(bad))
             r = g2("commit", "-q", "-m", "broken link")

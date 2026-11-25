@@ -8,11 +8,11 @@ A rule in `CLAUDE.md` ("always verify before saying done") was in context when t
 
 ## 2. Too many gates block finishing
 A completion gate that can refuse forever is worse than no gate: a counter ("2 items MISSING") that never reaches zero because the thing it counts cannot be produced; verifier rounds that fail the same way six times in a row; a second session whose approval is needed before a third can proceed.
-**Fix:** every gate must be able to let go. The Stop hook blocks once per turn (`stop_hook_active` means "already asked, let it through"). Nothing waits on another session's approval; topic sessions close their own ledger items by showing evidence. If you add a gate, say in one line how it ends when the check cannot pass.
+**Fix:** every gate must be able to let go. In Basic the Stop hook only logs; switched to block (Advanced) it blocks at most once per turn (`stop_hook_active` means "already asked, let it through"). Nothing waits on another session's approval; topic sessions close their own ledger items by showing evidence. If you add a gate, say in one line how it ends when the check cannot pass.
 
 ## 3. Long approval chains
 Request -> entry -> manager -> reviewer -> entry -> user: every hop is a place for work to stall, and each hop re-reads everything.
-**Fix:** entry + topic sessions only. The entry routes and tracks; the topic session does the work and closes with evidence; the user sees the result.
+**Fix:** Basic has no chain at all: one main session does the work and closes with evidence. With topic sessions (Advanced): entry + topic sessions only. The entry routes and tracks; the topic session does the work and closes with evidence; the user sees the result.
 
 ## 4. Alarms multiply
 Polling alarms ("check every 10 minutes whether X happened") and alarms created to re-ask about alarms grew from dozens to nearly eighty in a day. Each one fired into a session and created more work.
@@ -23,7 +23,7 @@ Polling alarms ("check every 10 minutes whether X happened") and alarms created 
 - One large table sent to a paid API seven times, using about half a month's budget; only the changed part needed to be sent.
 - A second pool of quota that sat mostly idle while the main account ran dry.
 - Foreground polling of a tool that could have been started and read later.
-**Fix:** choose model and effort per job (mechanical = cheap and low effort); send only what changed; look at weekly usage before a big job (`usage_warn` tells you at 80%); long jobs run in the background and write a result file.
+**Fix:** choose model and effort per job (mechanical = cheap and low effort); send only what changed; look at weekly usage before a big job (`usage_warn`, Advanced, tells you at 80%); long jobs run in the background and write a result file.
 
 ## 6. A locked quota silently stops a queue
 Some tools lock for days once used up (one lock lasted about six days). Work assigned to them just sits.
@@ -39,7 +39,7 @@ A check that looks for the word "done" is beaten by "that should be everything".
 
 ## 9. New checks: log first, then block
 A brand-new block that fires wrongly costs the user's trust faster than the mistake it prevents.
-**Fix:** every hook has a mode (`off, log, warn, ask, deny, block`). Start a new or changed check in `log`, read `logs/*.log` after a few days, and only then switch to blocking.
+**Fix:** every hook has a mode (`off, log, warn, ask, deny, block`). Start a new or changed check in `log`, read `logs/*.log` after a few days, and only then switch to blocking. That is why Basic installs the done-check (`stop_evidence`) in `log`; Advanced switches it to `block` only after a replay.
 
 ## 10. Replay a new check on past mistakes before trusting it
 **Fix:** run `python hooks/stop_evidence.py --replay <transcript.jsonl>` on real old sessions. It prints which turns would have been blocked. Too many false blocks: keep it in `log`. A check that has never seen a real example is a guess.
@@ -61,7 +61,7 @@ An entry session that starts doing long jobs fills its context, forgets to route
 
 ## 15. Ledger and task.md rot
 Items that are never closed, `task.md` files that say "in progress" for things finished weeks ago.
-**Fix:** `ledger.py list` flags items older than 14 days; the default weekly alarm is a review; an item closes only with evidence or an explicit drop by the user.
+**Fix:** `ledger.py list` flags items older than 14 days; with reminders switched on (Advanced) the starting row is a weekly review; an item closes only with evidence or an explicit drop by the user.
 
 ## 16. Directions chosen alone
 Big choices (what to build, which strategy, which design) made from one model's first idea.
@@ -85,7 +85,7 @@ A README that promises a command the code does not have, or settings the code ig
 
 ## 21. Over-design
 Each extra mechanism has a cost in tokens, attention and breakage.
-**Fix:** before adding a rule, hook or table, write down which mistake that really happened it prevents. If you cannot, do not add it. Start with the entry and two topic sessions; add more only when one is overcrowded.
+**Fix:** before adding a rule, hook or table, write down which mistake that really happened it prevents. If you cannot, do not add it. Start with Basic (one main session in the notes folder). Add topic sessions, two at first, only when subjects crowd each other in one session; add more only when one is overcrowded ([ADVANCED.md](ADVANCED.md)).
 
 ## 22. Hooks that only work on one machine
 Hard-coded paths, a Windows-only call, a byte-order mark in a JSON line.

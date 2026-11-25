@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Stop hook: Claude said "done" but did not look at the result after its last edit.
 
-Blocks ONCE (the second Stop in the same turn always passes), so it can never trap a
-session. Admitting "not verified" in the reply also passes.
+Default mode is "log" (Basic): it only writes a line to <SBK_HOME>/logs/stop_evidence.log.
+In "block" mode (Advanced, switched on in config.json after a replay) it blocks ONCE: the second
+Stop in the same turn always passes, so it can never trap a session. Admitting "not verified"
+in the reply also passes.
 
 Replay on old transcripts before you trust a change to this file:
     python stop_evidence.py --replay path/to/transcript.jsonl
@@ -87,7 +89,7 @@ def main():
         replay(sys.argv[2])
         return
     data = read_input()
-    m = mode("stop_evidence", "block")
+    m = mode("stop_evidence", "log")
     if m == "off" or data.get("stop_hook_active"):
         return
     path = data.get("transcript_path")

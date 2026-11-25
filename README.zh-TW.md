@@ -1,247 +1,119 @@
 # second-brain-kit
 
-**安裝：把這一句貼進 Claude Code。**
+一套現成的 Claude Code 用法：Claude 幫你保管筆記和還沒做完的事，說「做完了」之前會先看過結果。[English](README.md)
+
+## 你會得到
+
+- **一個 Claude 幫你整理的筆記資料夾。** 今天說「記住這個」，下個月說「找我之前說的那個」就找得到。
+- **一份工作清單。** 還沒做完的事 Claude 會記下來，換一個新對話也能接著做。
+- **「做完」是真的看過。** Claude 先打開結果看過才說完成；沒辦法檢查的會直接講。
+- **安全優先。** 刪東西、公開任何東西、改你的設定之前，Claude 會先問你。
+
+## 你需要
+
+- **Claude Code**：能直接處理你電腦上檔案的 Claude（在終端機，也就是輸入文字指令的視窗，或在 Claude 桌面版 App 裡用）。瀏覽器裡的 claude.ai 聊天網頁做不到這些。一個 Claude 帳號就夠了。
+- **Python 3**：一個免費程式，這套東西裡的小工具要靠它跑。
+
+其他的 Claude 會自己檢查，缺什麼會問你要不要幫你裝。
+
+## 安裝：把這一句貼進 Claude Code
 
 ```
-Install the Claude Code plugin from https://github.com/0Smallcat0/second-brain-kit and set me up by its docs/SETUP.md.
+請從 https://github.com/0Smallcat0/second-brain-kit 安裝 second-brain-kit，照 docs/zh-TW/SETUP.md 幫我設定。我只有一個 Claude 帳號。
 ```
 
-它對應這兩個指令（Claude 會替你下；你自己打也可以）：
+## 接下來會發生什麼
+
+1. Claude 問你三個簡單的問題：筆記要放哪裡、用哪種語言、你主要拿 Claude 做什麼（還不確定也可以）。
+2. 它把東西設定好；會改到你設定的地方，都會先問你。
+3. 它做一次簡短的測試：開一個全新的對話，要能找到測試筆記、接著做測試項目。測完把測試資料清掉。
+4. 它教你怎麼開始：桌面上一個捷徑，加上兩分鐘的第一次試用。
+
+## 裝好之後怎麼用
+
+點兩下捷徑，直接說話就好。例如：
+
+- 「記住：我這週要讀完第三章。」
+- 「找我之前記的線性代數筆記。」
+- 「還有什麼沒做完？」
+- 「接著上次的專案報告繼續。」
+
+## 一張圖看懂
+
+```mermaid
+flowchart LR
+  You(["你"]) -->|說話| Main
+  subgraph Checks["外面一圈是安全檢查"]
+    Main["<b>Claude 主對話</b><br/>在你的筆記資料夾裡開"]
+  end
+  Main <-->|讀、存| Notes[("<b>筆記資料夾</b><br/>你的筆記，有編號")]
+  Main <-->|記下、關掉| Work[("<b>工作清單</b><br/>還沒做完的事")]
+  Main -.->|之後想要再開| Adv["更多功能<br/>見進階功能.md"]
+```
+
+<details><summary>完整版圖片</summary>
+
+![second-brain-kit 基本版](docs/diagrams/00-basic.png)
+
+[SVG](docs/diagrams/00-basic.svg) · [PNG](docs/diagrams/00-basic.png)
+
+</details>
+
+你只跟一個 Claude 對話說話，這個對話是在你的筆記資料夾裡開的。它讀、存你的筆記，也幫你記工作清單；你不用打任何指令。安全檢查是 Claude Code 自動執行的小程式，例如在 Claude 要上傳或刪除東西之前先攔下來問你。
+
+## 你的資料放在哪
+
+- **筆記：** 你選的那個資料夾（建議放在個人資料夾裡的 `second-brain`）。都是一般的文字檔，用任何編輯器都打得開。
+- **工作清單、紀錄、設定：** `~/.claude/sbk/`（`~` 是你的個人資料夾）。
+- **你說過的原話：** 長對話被自動摘要時，這套東西會把你自己的訊息原文放回去，並在這台電腦的 `~/.claude/sbk/requests/` 留一份。
+- **修改紀錄：** 筆記資料夾用 git（一個在這台電腦上記下每次修改的工具），改壞了可以找回舊版本。它**不是備份**：硬碟壞了，紀錄也一起沒了。請不時把筆記資料夾複製到另一顆硬碟或你信任的雲端硬碟。
+
+這套東西不會把任何東西上傳到 GitHub 或寄到別的地方，也不會把東西交給其他 AI 工具。Claude 本身照常是線上服務。
+
+## 常見問題
+
+**安裝失敗了。** 把錯誤訊息貼給 Claude Code，說「幫我修好 second-brain-kit 的安裝」。如果 Claude 沒辦法加入外掛，它可以改成把整套東西下載下來手動裝（見下面〈手動安裝〉）。
+
+**某個檢查太嚴、很礙事。** 直接跟 Claude 說，例如「做完檢查太嚴了，調鬆一點」或「做 X 之前不用再問我」。每個檢查都有開關，Claude 會幫你調。
+
+**一定要有 ChatGPT、Gemini 或其他 AI 嗎？** 不用。一個 Claude 帳號就夠了。有的話，之後可以再接上。
+
+**要怎麼移除？** 說「移除 second-brain-kit」。Claude 會移除外掛、它加的那段設定和捷徑；要刪你的任何筆記之前都會先問。
+
+## 想要更多功能時
+
+一件事一個對話的主題對話、提醒、用量提醒、更嚴格的做完檢查、其他 AI 工具，這些都已經包含在裡面，只是先關著。Claude 覺得有幫助時可能會提議，你也可以直接要。說明在 [docs/zh-TW/進階功能.md](docs/zh-TW/進階功能.md)，裡面還有六張圖說明各部分怎麼搭在一起。
+
+## 手動安裝
+
+上面那句話會讓 Claude 執行下面兩個指令。你也可以自己在 Claude Code 裡打（外掛是 Claude Code 的擴充套件）：
 
 ```
 /plugin marketplace add 0Smallcat0/second-brain-kit
 /plugin install second-brain-kit@second-brain-kit
 ```
 
-接著執行 `/sbk-setup`。Claude 會問你有哪些 AI 工具（預設：只有 Claude）、筆記要放哪裡、你最常用的兩個領域，然後全部裝好，並告訴你做了什麼。
+接著執行 `/sbk-setup`。也可以把這個 repository（程式碼的資料夾）clone（下載一份）到電腦上，在裡面開 Claude Code，說：「讀 docs/zh-TW/SETUP.md，幫我把 second-brain-kit 設定好。」
 
-*一套 Claude Code 的工作方式，由 Claude 自己幫你裝好。* [English](README.md)
+[docs/zh-TW/SETUP.md](docs/zh-TW/SETUP.md)（[English](docs/SETUP.md)）是寫給 Claude 看的：照順序的步驟，每一步都有檢查。
 
-## 它解決的問題
-
-- Claude 跨對話就**忘記**：你要什麼、決定過什麼、你是誰。
-- Claude 沒檢查就說**「做完了」**：檔案沒打開過、測試沒跑過。
-- 對話**越開越多**：十個對話，不知道誰管什麼，需求掉在縫隙裡。
-- 你的**筆記腐爛**：檔名亂、連結壞、沒封存、找不到。
-
-## 和一份普通的 `CLAUDE.md` 範本差在哪
-
-`CLAUDE.md` 範本只是一張願望清單。這套件讓願望變成可以檢查的東西：
-
-| 項目 | 做什麼 |
-|---|---|
-| **入口對話＋主題對話** | 所有需求先到一個入口對話，由它分派給主題對話（讀書、打工、side project……）。一個對話一個主題。先從入口加兩個主題對話開始。 |
-| **帳本（ledger）** | 每個需求一行：`ledger.py add / list / done --evidence`。項目只有附證據才能關，所以不會掉單，「做完」也才有意義。 |
-| **做完要有證據** | Stop hook 發現「改完東西說完成、之後卻沒讀回也沒跑過」，會要求補證據（只問一次）；技能教 Claude 每一種工作怎麼檢查。 |
-| **防呆 hook** | `git push`、跳過 hook、破壞性 git、大量刪除前先問；拒絕只讀筆記的片段；壓縮後把你自己的原話放回來；週用量 80% 提醒。全部 fail-open，都有 off／log／ask／deny 開關。 |
-| **有編號的第二大腦筆記庫** | Johnny Decimal 風格的筆記（`21-03 線性代數.md`）、frontmatter、自動產生的索引、lint、提交前防覆蓋。筆記找得到，Claude 也知道怎麼讀、怎麼寫。 |
-| **鬧鐘與 `task.md`** | 一張小提醒表，寫進帳本（不會去吵正在跑的對話）；三件以上的事每個主題各有一份 `task.md`。 |
-
-這些你都不用自己設定：**Claude 會一步一步裝，每一步都檢查**。
-
-只有一個 Claude 帳號就夠了。如果你還有第二個 Claude 帳號、Codex、Gemini、Colab 或 OpenRouter，Claude 會問你、也能用上它們（[參考](docs/zh-TW/參考-多工具分工.md)）；沒有的話，這些都不會裝。
-
-## 它怎麼運作
-
-六張圖。每張都是 GitHub 直接畫出來的 Mermaid 圖；點開下面的「手繪版」看較大的 SVG／PNG（[全部檔案](docs/diagrams/)；手繪版的標題是英文，附繁中小字）。
-
-### 1. 整體長什麼樣
-
-你只跟一個入口對話說話。它把每個需求登記進帳本，交給主題對話。主題對話管筆記庫、附證據關帳，需要時用其他 AI 工具。防呆 hook 守著每個對話。
-
-```mermaid
-flowchart LR
-  You(["使用者"]) -->|說| Entry["<b>入口對話</b><br/>只分派和追蹤"]
-  Entry -->|登記一行| Ledger[("<b>帳本</b><br/>ledger.md、routes.md")]
-  subgraph Topics["主題對話：一個對話一個主題"]
-    TA["主題：讀書<br/>task.md、inbox"]
-    TB["主題：打工<br/>task.md、inbox"]
-  end
-  Entry -->|inbox| TA
-  Entry -->|inbox| TB
-  Topics -->|附證據關帳| Ledger
-  Topics <-->|讀寫| Vault[("<b>第二大腦筆記庫</b><br/>00-99、JDex")]
-  Topics -.->|大工作| Tools["其他 AI 工具<br/>選用"]
-  Hooks{{"<b>防呆 hook</b><br/>守著每個對話"}} -.- Entry
-  Hooks -.- Topics
-```
-
-<details><summary>手繪版</summary>
-
-![Architecture](docs/diagrams/01-architecture.png)
-
-[SVG](docs/diagrams/01-architecture.svg) · [PNG](docs/diagrams/01-architecture.png)
-
-</details>
-
-### 2. 一個需求的一生
-
-一句話變成帳本一行，分派、開工，附證據才關帳；沒證據就退回去。
-
-```mermaid
-flowchart TD
-  A(["你說一句話"]) --> B["<b>入口</b>先登記一行帳<br/>ledger.py add，L0007 open"]
-  B --> C["<b>入口</b>查 routes.md，交給主題對話<br/>send.py，dispatched"]
-  C --> D["<b>主題對話</b>開工<br/>inbox、task.md、動手做"]
-  D --> E{"有看過實際結果嗎？"}
-  E -->|沒證據，退回去| D
-  E -->|有| F["附證據關帳<br/>ledger.py done L0007 --evidence"]
-  F --> G(["你看到它關掉了<br/>/sbk-status 或問入口"])
-```
-
-<details><summary>手繪版</summary>
-
-![Life of one request](docs/diagrams/02-request-life.png)
-
-[SVG](docs/diagrams/02-request-life.svg) · [PNG](docs/diagrams/02-request-life.png)
-
-</details>
-
-### 3. 任務怎麼分派
-
-入口查 `routes.md` 決定主題；一句話答得出來的它自己答；重的工作交給子代理，有第二個 Claude 帳號的話也可以交給它。
-
-```mermaid
-flowchart LR
-  R(["一件需求，L0007"]) --> E["<b>入口對話</b><br/>登記帳 + send.py"]
-  T[("routes.md<br/>關鍵字對應主題")] --> E
-  E -->|一句話答得出來| Q["自己答<br/>不開帳"]
-  E -->|沒有適合的主題| K["問你一題<br/>放讀書還是打工？"]
-  E -->|一個主題，或拆成兩件| Topics
-  subgraph Topics["主題對話"]
-    TA["主題：讀書"]
-    TB["主題：打工"]
-  end
-  Topics -->|重的工作| S["子代理<br/>讀長文、查證"]
-  Topics -.->|長時間工作，選用| W["背景工作<br/>第二帳號<br/>worker.sh / worker.ps1"]
-```
-
-<details><summary>手繪版</summary>
-
-![Task dispatch](docs/diagrams/03-task-dispatch.png)
-
-[SVG](docs/diagrams/03-task-dispatch.svg) · [PNG](docs/diagrams/03-task-dispatch.png)
-
-</details>
-
-### 4. 一天的節奏
-
-排程每五分鐘跑一次，把 `alarms.md` 的列寫進帳本或主題收件匣。晨間清單和到期提醒是你可以自己加的範例列；每週檢視是預設列。
-
-```mermaid
-flowchart LR
-  Tick(["<b>整天</b><br/>系統排程每五分鐘跑 alarm.py<br/>鬧鐘只寫進帳本或收件匣，<br/>不打斷正在跑的對話"])
-  Tick -.-> M
-  subgraph Day["平常的一天：你自己加進 alarms.md 的列"]
-    M["<b>早上八點</b> 晨間清單<br/>範例列，每天交給入口<br/>你看 /sbk-status"] --> R["<b>下午三點</b> 到期提醒<br/>範例列，一次性，寫進主題收件匣"]
-  end
-  R --> W
-  subgraph Sun["週日：預設列 A01"]
-    W["<b>晚上八點</b> 每週檢視<br/>交給入口"] --> W1["超過 14 天的帳<br/>逐項處理"] --> W2["每個主題的 task.md<br/>整份對一次"]
-    W2 -.-> W3["選用<br/>用 vault-tidy 整理筆記庫"]
-  end
-```
-
-<details><summary>手繪版</summary>
-
-![A day with the kit](docs/diagrams/04-day-timeline.png)
-
-[SVG](docs/diagrams/04-day-timeline.svg) · [PNG](docs/diagrams/04-day-timeline.png)
-
-</details>
-
-### 5. 筆記庫與筆記格式
-
-有編號的資料夾（Johnny Decimal）、一檔一張有編號的筆記、六個 frontmatter 欄位、自動產生的索引，加上 lint 與提交前防覆蓋。
-
-```mermaid
-flowchart LR
-  subgraph Areas["區：每區十個號碼"]
-    A0["00-09 系統與索引"]
-    A1["10-19 自己與生活"]
-    A2["20-29 學習與讀書"]
-    A3["30-39 工作與打工"]
-    A4["40-49 專案"]
-    A5["50-59 人際與社團"]
-    A6["60-69 金錢與行政"]
-    A7["70-79 興趣與娛樂"]
-    A8["80-89 參考資料"]
-    A9["90-99 封存"]
-  end
-  A2 --> C["類別資料夾<br/>21 課程"]
-  C --> N["筆記<br/>21-03 線性代數.md"]
-  N --> F["Frontmatter<br/>type、status、summary、<br/>created、modified、origin"]
-  N -->|gen_jdex.py| J[("JDex 索引<br/>下一個空號")]
-  F -->|vault_lint.py、pre-commit| L{{"ERROR 要歸零"}}
-```
-
-<details><summary>手繪版</summary>
-
-![Vault folders and note format](docs/diagrams/05-vault-folders.png)
-
-[SVG](docs/diagrams/05-vault-folders.svg) · [PNG](docs/diagrams/05-vault-folders.png)
-
-</details>
-
-### 6. 哪個工具接哪種工作
-
-預設只有 Claude。你多有一個工具，它就接一種工作；照工作種類分，不照失敗分。
-
-```mermaid
-flowchart LR
-  J(["來了一件工作<br/>你有哪些 AI 工具？"])
-  J --> C0["<b>只有 Claude，預設</b><br/>全部留在 Claude：入口＋主題對話，<br/>長讀交子代理"]
-  J --> C1["<b>有 ChatGPT／Codex？</b><br/>機械批次、跑腳本、獨立複查"]
-  J --> C2["<b>有 Gemini／Antigravity？</b><br/>超長閱讀、初稿、盲測第二意見"]
-  J --> C3["<b>有 Colab 或 GPU？</b><br/>多開一個平行的 GPU 工作"]
-  J --> C4["<b>有第二個 Claude 帳號？</b><br/>長時間背景工作：簡報檔進、結果檔出"]
-  J --> C5["<b>用 OpenRouter？</b><br/>不含個資的機械文字工作"]
-  R{{"規則：照工作種類分，不照失敗分。<br/>簡報檔進、結果檔出。免費額度不給憑證。<br/>送之前看 channels.md 的 locked until。"}}
-  C5 ~~~ R
-```
-
-<details><summary>手繪版</summary>
-
-![Tool routing](docs/diagrams/06-tool-routing.png)
-
-[SVG](docs/diagrams/06-tool-routing.svg) · [PNG](docs/diagrams/06-tool-routing.png)
-
-</details>
-
-## 手動安裝
-
-clone 這個倉庫，在裡面開 Claude Code，說：*「讀 docs/zh-TW/SETUP.md，幫我把 second-brain kit 設定好。」* [docs/zh-TW/SETUP.md](docs/zh-TW/SETUP.md) 是寫給 Claude 的：有順序的步驟，每一步都有檢查。（[English](docs/SETUP.md)）
-
-## 裝好之後
-
-- `/sbk-status` 一次列出所有還沒做完的：帳本、各主題的 `task.md`、收件匣、鬧鐘。
-- 跟入口對話說話（`cd ~/.claude/sbk/entry && claude --add-dir <你的筆記庫>`）；它登記需求、交給主題對話。
-- `python <筆記庫>/scripts/vault_lint.py` 檢查筆記；`vault-tidy` 技能幫你整理。
-- 不改程式就能調 hook 的嚴格程度：`~/.claude/sbk/config.json` → `"modes": {"stop_evidence": "log"}`。
-- `python scripts/selftest.py` 在一個用完即丟的資料夾裡，測試套件的每個 hook 和工具。
-
-## 裡面有什麼
+## 給想看細節的人
 
 ```
-.claude-plugin/        外掛與 marketplace 設定
-skills/                setup-second-brain、vault-tidy、evidence-before-done、multi-tool-routing
-commands/              /sbk-setup、/sbk-status
-hooks/                 hooks.json 與各個 hook（Python 3、只用標準函式庫）
-entry/                 ledger、send、alarm、status、worker 啟動腳本
-templates/             CLAUDE.md 原則、筆記庫 AGENTS.md、筆記格式、task.md、routes、alarms ……
-scripts/               vault_lint、gen_jdex、check_overwrite、pre-commit、selftest
-docs/                  SETUP、PITFALLS、MULTI-TOOL（含 zh-TW）；docs/diagrams 是六張圖（SVG + PNG）
-experimental/          還沒驗證穩定的部分
+.claude-plugin/   外掛與 marketplace 設定檔
+skills/           setup-second-brain、evidence-before-done、vault-tidy、multi-tool-routing（進階）
+commands/         /sbk-setup、/sbk-status
+hooks/            安全檢查（Python 3，只用標準函式庫）
+entry/            工作清單、狀態、提醒、轉交與背景工作的小工具
+templates/        給 Claude 的原則、筆記資料夾說明、筆記格式、設定檔、進階功能的模板
+scripts/          筆記檢查、索引產生、防覆寫、自我測試
+docs/             SETUP、進階功能、踩過的坑、多工具分工（含英文版）；docs/diagrams 是各張圖
+experimental/     還沒驗證穩定的部分
 ```
 
-想知道實際用上會出什麼錯、為什麼預設長這樣，請讀 [docs/zh-TW/踩過的坑.md](docs/zh-TW/踩過的坑.md)。
-
-## 哪些是實驗性的
-
-主要資料夾裡的東西都由 `scripts/selftest.py` 跑過。還沒驗證穩定的放在 [`experimental/`](experimental/README.md)，每一項附一句原因。另外要知道兩件事：
-
-- `usage_warn` 用的是和 Claude Code `/usage` 畫面同一支用量介面，它不是公開文件的 API，可能改變；hook 讀不到時會保持安靜（fail-open）。
-- Stop hook 是依工具呼叫的順序，加上一份「完成」字眼的清單來判斷。有些情況它抓不到，偶爾也會誤擋；請對自己的對話紀錄重播看看（`hooks/stop_evidence.py --replay`），太吵就設成 `log`。
+- `python scripts/selftest.py` 會在用完即丟的資料夾裡，測試每個檢查和小工具。
+- [docs/zh-TW/踩過的坑.md](docs/zh-TW/踩過的坑.md)：實際使用時出過什麼錯，以及預設為什麼長這樣。
+- [experimental/](experimental/README.md)：還沒驗證穩定的部分。用量提醒（進階功能）讀的是和 Claude Code `/usage` 畫面同一個來源，那不是官方公開的介面。做完檢查是看 Claude 動作的先後順序加上一份「完成」字眼清單來判斷，可能漏抓，偶爾也會誤判，所以基本版只記錄、不攔下。
 
 ## 授權
 

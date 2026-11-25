@@ -1,136 +1,189 @@
-# SETUP：給負責配置的 Claude 看的步驟
+# SETUP：給負責安裝的 Claude 的步驟
 
-這份是寫給**你，Claude** 的，不是給使用者的。使用者請你把 second-brain-kit 這套工作方式裝好。他不一定懂技術：事情由你做，他只回答幾個問題、並批准會改系統的步驟。照順序做；每一步做完就跑它的 **檢查**，過了才往下。檢查沒過，先找出原因修好再重跑，不可以跳過，也不可以對使用者說某一步完成了、而你其實沒檢查過。
+這份是寫給**你（Claude）**看的，不是給使用者看的。使用者請你幫他安裝 second-brain-kit，他可能完全不懂技術：事情由你做，他只要回答三個簡單問題，並對會動到他電腦設定的地方說同意或不同意。安裝的問題和步驟只寫在這裡（`/sbk-setup` 指令和 `setup-second-brain` 技能都指到這份）；英文版 `docs/SETUP.md` 是同樣的步驟。
 
-名詞：
-- `KIT`：這個檔案所在位置往上一層的資料夾（裡面有 `.claude-plugin/plugin.json`）。
-- `SBK_HOME`：`~/.claude/sbk`（執行用的資料夾：帳本、鬧鐘、路由、收件匣、紀錄、各個 task.md）。
+這次只裝**基本版**：一個在筆記資料夾裡工作的主對話；只放使用者用得到的區的筆記資料夾；一份工作清單（帳本，由你使用，使用者不用打指令）；安全檢查；簡短的通用原則。其他功能（主題對話、提醒、用量提醒、會擋下的檢查、其他 AI 工具）屬於**進階功能**：已經在套件裡，等使用者要、或同意你的提議時，照[進階功能.md](進階功能.md)開啟。
+
+下面用到的代號：
+- `KIT`：裡面有 `.claude-plugin/plugin.json`、且寫著 `"name": "second-brain-kit"` 的那個資料夾。用外掛（plugin，Claude Code 的擴充套件）安裝時就是 `${CLAUDE_PLUGIN_ROOT}`（外掛的 hook 和指令裡才有這個值；在這個對話裡請到 `~/.claude/plugins` 底下的外掛快取找那個檔案）。手動 clone 時就是 clone 下來的資料夾。
+- `SBK_HOME`：`~/.claude/sbk`（工作清單、紀錄、套件設定放這裡）。
 - `VAULT`：使用者選的筆記資料夾（預設 `~/second-brain`）。
-- Windows 上路徑用斜線或加引號。Python 用 3 版（`python3`、`python` 或 `py`，哪個能跑用哪個）。
+- 路徑：Windows 上用正斜線或加引號。Python：`python3`、`python`、`py` 哪個能跑 Python 3 就用哪個。
 
-工作規則：要改 `~/.claude/settings.json`、`~/.claude/CLAUDE.md`、系統排程、或使用者任何既有檔案之前，先問。不覆蓋既有檔案，先給他看差異、得到同意。這裡沒有任何東西會被推上遠端或寄給別人。
-
----
-
-## 步驟 00：取得套件（`KIT` 已經在電腦上就跳過）
-
-使用者可能只貼了這一句：「Install the Claude Code plugin from https://github.com/0Smallcat0/second-brain-kit and set me up by its docs/SETUP.md.」如果這台電腦上還沒有 `KIT`（裡面有 `.claude-plugin/plugin.json` 的資料夾）：
-1. 先問一次：「同意我從 github.com/0Smallcat0/second-brain-kit 加入 second-brain-kit 外掛嗎？這會改你的 Claude Code 外掛清單。」同意後執行 `claude plugin marketplace add 0Smallcat0/second-brain-kit`，再執行 `claude plugin install second-brain-kit@second-brain-kit`（就是 `/plugin marketplace add ...` 和 `/plugin install ...` 的命令列版本）。
-2. 如果這裡跑不了 `claude` 指令、或安裝失敗，就把 `https://github.com/0Smallcat0/second-brain-kit` clone 到一個新資料夾（例如 `~/second-brain-kit-src`），拿它當 `KIT`；hook 改走步驟 4 的手動安裝。
-3. 從 `KIT` 重新讀一次 `docs/zh-TW/SETUP.md`（就是這份），接著做步驟 0。
-
-**檢查：** `KIT/.claude-plugin/plugin.json` 存在，而且 `claude plugin list` 看得到 second-brain-kit（clone 路線則是資料夾存在，並且你說了用的是這條路線）。
+做事規則：
+- 會改到 `~/.claude/settings.json`、`~/.claude/CLAUDE.md`、系統排程、或使用者原有檔案的，先問。不覆寫已有的檔案；先給他看差異，他說好才改。
+- 不推上任何 git 遠端、不寄任何訊息、不把筆記交給其他 AI 工具。但不要跟使用者說「完全離線」：Claude 本身就是線上服務。
+- 可以挽回的小選擇自己決定（資料夾名稱、測試名稱、暫用的 git 身分），在報告裡說選了什麼。只問只有使用者知道、或要他授權的事。
+- 每一步最後都有**檢查**。跑過、通過了才往下；沒過就查原因、修好、再跑一次。沒檢查過的步驟不能說做完。
+- 每一步回報時只用這五個詞之一：**完成**／**沒開啟**（使用者不要的選項）／**不適用**（這台電腦用不到）／**要你做**（只有使用者能做，寫清楚做什麼）／**沒驗證**（無法檢查，寫原因）。
 
 ---
 
-## 步驟 0：環境檢查與提問
+## 步驟 00：取得套件（這台電腦已經有 `KIT` 就跳過）
 
-1. 執行 `python --version`、`git --version`、`claude --version`。需要 Python 3.8 以上和 git。缺哪個，就明確告訴使用者要裝什麼（只有他能裝），然後在這裡停下。
-2. 用**一則訊息**問下面這些問題，等他回答。每個工具預設都是「沒有」：一個 Claude 帳號就夠。
-   1. 你有**第二個 Claude 帳號**嗎？（自己另外付費的第二個訂閱，或你被允許使用的家人／朋友方案）
-   2. 你有 **ChatGPT** 嗎？要不要用 **Codex CLI**？
-   3. 你有用 **Gemini** 嗎？（網頁、Antigravity、或 API 金鑰）
-   4. 你有 **Google Colab**、或有 **GPU** 的電腦可以跑重的工作嗎？
-   5. 你有用 **OpenRouter**（免費模型）嗎？
-   6. 筆記庫要放哪裡？（建議 `~/second-brain`）
-   7. 筆記和回覆用哪種語言？
-   8. 你最常用 Claude 處理的**兩個領域**是什麼？（例如讀書和打工）它們會變成最先開的兩個主題對話。
-3. 建立 `SBK_HOME`，寫 `SBK_HOME/config.json`：
-   `{"vault": "<VAULT 絕對路徑>", "language": "<語言>", "tools": {"second_claude": false, "codex": false, "gemini": false, "colab_gpu": false, "openrouter": false}, "modes": {}}`，使用者說有的工具才填 `true`。
+使用者可能只貼了 README 的那句話（「請從 https://github.com/0Smallcat0/second-brain-kit 安裝 second-brain-kit，照 docs/zh-TW/SETUP.md 幫我設定……」）。那句話本身就是要你安裝，不用再問一次。
+1. 執行 `claude plugin marketplace add 0Smallcat0/second-brain-kit`，再執行 `claude plugin install second-brain-kit@second-brain-kit`（就是 `/plugin marketplace add ...`、`/plugin install ...` 的命令列版本）。
+2. 這裡跑不了 `claude` 指令、或安裝失敗：把 `https://github.com/0Smallcat0/second-brain-kit` clone 到一個新資料夾（例如 `~/second-brain-kit-src`），用它當 `KIT`。hook 之後走步驟 4 的手動做法。
+3. 找到 `KIT`（見上面代號），從那裡讀這份檔案再繼續。
 
-**檢查：** `python -c "import json,os;print(json.load(open(os.path.expanduser('~/.claude/sbk/config.json')))['tools'])"` 印出的工具答案，和他回答的一致。
+**檢查：** `KIT/.claude-plugin/plugin.json` 存在且寫著 `second-brain-kit`；`claude plugin list` 列出 second-brain-kit（走 clone 的話，記下你用的是 clone）。
 
-## 步驟 1：安裝命令列工具
+## 步驟 0：檢查電腦，再問三件事
 
-1. 建立 `SBK_HOME/{bin,hooks,managers,inbox,logs,state,entry}`。
-2. 把 `KIT/entry/` 的 `ledger.py`、`send.py`、`alarm.py`、`status.py`、`worker.ps1`、`worker.sh` 複製到 `SBK_HOME/bin/`。（一律複製，不要依賴外掛快取的路徑：外掛更新時它會變。更新後要再複製一次。）
+1. 執行 `python --version`（或 `python3`／`py`）、`git --version`、`claude --version`。需要 Python 3.8 以上和 git。
+   缺哪個就提議幫他裝（「我幫你裝 Python 好嗎？」），他同意就裝：Windows 用 `winget install -e --id Python.Python.3.12`／`winget install -e --id Git.Git`；macOS 用 `xcode-select --install`（會裝好 git 和 python3），有 Homebrew 的話也可以 `brew install python git`；Linux 用套件管理員。要輸入管理員密碼、或要在安裝視窗按按鈕的部分算**要你做**：告訴使用者是哪個視窗、哪個指令，然後繼續。
+2. 用**一則訊息**、白話問這幾題，然後等他回答：
+   1. 「筆記要放在哪裡？我建議 `~/second-brain`（直接說好就用這個）。」
+   2. 「筆記和回覆要用哪種語言？」
+   3. 「你主要想用 Claude 做什麼？例如讀書、寫程式、做自己的專案。還不確定也可以。」
+   4. 同一則訊息裡加一句，可以不答：「如果你也有用其他 AI 工具（例如 ChatGPT、Gemini），用一句話告訴我。沒有就跳過：只有一個 Claude 帳號就夠了。」
+   這裡不要問別的：不做個人資料訪談，也不逐一列工具問。
+3. 建立 `SBK_HOME`。如果 `SBK_HOME/config.json` 不存在，把 `KIT/templates/config.json` 複製過去，填上 `vault`（絕對路徑）、`language`、`uses`（他的原話）、`other_tools`（他那句話，沒有就留空）。如果已經存在（修復或第二次安裝），保留裡面所有的值，只補模板有、檔案缺的欄位。
+   其他工具只記下來，現在不接。用一句話告訴使用者：之後有適合的工作時，可以再幫他接上（進階功能.md 的 A5）。
 
-**檢查：** `python SBK_HOME/bin/ledger.py add "setup check"` 印出 `L0001`；接著 `python SBK_HOME/bin/ledger.py done L0001 --evidence "setup step 1 check ran"` 印出 `L0001 done`；`ledger.py list` 印出 `nothing open`。
+**檢查：** `python -c "import json,os;c=json.load(open(os.path.expanduser('~/.claude/sbk/config.json'),encoding='utf-8'));print(c['level'],c['vault'],c['modes'])"` 印出 `basic`、筆記資料夾路徑、模板裡的模式（修復時是他原本的模式）。
 
-## 步驟 2：原則（`CLAUDE.md`）
+## 步驟 1：工作清單的工具
 
-1. 讀 `KIT/templates/CLAUDE.md`。使用者的語言不是繁體中文時，忠實翻譯（保持結構和意思，維持在 100 行內）。
-2. `~/.claude/CLAUDE.md` 不存在就用這份內容建立。已存在就先給使用者看你要加什麼，同意後附加在 `<!-- sbk:begin -->` 和 `<!-- sbk:end -->` 兩行之間。不刪、不調動他原本的文字。
+1. 建立 `SBK_HOME/bin` 和 `SBK_HOME/logs`。
+2. 把 `KIT/entry/ledger.py`、`status.py`、`send.py`、`alarm.py` 複製到 `SBK_HOME/bin/`（`status.py` 會用到另外兩個）。把 `KIT/templates/task.md` 複製成 `SBK_HOME/task-template.md`。一律用複製的，不要直接指到外掛快取：更新時那個路徑會變。
 
-**檢查：** 檔案裡有兩個標記；兩個標記之間少於 100 行。
+**檢查**（新的或已有的工作清單都適用）：
+1. `python SBK_HOME/bin/ledger.py list`，記下輸出。
+2. `python SBK_HOME/bin/ledger.py add "sbk setup check"` 會印出一個新編號；用它印出的編號（不要假設是 `L0001`）。
+3. `python SBK_HOME/bin/ledger.py done <編號> --evidence "setup step 1: add, done and list ran"` 印出 `<編號> done`。
+4. `ledger.py list` 的輸出和第 1 點完全一樣（舊項目沒被動到）；`ledger.py list --all` 顯示 `<編號>` 已完成。
 
-## 步驟 3：筆記庫
+## 步驟 2：通用原則放進 `~/.claude/CLAUDE.md`（要同意）
 
-1. 依 `KIT/templates/筆記格式.md` 第 1 節建立 `VAULT` 的區和類別資料夾（使用者想要的話才翻譯資料夾名稱；`NN-NN`／`NN` 的編號要保留）。
-2. 複製進庫，並把 `{{date}}` 換成今天（`YYYY-MM-DD`）：
-   - `templates/AGENTS.md` → `VAULT/AGENTS.md`；另外 `VAULT/CLAUDE.md` 內容只有一行：`@AGENTS.md`
+`KIT/templates/CLAUDE.md` 只放通用的安全與查證原則。它會放進使用者全域的 `~/.claude/CLAUDE.md`，影響這台電腦上所有的 Claude 對話，所以先問：「要不要把一小段通用原則（說做完前先看結果、刪東西或公開前先問）加進你所有專案的 Claude 設定？筆記庫的規則還是只放在筆記資料夾裡。」
+1. 使用者的語言不是繁體中文的話，忠實翻譯模板（結構和意思不變，100 行以內）。
+2. 這一段一律放在 `<!-- sbk:begin -->` 這一行和 `<!-- sbk:end -->` 這一行之間：
+   - 檔案不存在：建立檔案，內容只有這一段（含標記）；
+   - 檔案存在、沒有標記：先給使用者看這一段，他說好就加在檔案最後；不刪、不調換他原本的文字；
+   - 已經有標記（第二次安裝）：先給他看差異，只換掉兩個標記中間的內容。不能多出第二段。
+3. 他說不要也沒關係：這一步記**沒開啟**；筆記庫的規則一樣會從 `VAULT/AGENTS.md` 生效。
+
+**檢查：** 檔案裡 `<!-- sbk:begin -->` 和 `<!-- sbk:end -->` 各剛好一個、begin 在前，中間不到 100 行（或這一步是**沒開啟**）。
+
+## 步驟 3：筆記資料夾（`VAULT`）
+
+1. 只建這些區的資料夾（名稱照 `KIT/templates/筆記格式.md` 第 1 節的表；`NN-NN` 編號保留；使用者要別的語言才翻譯文字部分）：
+   - `00-09 系統與索引`，底下有 `00 索引`、`01 規則`、`02 收件匣`；
+   - 依使用者在步驟 0 說的用途，建一兩個對應的區（讀書 → `20-29 學習與讀書`；寫程式或自己的專案 → `40-49 專案`；工作 → `30-39 工作與打工`……）。「還不確定」就不多建，第一張筆記需要時再建；
+   - `90-99 封存`。
+   不建空的類別資料夾；第一張筆記需要時才建類別。
+2. 複製到筆記資料夾，把 `{{date}}` 換成今天（`YYYY-MM-DD`）。檔案已經存在就保留，改成比對（修復）：
+   - `templates/AGENTS.md` → `VAULT/AGENTS.md`；另建 `VAULT/CLAUDE.md`，內容只有一行：`@AGENTS.md`
    - `templates/筆記格式.md` → `VAULT/00-09 系統與索引/01 規則/01-01 筆記格式.md`
    - `templates/todo-for-me.md` → `VAULT/00-09 系統與索引/02 收件匣/02-02 我要做的事.md`
-   - 收件匣筆記 `VAULT/00-09 系統與索引/02 收件匣/02-01 收件匣.md`：frontmatter 要合法（`type: log`、`status: active`、一句 summary、今天的日期、`origin: agent-drafted`），內文一行「還沒歸位的東西先放這裡。」
-   - `templates/sbk-protect.txt` → `VAULT/.sbk-protect`；空檔案 `VAULT/.sbk-vault`
+   - 一張收件匣筆記 `VAULT/00-09 系統與索引/02 收件匣/02-01 收件匣.md`，frontmatter（筆記開頭的欄位區）要正確（`type: log`、`status: active`、一句話摘要、今天日期、`origin: agent-drafted`），內文一行「還沒歸位的東西先放這裡。」
+   - `templates/sbk-protect.txt` → `VAULT/.sbk-protect`；一個空檔 `VAULT/.sbk-vault`；`VAULT/.gitignore`，內容一行 `__pycache__/`（Python 會在 scripts 旁邊留下這個資料夾）
    - `KIT/scripts/{vault_lint.py,gen_jdex.py,check_overwrite.py,pre-commit}` → `VAULT/scripts/`；macOS／Linux 要 `chmod +x VAULT/scripts/pre-commit`。
-3. 使用者要別的語言就翻譯複製進去的中文筆記（欄位名稱與值，例如 `type: skill`，要原樣保留，lint 依賴它們）。
+3. 使用者要別的語言，就翻譯複製過去的筆記（欄位名稱和 `type: skill` 這類值不能改，檢查程式靠它們）。
 4. `python VAULT/scripts/gen_jdex.py --root VAULT` 產生索引。
-5. 在 `VAULT` 執行 `git init`；`git config user.name` 是空的就問使用者名字和 email，只設在這個庫。`git config core.hooksPath scripts`。依檔名 add，做第一個提交 "Initial vault"。
-6. 選擇性（得到同意才做）：用五個簡短問題訪問使用者（念什麼或做什麼、目前的目標、喜歡怎樣的回覆、AI 哪裡最讓他煩），用他的原話存成 `VAULT/10-19 自己與生活/11 .../11-01 關於我.md`，`type: profile`、`origin: user`。不要編造事實。
+5. Git，只在本機（記下每次修改的歷史，不推上任何地方）：
+   - `VAULT/.git` 不存在就在 `VAULT` 執行 `git init`。
+   - `git -C VAULT config user.name` 和 `git -C VAULT config user.email` **分開檢查**。哪個是空的就只替這個筆記資料夾設定（不加 `--global`）：名字用使用者給的，沒給就用 `second-brain`；email 用 `second-brain@localhost`。告訴使用者你設了什麼。
+   - `git -C VAULT config core.hooksPath scripts`。
+   - 第一次安裝：逐一指定檔名加入，提交 "Initial vault"。修復：只提交你新增或改過的檔案。
 
-**檢查：** `python VAULT/scripts/vault_lint.py --root VAULT` 結尾是 `RESULT: PASS`；第一個提交存在（`git -C VAULT log --oneline`）；pre-commit 真的會擋：在暫時分支裡把一張筆記大半刪掉再暫存、提交，確認提交被拒絕（然後還原）。沒有被拒絕就先修好 `core.hooksPath` 再往下。
+**檢查：**
+1. `python VAULT/scripts/vault_lint.py --root VAULT` 最後是 `RESULT: PASS`。
+2. `git -C VAULT log --oneline` 看得到那次提交；`git -C VAULT config core.hooksPath` 印出 `scripts`。
+3. 防覆寫檢查真的會跑。用測試資料夾裡的假筆記測，絕不拿真的筆記測：
+   1. 記下 `git -C VAULT rev-parse HEAD`。
+   2. 建 `VAULT/.sbk-setup-test/test-note.md`，寫 20 行（`test line 1` 到 `test line 20`）；`git -C VAULT add .sbk-setup-test/test-note.md`；`git -C VAULT commit -m "sbk setup test (removed again)"`，這次必須成功。
+   3. 把檔案改成只剩一行，`git add` 後再提交，這次必須被**拒絕**，並出現 `check_overwrite: commit refused`。
+   4. 收拾：`git -C VAULT reset -q --soft <第 1 點記下的 HEAD>`、`git -C VAULT rm -r -q --cached .sbk-setup-test`，刪掉 `.sbk-setup-test` 資料夾。
+   5. `git -C VAULT rev-parse HEAD` 和第 1 點相同，`.sbk-setup-test` 已不在，`git -C VAULT status --short` 看不到測試留下的東西。
+   第 3 點沒被拒絕的話，修好 `core.hooksPath`（macOS／Linux 還有 `chmod`），再測一次。
 
-## 步驟 4：防呆 hook
+## 步驟 4：安全檢查（hook）
 
-用外掛安裝時，`KIT/hooks/hooks.json` 已經生效；用 `/hooks` 確認列得出 second-brain-kit 的 Stop、PreToolUse、UserPromptSubmit、SessionStart。手動 clone 的情況：把 `KIT/hooks/*.py` 和 `run.sh` 複製到 `SBK_HOME/hooks/`，（因為要改 settings，先得到使用者同意）再把 `KIT/templates/settings.hooks.example.json` 的 `hooks` 區塊合併進 `~/.claude/settings.json`，把 `__KIT__` 換成 `SBK_HOME/hooks` 的路徑。要「合併」，不要取代：他已有的 hook 全部保留。
+hook 是 Claude Code 在特定時刻（執行指令前、Claude 說做完時）自動跑的小程式，不是另一個 AI。這套 hook 不會把對話卡死：hook 自己壞掉時會讓 Claude 繼續。
 
-每個 hook 做什麼（各用一句話告訴使用者）：
+- **用外掛安裝：** `KIT/hooks/hooks.json` 從下一個對話開始生效。用 `claude plugin list` 確認 second-brain-kit 是啟用的。
+- **用 clone 安裝：** 把 `KIT/hooks/*.py` 和 `run.sh` 複製到 `SBK_HOME/hooks/`；使用者同意後（會改設定），把 `KIT/templates/settings.hooks.example.json` 的 `hooks` 區塊合併進 `~/.claude/settings.json`，`__KIT__` 換成 `SBK_HOME/hooks` 的路徑。是合併不是取代：使用者原有的 hook 一個都不能少。
 
-| Hook | 作用 | 預設模式 |
+每個 hook 的模式都從 `SBK_HOME/config.json` 的 `modes` 讀（可用值：off、log、warn、ask、deny、block）。基本版就是模板裡那組；每個 hook 用一句白話告訴使用者：
+
+| Hook | 使用者會感覺到什麼 | 基本版模式 |
 |---|---|---|
-| `stop_evidence` | 改完東西說「完成」卻沒看過結果：要求補證據，只擋一次 | block once |
-| `requests_reinject` | 壓縮後把使用者自己的訊息原文放回來 | warn |
-| `read_whole` | 拒絕對庫裡筆記用 `head`／`tail`／`sed -n`；要整張讀 | deny |
-| `vault_guard` | git push、`--no-verify`、破壞性 git、大量刪除、改受保護檔案前先問 | ask |
-| `usage_warn` | 週用量超過 80% 時提醒一次（不擋） | warn |
-| `inbox_notice` | 讓主題對話看到入口交來的事 | warn |
+| `vault_guard` | Claude 在 `git push`、跳過 git 檢查、丟掉 git 裡的修改、刪整個資料夾、改受保護的規則檔、把筆記砍到剩一小部分之前，會先問你 | ask |
+| `read_whole` | 在筆記資料夾裡，Claude 會把筆記整張讀完，不只看前幾行（筆記資料夾以外不影響） | deny |
+| `requests_reinject` | 長對話被自動摘要時，把你自己說過的話原文放回去；這台電腦的 `~/.claude/sbk/requests/` 會留一份 | warn |
+| `stop_evidence` | Claude 改了東西、沒看結果就說「做完」時，記到 `~/.claude/sbk/logs/stop_evidence.log`；不會打斷 | log |
+| `usage_warn` | 沒有作用（進階功能） | off |
+| `inbox_notice` | 沒有作用（進階功能，給主題對話用） | off |
 
-不用改程式就能調模式：`SBK_HOME/config.json` → `"modes": {"stop_evidence": "log"}`（值：off、log、warn、ask、deny、block）。每次判斷也會寫進 `SBK_HOME/logs/<hook>.log`。
+重播測試，要先同意：問「要不要用你最近幾次的 Claude 對話，測一下『做完檢查』會不會太嚴？只在這台電腦上跑，不會改任何東西。」同意後，對最新的五個 `~/.claude/projects/*/*.jsonl`（跳過這次安裝的對話）跑 `python KIT/hooks/stop_evidence.py --replay <檔案>`，用一句話告訴他會有幾輪被標出來。沒有舊對話就安靜跳過（**不適用**）。他說不要就是**沒開啟**。不管結果如何這個檢查都維持 `log`；要它擋下是進階功能（A4）。
 
-**信任之前先重播。** 找使用者最近的對話紀錄（`~/.claude/projects/*/*.jsonl`，最新五份），各跑一次 `python KIT/hooks/stop_evidence.py --replay <檔案>`。被標記的輪次超過約四分之一，代表這個檢查對這位使用者太吵：設成 `"stop_evidence": "log"`，告訴使用者，並安排一週後檢討 `logs/stop_evidence.log`。接著跑 `python KIT/scripts/selftest.py`。
+接著執行 `python KIT/scripts/selftest.py`。
 
-**檢查：** `selftest.py` 印出 `0 failed`；至少對一份對話紀錄跑過重播（或寫明還沒有任何紀錄）。
+**檢查：** `selftest.py` 印出 `0 failed`；步驟 0 檢查印出的模式是基本版那組（修復時是他原本的模式）；下面這行會印出含 `"permissionDecision": "ask"` 的內容：
+`echo '{"tool_name":"Bash","tool_input":{"command":"git push"},"cwd":"VAULT"}' | python KIT/hooks/vault_guard.py`（`VAULT` 換成實際路徑）。
 
-## 步驟 5：入口與兩個主題對話
+## 步驟 5：主對話的啟動捷徑
 
-1. `SBK_HOME/entry/CLAUDE.md` ← `templates/entry-CLAUDE.md`，`{{vault}}` 換掉。
-2. 步驟 0 的兩個領域，各取一個簡短的英文小寫 id（例如 `study`、`work`），建立 `SBK_HOME/managers/<id>/`，把 `templates/manager-CLAUDE.md` 放進去當 `CLAUDE.md`（`{{manager}}`、`{{vault}}`、`{{scope}}` 用使用者的話填一句領域說明），把 `templates/task.md` 放進去當 `task.md`（填 `{{topic}}`）。
-3. `SBK_HOME/routes.md` ← `templates/routes.md`：表格填兩個 id，各 5–10 個使用者真的會說的關鍵字。`SBK_HOME/alarms.md` ← `templates/alarms.md`。只有使用者有額外工具時才建 `SBK_HOME/channels.md`（步驟 7）。
-4. 告訴使用者怎麼啟動（也寫進 `SBK_HOME/START-HERE.md`）：
-   - 入口：`cd ~/.claude/sbk/entry` 然後 `claude --add-dir "<VAULT>" -n entry`
-   - 主題：`cd ~/.claude/sbk/managers/<id>` 然後 `claude --add-dir "<VAULT>" -n <id>`
-   - 所有新需求都丟給入口。之後想加主題對話，就複製一個 manager 資料夾、在 `routes.md` 加一列；先用兩個，某個主題一直擠到另一個時才加。
+主對話就是在 `VAULT` 裡啟動的 Claude Code；在那裡它會讀 `VAULT/CLAUDE.md`，再載入 `AGENTS.md`。做一個點兩下就能開的捷徑，用使用者的語言命名（例如「第二大腦」）。這是新檔案；同名檔案已經存在的話，先問再取代。
+- **Windows：** `<桌面>\第二大腦.cmd`（用 `powershell -NoProfile -Command "[Environment]::GetFolderPath('Desktop')"` 找出真正的桌面，可能在 OneDrive 裡），存成不含 BOM 的 UTF-8：
+  ```
+  @echo off
+  chcp 65001 >nul
+  cd /d "C:\筆記資料夾的完整路徑"
+  claude
+  ```
+- **macOS：** `~/Desktop/第二大腦.command`，再 `chmod +x`：
+  ```
+  #!/bin/sh
+  cd "/筆記資料夾的完整路徑" || exit 1
+  exec claude
+  ```
+- **Linux：** 同一段內容存成 `~/Desktop/second-brain.sh`（沒有桌面資料夾就放 `~/second-brain.sh`），`chmod +x`。
+也告訴使用者不用捷徑的方法：開終端機，`cd` 到筆記資料夾，輸入 `claude`；`claude --continue` 會回到在那裡的上一段對話。
 
-**檢查：** `python SBK_HOME/bin/send.py <id> "setup check"` 印出 `L0001 -> <id>`（或下一個編號）；`SBK_HOME/inbox/<id>.md` 有那一行；`SBK_HOME/bin/status.py` 看得到；然後關掉測試項目：`ledger.py drop L000N --evidence "setup test item"`，並把 inbox 那行勾成 `[x]`。
+**檢查：** 捷徑檔存在、裡面有筆記資料夾的路徑；而且從那個資料夾跑得起 Claude Code：Windows `cmd /c "cd /d "<VAULT>" && claude --version"`，macOS／Linux `sh -c 'cd "<VAULT>" && claude --version'` 印出版本。點兩下開捷徑本身在使用者於步驟 7 做之前都是**沒驗證**。
 
-## 步驟 6：鬧鐘
+## 步驟 6：端到端測試：新對話找得到這次存的東西
 
-1. 用一句話說明：一張小提醒表，提醒會落在帳本或某個主題的收件匣；預設一列是每週日 20:00 的每週檢討。保持精簡，每一列都必須帶出一個動作。
-2. 執行器需要系統排程每 5 分鐘叫一次。這會改系統，所以先問（「同意我加一個每 5 分鐘執行 `alarm.py --tick` 的排程嗎？」）。同意後：
-   - Windows：`schtasks /Create /SC MINUTE /MO 5 /TN sbk-alarm /TR "\"<pythonw.exe 路徑>\" \"%USERPROFILE%\.claude\sbk\bin\alarm.py\" --tick"`（用 `pythonw.exe` 才不會閃出視窗）
-   - macOS／Linux：`crontab -e` 加 `*/5 * * * * python3 "$HOME/.claude/sbk/bin/alarm.py" --tick`
-   他說不同意，鬧鐘就不會自動響；`alarm.py --fire A01` 仍可手動觸發。
+技術檢查都過，不代表第二大腦真的能用。用測試資料證明一次，再把測試資料清掉。
+1. 取一個代號，例如 `SBKTEST-` 加六個隨機字母。
+2. 存一張測試筆記 `VAULT/00-09 系統與索引/02 收件匣/02-99 SBK 安裝測試.md`，frontmatter 要正確（`type: log`、`status: active`、`summary: setup test note, deleted after the test`、今天日期、`origin: agent-drafted`），內文一行：`Setup test <代號>.` 不要提交。
+3. 記下 `ledger.py list` 的輸出。加一個測試項目：`python SBK_HOME/bin/ledger.py add "Setup test <代號>: add the line resumed by a new session to the note 02-99 SBK 安裝測試"`，記下印出的編號。
+4. 在筆記資料夾開一個完全不知道這次對話的**新**對話：
+   先 `cd "<VAULT>"`，再
+   `claude -p "Setup test. Follow this folder's AGENTS.md: find the open work-list item that mentions <代號>, open the note it names, add the line 'resumed by a new session' at the end, close the item with evidence. Do not commit. Reply with the note path and the item id." --allowedTools "Read,Grep,Glob,Edit,Bash(python:*)"`
+   這裡跑不了 `claude -p` 的話，請使用者在另一個視窗打開步驟 5 的捷徑，說「繼續安裝測試那個項目」，等它回完再告訴你；這段時間這個對話保持開著。
+5. 收拾：刪掉測試筆記；再跑一次 `gen_jdex.py` 和 `vault_lint.py`；測試項目保持已關閉（關閉的項目不會顯示）。
 
-**檢查：** `python SBK_HOME/bin/alarm.py --list` 看得到預設那列；`schtasks /Query /TN sbk-alarm`（或 `crontab -l`）看得到排程；`alarm.py --tick --now <下一個週日 20:01>` 會寫一筆帳本項目（接著附證據把這個測試項目 drop 掉，並刪除 `SBK_HOME/state/alarms.json`，讓正式執行從乾淨狀態開始）。
+**檢查：** 收拾前，筆記最後一行是 `resumed by a new session`，`ledger.py list --all` 顯示測試編號已完成、證據是新對話寫的；收拾後，筆記不在了，lint 最後是 `RESULT: PASS`，`git -C VAULT status --short` 看不到測試檔，`ledger.py list` 的輸出和第 3 點完全一樣。新對話沒找到項目的話，看它回了什麼，修好原因（通常是 `VAULT/CLAUDE.md` 或 `AGENTS.md` 裡工作清單的路徑），再測一次。
 
-## 步驟 7：額外工具（只做使用者說「有」的）
+## 步驟 7：最後檢查、交接、兩分鐘上手
 
-全部都回答「沒有」就跳過這一步，並在最後報告寫明。有的話，每個工具都讀 `docs/MULTI-TOOL.md` 對應章節（那是參考資料：合用的才拿），然後：
-1. 用 `templates/channels.md` 建立 `SBK_HOME/channels.md`，每個工具一列。
-2. 第二個 Claude 帳號：請使用者把 `CLAUDE_CONFIG_DIR` 設成那個帳號專用的新資料夾，執行一次 `/login`（給他對應他作業系統的完整指令）；接著用 `entry/worker.ps1 -DryRun` 或 `SBK_DRYRUN=1 worker.sh` 測試，讀它印出的指令。
-3. Codex／Gemini／Colab／OpenRouter：確認工具能啟動（版本指令或一行小工作）。
-4. 每個工具各跑一個最小的真實工作，結果是一個檔案，並打開那個檔案看。
+1. `python KIT/scripts/selftest.py` → `0 failed`；`vault_lint.py` → `RESULT: PASS`；`python SBK_HOME/bin/status.py` 跑得起來。
+2. 寫入口說明頁 `VAULT/README.md`（檢查程式允許筆記資料夾最上層有這個檔名），用使用者的語言、30 行以內、給使用者看（不是給 Claude）。只寫怎麼開始、怎麼讓 Claude 記住、怎麼看還有什麼沒做完、怎麼請它修：
+   - 怎麼開始：捷徑的名稱和位置；終端機的方法；
+   - 四句範例：「記住：……」「找我之前記的……」「還有什麼沒做完？」「接著上次的……繼續」；
+   - 「哪裡卡卡的就跟 Claude 說，例如：『做完檢查太嚴了，調鬆一點』」；
+   - 東西放在哪：筆記在這個資料夾；工作清單和紀錄在 `~/.claude/sbk/`；本機 git 記下修改的歷史，但**不是**硬碟的備份：要不時把這個資料夾複製到另一顆硬碟或你信任的雲端硬碟；
+   - 「想要更多功能（主題對話、提醒、其他 AI 工具），跟 Claude 說：開進階功能。」
+3. 最後一則訊息，簡短、用使用者的語言：
+   - 每一步一行，附狀態詞（完成／沒開啟／不適用／要你做／沒驗證）；
+   - 每個安全檢查實際上會對他做什麼；
+   - 你沒做的事和原因；只有他能做的事寫成編號清單（有的話）；
+   - **兩分鐘上手**：（1）關掉這個視窗，點兩下捷徑；（2）說「記住：我這週要讀完第三章」，Claude 會存起來；（3）說「還有什麼沒做完？」，Claude 會列出工作清單；（4）說「找我之前說的第三章」，Claude 會找到那張筆記。每天就是這樣用。
 
-**檢查：** 每個啟用的工具在 `channels.md` 有一列，而且有一個你打開看過的結果檔。使用者沒選的工具，哪裡都不會出現。
+**檢查：** `VAULT/README.md` 存在、lint 仍然通過；最後一則訊息裡步驟 00 到 7 每一步都有狀態詞。
 
-## 步驟 8：最後驗證與交接
+---
 
-1. `python KIT/scripts/selftest.py` → `0 failed`；`vault_lint.py` → PASS；`status.py` 能跑。
-2. 寫 `SBK_HOME/START-HERE.md`（用使用者的語言，30 行內）：兩個啟動指令、`status.py`、`ledger.py add/list/done --evidence`、怎麼加主題對話或鬧鐘、怎麼切換 hook 模式、紀錄在哪。
-3. 給使用者的最後訊息：短，用他的語言。裝了什麼、在哪；每個 hook 實際上會怎麼影響他（被擋時才不會嚇到）；哪些**沒做**以及為什麼；哪些只有他能做（如果有）。每一步寫完成／沒完成。
+## 更新、修復、移除
 
-## 更新與移除
+- **修復或第二次安裝：** 照順序重跑每一步。每一步都保留已有的東西：設定值、筆記、工作清單（`ledger.md`）、`task.md`、`requests/`、`logs/`，以及進階功能的 `routes.md`、`alarms.md`、`state/alarms.json`，一律不刪、不重設。只補缺的；套件裡改過的檔案先給使用者看，才取代任何東西。
+- **更新：** 更新外掛（`claude plugin update second-brain-kit@second-brain-kit`）或在 clone 資料夾 `git pull`；再重做步驟 1 的複製，clone 安裝的話再重做步驟 4 的複製。不動使用者的筆記和工作清單。
+- **移除：** 刪掉 `~/.claude/CLAUDE.md` 裡兩個 `sbk` 標記中間的段落，移除外掛（或刪掉 `settings.json` 裡的 hook 項目），刪掉捷徑，進階功能還要刪系統排程。刪 `SBK_HOME` 或筆記資料夾之前先問：那裡面是使用者的資料。
 
-- 更新：更新外掛（或 `git pull` 這個套件），再做一次步驟 1（複製工具）；手動安裝的話連步驟 4 的複製也再做一次。不要動使用者的筆記、`task.md`、帳本、路由、鬧鐘。
-- 移除：拿掉 `CLAUDE.md` 的標記區塊、移除 hook 項目（或外掛）、刪掉排程。要刪 `SBK_HOME` 或筆記庫之前先問；那是使用者的資料。
+## 進階功能
+
+不在這次安裝裡。使用者要更多功能，或[進階功能.md](進階功能.md)〈Claude 什麼時候會提議〉列的情況出現時，照那份的 A1–A5 做。

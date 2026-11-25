@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """UserPromptSubmit hook: warn (never block) when weekly plan usage passes a threshold.
 
+Off by default (Basic); Advanced turns it on with config.json "modes": {"usage_warn": "warn"}.
 Warns once per session per weekly window. Silent when an API key is used, when no login
 file exists (for example macOS keeps it in the keychain), or when the call fails.
 The usage endpoint is the same one the /usage screen uses; it is not a documented API, so
@@ -55,7 +56,7 @@ def fetch():
 
 
 def main():
-    if mode("usage_warn", "warn") in ("off", "log") and not os.environ.get("SBK_USAGE_FAKE"):
+    if mode("usage_warn", "off") in ("off", "log"):
         return
     if os.environ.get("ANTHROPIC_API_KEY") and not os.environ.get("SBK_USAGE_FAKE"):
         return

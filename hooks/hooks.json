@@ -1,5 +1,5 @@
 {
-  "description": "second-brain-kit guard hooks. Each one fails open and has a mode (off/log/warn/ask/deny) you can set in ~/.claude/sbk/config.json.",
+  "description": "second-brain-kit guard hooks. Each one fails open and reads its mode (off/log/warn/ask/deny/block) from ~/.claude/sbk/config.json. Without that file the Basic defaults apply: vault_guard ask, read_whole deny (vault notes only), requests_reinject warn, stop_evidence log, usage_warn off, inbox_notice off.",
   "hooks": {
     "SessionStart": [
       {

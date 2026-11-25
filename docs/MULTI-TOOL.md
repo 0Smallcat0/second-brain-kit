@@ -1,12 +1,12 @@
 # Reference: working with several AI tools
 
-> **For the configuring Claude to consult. Not mandatory.** The default setup is ONE Claude account and nothing else. Read only the sections for tools the user said they have (see the questions in [SETUP.md](SETUP.md)). Everything here is something that was measured or that went wrong in real use; the numbers are from one person's setup, so re-measure before relying on them.
+> **For the configuring Claude to consult. Not mandatory.** The default setup is ONE Claude account and nothing else. This is Advanced ([ADVANCED.md](ADVANCED.md), A5). Read only the sections for tools the user said they have (the optional sentence at setup, or later). Everything here is something that was measured or that went wrong in real use; the numbers are from one person's setup, so re-measure before relying on them.
 
 ## Ground rules for every extra tool
 
 1. **Split by kind of work, never by failure.** Decide in advance which jobs go where. Do not build "when account A hits its limit, silently continue on B": consumer terms forbid getting around usage limits, and it hides how much you really use.
 2. **Show the state where work is assigned.** If a tool can be locked out by quota (see Antigravity, Codex), keep a one-line status in `~/.claude/sbk/channels.md` (tool, what it is for, locked until) and look at it before sending work. A queue that silently stops is worse than no queue.
-3. **Send a brief, get a file back.** Every job is a brief file (goal, inputs with full paths, output path, "not doing", how you will check it). The result is a file you open yourself; you do not trust "done" from the other tool (see `evidence-before-done`).
+3. **Send a task file, get a file back.** Every job is a task file (goal, inputs with full paths, output path, "not doing", how you will check it). The result is a file you open yourself; you do not trust "done" from the other tool (see `evidence-before-done`).
 4. **Personal data stays on the tools you trust with it.** Free tiers and third-party routers are for work that contains no credentials, no private records, nothing you would not post publicly.
 5. **Mechanical work to the cheaper tool, judgement to Claude.** Moving files, scanning, running scripts and waiting, formatting, bulk edits: send away. Decisions, anything that goes to other people, hard debugging: keep.
 6. **Ask a second opinion blind.** When you want another model's view on a direction, send only the requirements and the facts, not your own plan or preference, then compare. Otherwise it tends to agree with you.
@@ -25,7 +25,7 @@
 ## Second Claude account (quota pool)
 
 - **What it is good for:** a second pot of quota that you legitimately own - for example a second subscription - used for background jobs so your main account stays free for conversations.
-- **Send:** long background jobs with a clear brief (research, bulk edits, batch checks).
+- **Send:** long background jobs with a clear task file (research, bulk edits, batch checks).
 - **How:** run the job with `entry/worker.ps1` (Windows) or `entry/worker.sh` with the second account's config folder. The launcher sets `CLAUDE_CONFIG_DIR` to that folder and clears `CLAUDE_CODE_OAUTH_TOKEN` and `ANTHROPIC_API_KEY`; if either variable stays set it overrides the login and the job quietly runs on the wrong account. First log in once per account: start `claude` with that `CLAUDE_CONFIG_DIR` and run `/login`.
 - **Lessons:**
   - Split by task. Do not auto-switch on a limit (rule 1).
@@ -43,7 +43,7 @@
 ## Codex CLI (ChatGPT subscription or API key)
 
 - **What it is good for:** mechanical runs (move/rename files, batch edits, scan and compare, run scripts and wait for results, upload and read back) and a fresh pair of eyes that has not seen your conversation.
-- **How:** `codex exec --sandbox read-only --skip-git-repo-check "<brief or request>"` for read-only checks; drop `--sandbox read-only` only for jobs that must write, with the target folder named in the brief. Use low reasoning effort for mechanical work (it is faster and uses much less of the limit).
+- **How:** `codex exec --sandbox read-only --skip-git-repo-check "<task file or request>"` for read-only checks; drop `--sandbox read-only` only for jobs that must write, with the target folder named in the task file. Use low reasoning effort for mechanical work (it is faster and uses much less of the limit).
 - **Limits:** it has a 5-hour window and a weekly limit. Check before queuing a big batch and write the lock time in `channels.md` if you hit it.
 - **Lessons:**
   - Do not poll it from the foreground in a loop; start it, do other work, read the result file.
@@ -54,7 +54,7 @@
 
 - **Web chat (free):** a second opinion. Ask blind (ground rule 6).
 - **Antigravity (an IDE with Gemini agents):**
-  - Good for long reading and first drafts at no cost to your Claude quota. Hand over work as a brief file in a shared folder and read the output file it writes.
+  - Good for long reading and first drafts at no cost to your Claude quota. Hand over work as a task file in a shared folder and read the output file it writes.
   - Its quota can lock for about 6 days once used up. A job queue then stops without any error. Put the lock time next to wherever work is assigned (`channels.md`) and check it before sending anything; if it is locked, route the job elsewhere on purpose.
 - **Gemini API (pay as you go):**
   - Use it last. Failed calls can still hold reservations that count against the budget.
@@ -73,7 +73,7 @@
 
 - **Good for:** mechanical text work with no personal data (reformatting, classifying public text, first-pass summaries of public pages), at volume.
 - **Never send:** credentials, private records, anything the user would not publish. Free tiers may log prompts.
-- **Lessons:** free models change and disappear; list the model in the brief and check it answers before queuing a batch. Verify outputs by sampling.
+- **Lessons:** free models change and disappear; list the model in the task file and check it answers before queuing a batch. Verify outputs by sampling.
 
 ## Small local models
 
@@ -88,4 +88,4 @@
 For each tool the user has, and only those:
 1. Add one line to `~/.claude/sbk/channels.md`: tool, what it is for, how to call it, "locked until" (empty at first).
 2. Add the tool's work type to the routing notes of the topic sessions that will use it (one sentence in the manager's `task.md` Rules section).
-3. Run one tiny real job end to end (a brief that writes one line to a file) and open the file. Only then tell the user it works.
+3. Run one tiny real job end to end (a task file that asks for one line written to a file) and open the file. Only then tell the user it works.

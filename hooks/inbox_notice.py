@@ -5,7 +5,8 @@ A manager session is simply Claude started inside <SBK_HOME>/managers/<name>/. T
 notices that folder, and tells Claude (a) the unticked lines in <SBK_HOME>/inbox/<name>.md
 and (b) how many open items its task.md has. In the entry folder it shows the ledger
 summary instead. At SessionStart it always shows; on later prompts only when something new
-arrived. Nothing is blocked.
+arrived. Nothing is blocked. Off by default (Basic has no topic sessions); Advanced turns it on
+with config.json "modes": {"inbox_notice": "warn"}.
 """
 import hashlib
 import os
@@ -42,7 +43,7 @@ def which(cwd):
 
 
 def main():
-    if mode("inbox_notice", "warn") == "off":
+    if mode("inbox_notice", "off") == "off":
         return
     data = read_input()
     role, name = which(data.get("cwd") or os.getcwd())
