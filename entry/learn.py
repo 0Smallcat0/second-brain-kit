@@ -36,6 +36,7 @@ REL = Path("00-09 系統與索引") / "03 和 AI 協作" / "03-01 和 AI 協作.
 LINE = re.compile(r"^-\s*(\d{4}-\d{2}-\d{2})\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*(.+)$")
 CORR = {"糾正", "correction", "corrected"}
 GOOD = {"做對", "confirmed", "confirm"}
+STARTER_TAGS = ("（來自原作者，可刪）", "(from the original author; delete if you like)")
 
 
 def vault():
@@ -121,6 +122,11 @@ def prefs(text):
     return out
 
 
+def starter(line):
+    """A starter preference the kit ships (tagged as from the original author); the user's own are not."""
+    return line.rstrip().endswith(STARTER_TAGS)
+
+
 def add_pref(kind, sentence, today=None):
     p = note()
     if not p or not p.exists():
@@ -144,7 +150,9 @@ def stats(text, today):
     t = trend(text, today)
     return {"lines": len(rows), "corrections": sum(1 for r in rows if r[1] == "corr"),
             "confirmations": sum(1 for r in rows if r[1] == "good"), "corrections_this_week": t["corrections"],
-            "last_week": t["last_week"], "repeats": t["repeats"], "preferences": len(prefs(text))}
+            "last_week": t["last_week"], "repeats": t["repeats"],
+            "preferences": sum(1 for x in prefs(text) if not starter(x)),
+            "starter_preferences": sum(1 for x in prefs(text) if starter(x))}
 
 
 def add(kind, what, said, today=None):
@@ -197,9 +205,12 @@ def main():
             print("- %s: %d (correction %d, confirmed %d)" % (kind, len(rows), nc, len(rows) - nc))
             for d, what, said in rows:
                 print("    %s %s %s" % (d.isoformat(), "correction" if what == "corr" else "confirmed", said))
-        have = prefs(text)
+        have = [x for x in prefs(text) if not starter(x)]
         if have:
             print("Preferences already written (%d): " % len(have) + " / ".join(have))
+        n_starter = sum(1 for x in prefs(text) if starter(x))
+        if n_starter:
+            print("Starter preferences from the kit still in the note: %d (the user may delete any)" % n_starter)
     elif a[:1] == ["pref"] and len(a) == 3:
         add_pref(a[1], a[2], today)
     elif a[:1] == ["stats"]:

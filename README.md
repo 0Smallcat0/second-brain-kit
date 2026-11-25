@@ -13,6 +13,15 @@ Basic is the part that is always installed. Compared with Claude Code on its own
 - **Your own words come back when a chat gets long.** In a long conversation Claude Code automatically squeezes older parts into a summary, and details can get lost; the kit puts your own messages back word for word, which lowers the chance that a request gets lost. When a conversation gets very long, Claude writes a hand-over and tells you to start a fresh one and say "continue".
 - **Claude learns from you (you give the skeleton, use grows the rest).** When you correct it or confirm it did something right, a small check (`learn_notice`) reminds it to write one line in a note (和 AI 協作: date, your words, what kind of thing it was). Once a week, at the first conversation of the week, it groups those lines by kind and proposes preferences (and, for a mistake that keeps coming back, a skill or a check); nothing is written until you say yes. Every new conversation starts with those preferences already in it (the same check puts them there), and before a task Claude also reads the recent lines.
 
+## Ready on day one, and what grows with use
+
+**It comes with the kit (nothing to learn first):**
+- **Working principles.** With your OK, setup adds a short block to Claude's rules for all projects: work for your benefit within the real rules, no warnings or caveats you did not ask for, judge by what got done and not by what was said, and never invent a source or a "done". It also puts in the four failures Claude checks before every reply: saying "done" when it is not; fixing one thing and dropping another; pointing out a problem and stopping; skipping data it has.
+- **15 starter preferences** in the 和 AI 協作 note: general ways of working from the kit's original author (for example: prepare everything up to your last step; change only what you asked and say what you changed; give one numbered list when you must act). Each ends with "(from the original author; delete if you like)". They apply from the first conversation. Delete any line that does not fit you, or tell Claude "not this one".
+- **Four general skills** that Claude picks up when the job fits: `evidence-check` (before it states a number, or says something is missing or broken), `outward-docs` (before it writes something others will read for you), `blind-three-way` (before choosing a direction: independent proposals, compared side by side) and `full-reader` (reads long material to the last line and reports where it stopped).
+
+**It grows with use (and is yours):** your own preferences, written after your corrections and your yes, always above the starter ones; ways that worked, added to the matching skill; a check for a mistake that keeps coming back; your notes and the tracker. Nothing you did not agree to is changed, and the starter lines are never counted as yours.
+
 ## Basic and Full
 
 | | Basic | Full |
@@ -162,11 +171,11 @@ Then type `/sbk-setup` in Claude Code. Or clone (download a copy of) this reposi
 
 ```
 .claude-plugin/   plugin and marketplace files
-skills/           setup-second-brain, evidence-before-done, vault-tidy, multi-tool-routing (outside resources, Full)
+skills/           setup-second-brain, evidence-before-done, vault-tidy, multi-tool-routing (outside resources, Full), and the general ones: evidence-check, outward-docs, blind-three-way, full-reader
 commands/         /sbk-setup, /sbk-status
 hooks/            the safety checks (Python 3, standard library only)
 entry/            tracker (ledger.py), status, reminders, live routing (session.py), hand-over (handover.py), learning loop (learn.py), worker tools
-templates/        rules for Claude, the notes folder guide, note format, the 和 AI 協作 note, settings, Full templates (entry, maintenance, topics)
+templates/        rules for Claude, the notes folder guide, note format, the 和 AI 協作 note (Chinese and English, with the starter preferences), settings, Full templates (entry, maintenance, topics)
 scripts/          note checker, index maker, overwrite guard, level check, selftest
 docs/             SETUP, ADVANCED, PITFALLS, MULTI-TOOL = outside resources; zh-TW = the pages for readers in Chinese; docs/diagrams = the pictures
 experimental/     pieces that are not proven yet

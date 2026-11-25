@@ -84,8 +84,8 @@ def main():
         if p and p.exists():
             s = learn.stats(p.read_text(encoding="utf-8"), datetime.date.today())
             rep = ", ".join("%s x%d" % kv for kv in s["repeats"].items()) or "none"
-            print("  lines recorded: %d (corrections %d, confirmations %d); preferences written: %d"
-                  % (s["lines"], s["corrections"], s["confirmations"], s["preferences"]))
+            print("  lines recorded: %d (corrections %d, confirmations %d); preferences written: %d (plus %d starter ones from the kit)"
+                  % (s["lines"], s["corrections"], s["confirmations"], s["preferences"], s["starter_preferences"]))
             print("  corrections this week: %d (last week %d)" % (s["corrections_this_week"], s["last_week"]))
             print("  same kind again: " + rep)
         else:

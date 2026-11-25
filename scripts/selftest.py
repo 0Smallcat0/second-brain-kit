@@ -1172,6 +1172,124 @@ def main():
         check("multi-tool: rules by kind of work, table filled by the user's Claude, monthly re-check",
               "## Kinds of work" in mt and "## Filling and re-checking the table" in mt
               and "Kind of work" in (KIT / "templates" / "channels.md").read_text(encoding="utf-8"))
+        # ---- 0.2.7: reviewed principles, starter preferences, general skills ----
+        T7 = KIT / "templates"
+        cm = (T7 / "CLAUDE.md").read_text(encoding="utf-8")
+        stance = ("Work for the user's maximum benefit within the real rules", "Do not add limits the user did not ask for",
+                  "Add no limits or decisions beyond the rules and what the user asked", "Judge by what got done, not by what was said",
+                  "write only the strongest true parts", "Never invent sources, records, completion status",
+                  "name the rule or the tool result that blocks which action")
+        check("principles: the 7 core-stance rules are in templates/CLAUDE.md under one heading",
+              "## Core stance" in cm and all(s in cm for s in stance), [s for s in stance if s not in cm])
+        fours = ("Saying done when it is not:", "Fixing one and dropping another:", "Pointing out and stopping:",
+                 "Not reading available data:", "first name the class of error")
+        check("principles: the four failures (and 'when corrected') are in templates/CLAUDE.md, each once",
+              "## The four failures that matter most" in cm and all(cm.count(s) == 1 for s in fours), [(s, cm.count(s)) for s in fours])
+        check("principles: the block stays under 100 lines (SETUP step 2 check)", len(cm.splitlines()) < 100, len(cm.splitlines()))
+        dup = [l for l in cm.splitlines() if l.startswith("- ") and cm.count(l) > 1]
+        check("principles: no bullet appears twice", not dup, dup)
+
+        tag_zh, tag_en = "（來自原作者，可刪）", "(from the original author; delete if you like)"
+        for label, fn, tag in (("zh", "和AI協作.md", tag_zh), ("en", "和AI協作.en.md", tag_en)):
+            tx = (T7 / fn).read_text(encoding="utf-8")
+            starter_head = [l for l in tx.splitlines() if l.startswith("## ") and ("起始偏好" in l or "Starter preferences" in l)]
+            starters = [l for l in tx.splitlines() if l.startswith("- ") and l.rstrip().endswith(tag)]
+            untagged = [l for l in tx[tx.find(starter_head[0]):tx.find("\n## ", tx.find(starter_head[0]) + 3)].splitlines()
+                        if l.startswith("- ") and not l.rstrip().endswith(tag)] if starter_head else ["no starter heading"]
+            check("starter preferences (%s): 15 lines, each tagged as from the original author, under their own heading" % label,
+                  len(starters) == 15 and starter_head and not untagged, (len(starters), starter_head, untagged))
+            first = tx.find("## 已整理的偏好") if label == "zh" else tx.find("## Sorted preferences")
+            check("starter preferences (%s): the user's own preference heading comes first, so `learn.py pref` writes there" % label,
+                  0 <= first < tx.find(starter_head[0]) < tx.find("## 紀錄" if label == "zh" else "## Log"))
+        # the starter lines reach the conversation, and a preference the user adds goes above them
+        for label, fn, tag in (("zh", "和AI協作.md", tag_zh), ("en", "和AI協作.en.md", tag_en)):
+            sv = tmp / ("starter-" + label)
+            sn = sv / "00-09 系統與索引" / "03 和 AI 協作" / "03-01 和 AI 協作.md"
+            sn.parent.mkdir(parents=True)
+            (sv / ".sbk-vault").write_text("", encoding="utf-8")
+            sn.write_text((T7 / fn).read_text(encoding="utf-8").replace("{{date}}", "2026-12-01"), encoding="utf-8")
+            sh = tmp / ("starter-home-" + label)
+            sh.mkdir()
+            (sh / "config.json").write_text(json.dumps({"vault": str(sv), "language": label}), encoding="utf-8")
+            senv = {"SBK_HOME": str(sh), "SBK_VAULT": str(sv), "ANTHROPIC_API_KEY": ""}
+            rc, out, err = run([KIT / "hooks" / "learn_notice.py"], {"cwd": str(sv), "hook_event_name": "SessionStart", "source": "startup"}, senv)
+            check("starter preferences (%s): a new conversation gets all 15 starter lines (none cut by the size cap) and the tag" % label,
+                  rc == 0 and out.count(tag) == 15 and "more in the note" not in out and "the starter ones the kit ships" in out, out[-300:] + err)
+            rc, out, err = run([KIT / "entry" / "learn.py", "pref", "reply-length", "Keep replies to three lines.", "--now", "2026-12-10"], env=senv)
+            tx = sn.read_text(encoding="utf-8")
+            check("starter preferences (%s): a preference the user adds is written above the starter ones" % label,
+                  rc == 0 and tx.find("- Keep replies to three lines.") > 0 and tx.find("- Keep replies to three lines.") < tx.find(tag), tx[:600])
+            rc, out, err = run([KIT / "entry" / "learn.py", "stats", "--now", "2026-12-10"], env=senv)
+            try:
+                stx = json.loads(out)
+            except Exception:
+                stx = {}
+            check("starter preferences (%s): stats count the user's own (1) apart from the 15 starter ones" % label,
+                  stx.get("preferences") == 1 and stx.get("starter_preferences") == 15, out + err)
+            rc, out, err = run([KIT / "entry" / "learn.py", "add", "correction", "kind-a", "words", "--now", "2026-12-11"], env=senv)
+            added = sn.read_text(encoding="utf-8").rstrip().splitlines()[-1]
+            check("starter preferences (%s): learn.py add writes the log line in the note's language" % label,
+                  rc == 0 and (("| 糾正 |" in added) if label == "zh" else ("| correction |" in added)), added)
+        # the English variant is a valid note too
+        ev = tmp / "starter-en-lint"
+        for d in (ev / "scripts", ev / "00-09 系統與索引" / "03 和 AI 協作"):
+            d.mkdir(parents=True, exist_ok=True)
+        (ev / ".sbk-vault").write_text("", encoding="utf-8")
+        (ev / "00-09 系統與索引" / "03 和 AI 協作" / "03-01 和 AI 協作.md").write_text(
+            (T7 / "和AI協作.en.md").read_text(encoding="utf-8").replace("{{date}}", "2026-12-01"), encoding="utf-8")
+        shutil.copy(str(KIT / "scripts" / "vault_lint.py"), str(ev / "scripts" / "vault_lint.py"))
+        rc, out, _ = run([ev / "scripts" / "vault_lint.py", "--root", ev], env=env)
+        check("starter preferences (en): the English note passes the vault lint with no errors", rc == 0 and "0 errors" in out and "RESULT: PASS" in out, out[-300:])
+
+        # nothing of the original author's private wording is in the kit (fingerprints, not the wording)
+        import hashlib
+        fp_file = KIT / "scripts" / "original-text.sha"
+        fps = set(l.strip() for l in fp_file.read_text(encoding="utf-8").splitlines() if l.strip() and not l.startswith("#"))
+
+        def window_hits(paths, fps, w=10):
+            hits = []
+            for p in paths:
+                try:
+                    s = re.sub(r"\s+", "", p.read_text(encoding="utf-8"))
+                except Exception:
+                    continue
+                for i in range(0, len(s) - w + 1):
+                    if hashlib.sha1(s[i:i + w].encode("utf-8")).hexdigest()[:16] in fps:
+                        hits.append("%s@%d" % (p.name, i))
+                        break
+            return hits
+        ctrl = tmp / "fp-control.md"
+        sample = "The quick brown fox jumps over the lazy dog, again and again."
+        ctrl.write_text("noise before " + sample + " noise after", encoding="utf-8")
+        cs = re.sub(r"\s+", "", sample)
+        cfps = {hashlib.sha1(cs[i:i + 10].encode("utf-8")).hexdigest()[:16] for i in range(0, len(cs) - 10 + 1, 6)}
+        check("original wording scan: control (a known 15-character copy is found, a clean file is not)",
+              window_hits([ctrl], cfps) and not window_hits([KIT / "LICENSE"], cfps))
+        kit_text = [p for p in KIT.rglob("*") if p.is_file() and ".git" not in p.relative_to(KIT).parts
+                    and "__pycache__" not in p.relative_to(KIT).parts and p.suffix not in (".png", ".pyc", ".sha")]
+        check("original wording scan: %d fingerprints, no file in the kit holds the original author's wording" % len(fps),
+              len(fps) > 100 and not window_hits(kit_text, fps), window_hits(kit_text, fps))
+
+        general = ("evidence-check", "outward-docs", "blind-three-way", "full-reader")
+        bad_sk = []
+        for n in general:
+            f = KIT / "skills" / n / "SKILL.md"
+            if not f.exists():
+                bad_sk.append(n + ": missing")
+                continue
+            tx = f.read_text(encoding="utf-8")
+            m = re.match(r"---\nname: (.+)\ndescription: (.+)\n---\n", tx.replace("\r\n", "\n"))
+            if not m or m.group(1).strip() != n or not m.group(2).startswith("Use ") or len(m.group(2)) < 60:
+                bad_sk.append(n + ": frontmatter")
+        check("skills: the 4 general skills exist, name = folder, a one-line description starting 'Use'", not bad_sk, bad_sk)
+        rd_en = (KIT / "README.md").read_text(encoding="utf-8")
+        rd_zh = (KIT / "README.zh-TW.md").read_text(encoding="utf-8")
+        check("readme (en + zh): the section on what is installed vs what grows names the principles, the starter preferences and the 4 skills",
+              all(n in rd_en and n in rd_zh for n in general) and "starter preferences" in rd_en.lower() and "起始偏好" in rd_zh
+              and "（來自原作者，可刪）" in rd_zh and "(from the original author" in rd_en)
+        se7 = (KIT / "docs" / "SETUP.md").read_text(encoding="utf-8")
+        check("setup: picks the zh or en note variant by language, tells the user about the starter preferences",
+              "templates/和AI協作.md" in se7 and "templates/和AI協作.en.md" in se7 and "starter preferences" in se7)
         ver = {json.loads((KIT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"],
                json.loads((KIT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))["plugins"][0]["version"]}
         check("plugin and marketplace versions match", len(ver) == 1, ver)

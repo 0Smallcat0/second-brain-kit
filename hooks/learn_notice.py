@@ -33,7 +33,7 @@ LINE = re.compile(r"^-\s*\d{4}-\d{2}-\d{2}\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|"
 HEAD = 600          # long pasted messages: only the user's own opening is read
 MAX_KINDS = 12
 SHORT = 200        # a confirmation is only looked for in a short message
-MAX_PREFS_CHARS = 3000  # SessionStart: the preferences put into the conversation, at most
+MAX_PREFS_CHARS = 5000  # SessionStart: the preferences put into the conversation, at most (15 starter lines take ~3300)
 
 CORRECTION = [
     r"(?<!對)不對(?!稱|應|外|面)",                    # not 對不對 ("right?"), 不對稱
@@ -184,9 +184,10 @@ def session_start(data, m):
         text.append(l)
         used += len(l)
     add_context("SessionStart",
-                "[second-brain-kit preferences] The user's sorted preferences from the 和 AI 協作 note (%s), "
-                "written with their agreement. Follow them in this whole conversation; recent lines are in the "
-                "note's 紀錄 section.\n%s" % (note.as_posix(), "\n".join(text)))
+                "[second-brain-kit preferences] The user's sorted preferences from the 和 AI 協作 note (%s): "
+                "their own, written with their agreement, and the starter ones the kit ships (each ends with "
+                "a tag saying so; the user may delete any). Follow them in this whole conversation; recent lines "
+                "are in the note's Log section.\n%s" % (note.as_posix(), "\n".join(text)))
 
 
 def main():
