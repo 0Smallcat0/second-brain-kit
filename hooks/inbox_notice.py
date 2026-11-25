@@ -7,6 +7,13 @@ and (b) how many open items its task.md has. In the entry folder it shows the tr
 summary instead. At SessionStart it always shows; on later prompts only when something new
 arrived. Nothing is blocked. Off by default (Basic has no topic sessions); Advanced turns it on
 with config.json "modes": {"inbox_notice": "warn"}.
+
+At SessionStart (startup, resume, clear, fork and after compaction) it also puts the notes folder's own
+rule file (AGENTS.md) into the conversation, word for word. A session under <SBK_HOME> has the notes
+folder only attached (--add-dir): Claude Code does not load an attached folder's CLAUDE.md unless
+CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1 is set, and even then does not follow an import inside
+it (tested on 2.1.33x: a CLAUDE.md that is only "@AGENTS.md" brings nothing). "Read its AGENTS.md
+first" in the session's CLAUDE.md was only a sentence; a program does it now.
 """
 import hashlib
 import os
@@ -15,9 +22,35 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import add_context, home, log, mode, read_input  # noqa: E402
+from _common import add_context, config, home, log, mode, read_input  # noqa: E402
 
 OPEN = re.compile(r"^\s*- \[ \]")
+CAP = 9500          # additionalContext is limited to about 10000 characters
+
+
+def vault_rules(room):
+    """The notes folder's AGENTS.md, word for word, within `room` characters; "" when there is none."""
+    v = os.environ.get("SBK_VAULT") or config().get("vault")
+    if not v:
+        return ""
+    p = Path(v) / "AGENTS.md"
+    try:
+        text = p.read_text(encoding="utf-8-sig").strip()
+    except Exception:
+        return ""
+    if not text:
+        return ""
+    head = ("[second-brain-kit] The notes folder's rules (%s), word for word. They apply to everything you "
+            "read or write in the notes folder:\n" % p.as_posix())
+    room -= len(head) + 160
+    more = ""
+    if len(text) > room:
+        cut = text.rfind("\n", 0, max(room, 0))
+        shown = text[:cut if cut > 0 else max(room, 0)]
+        more = ("\n[cut after line %d of %d: read the rest of %s before you work in the notes folder]"
+                % (shown.count("\n") + 1, text.count("\n") + 1, p.as_posix()))
+        text = shown
+    return head + text + more
 
 
 def open_lines(path, limit=10):
@@ -90,8 +123,11 @@ def main():
         state.write_text(sig, encoding="utf-8")
     except Exception:
         pass
+    rules = vault_rules(CAP - len(text) - 2) if event == "SessionStart" else ""
+    if rules:
+        text = text + "\n\n" + rules
     add_context(event if event in ("SessionStart", "UserPromptSubmit") else "SessionStart", text)
-    log("inbox_notice", "%s/%s injected" % (role, name))
+    log("inbox_notice", "%s/%s injected%s" % (role, name, " (+notes rules)" if rules else ""))
 
 
 if __name__ == "__main__":

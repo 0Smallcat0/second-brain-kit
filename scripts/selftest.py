@@ -1146,6 +1146,27 @@ def main():
         check("inbox: warn mode (Advanced): manager sees its inbox and open tasks", "summarise chapter 3" in out and "1 open" in out, out)
         rc, out, _ = run([H / "inbox_notice.py"], {"cwd": str(tmp), "hook_event_name": "SessionStart"}, envi)
         check("inbox: other folders get nothing", out.strip() == "", out)
+        # the notes folder's rule file is put into a kit session at start (an attached folder's
+        # CLAUDE.md import is not followed, so "read its AGENTS.md first" was only a sentence)
+        rv = tmp / "rulesvault"
+        rv.mkdir()
+        (rv / "AGENTS.md").write_text("# Rules of these notes\nRULE-KIWI: never delete a note.\n", encoding="utf-8")
+        envr = dict(envi, SBK_VAULT=str(rv))
+        rc, out, _ = run([H / "inbox_notice.py"], {"cwd": str(home / "managers" / "study"), "hook_event_name": "SessionStart"}, envr)
+        check("inbox: SessionStart puts the notes folder's AGENTS.md into the session, word for word",
+              "RULE-KIWI: never delete a note." in out and "summarise chapter 3" in out, out)
+        (home / "inbox" / "study.md").open("a", encoding="utf-8").write("- [ ] L0099 one more line\n")
+        rc, out, _ = run([H / "inbox_notice.py"], {"cwd": str(home / "managers" / "study"), "hook_event_name": "UserPromptSubmit"}, envr)
+        check("inbox: a later prompt shows the new line without repeating the rules", "L0099" in out and "RULE-KIWI" not in out, out)
+        (rv / "AGENTS.md").write_text("\n".join("line %04d of the rules, forty characters long" % i for i in range(400)), encoding="utf-8")
+        rc, out, _ = run([H / "inbox_notice.py"], {"cwd": str(home / "managers" / "study"), "hook_event_name": "SessionStart"}, envr)
+        ctx = (json.loads(out)["hookSpecificOutput"]["additionalContext"] if out.strip() else "")
+        check("inbox: a long rule file is cut at a line end under 10,000 characters and says where to read the rest",
+              0 < len(ctx) < 10000 and "[cut after line" in ctx and "of 400" in ctx and (rv / "AGENTS.md").as_posix() in ctx, ctx[-200:])
+        lines = (home / "inbox" / "study.md").read_text(encoding="utf-8").splitlines(True)
+        (home / "inbox" / "study.md").write_text("".join(x for x in lines if "L0099" not in x), encoding="utf-8")
+        rc, out, _ = run([H / "inbox_notice.py"], {"cwd": str(home / "managers" / "study"), "hook_event_name": "SessionStart"}, envi)
+        check("inbox: no notes folder set: the notice still works, no rules part", "summarise chapter 3" in out and "word for word" not in out, out)
         rc, out, err = run([L, "done", "L0001", "--evidence", "opened notes folder, 3 files renamed"], env=env)
         check("ledger: done with evidence", rc == 0, out + err)
         rc, out, _ = run([L, "list"], env=env)

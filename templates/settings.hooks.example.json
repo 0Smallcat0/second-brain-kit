@@ -7,6 +7,12 @@
         "hooks": [
           {
             "type": "command",
+            "command": "sh \"__KIT__/run.sh\" inbox_notice.py",
+            "timeout": 10,
+            "onFailure": "continue"
+          },
+          {
+            "type": "command",
             "command": "sh \"__KIT__/run.sh\" requests_reinject.py",
             "timeout": 10,
             "onFailure": "continue"
