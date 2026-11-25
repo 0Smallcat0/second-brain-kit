@@ -122,6 +122,7 @@ You talk to one Claude conversation that starts inside your notes folder. It che
 - `learn_notice` - when your message reads like a correction or a confirmation, reminds Claude to write one line in the 和 AI 協作 note; when a conversation starts, puts your sorted preferences into it, so they are followed without Claude having to remember to look. Basic: on.
 - `inbox_notice` - shows the work waiting in a Full session's inbox, and in the entry the work done and waiting for its check. Basic: off (on with the Full sessions).
 - `usage_warn` - warns once when your weekly Claude usage passes 80%. Basic: off (on if you ask).
+- `vault_snapshot` - when each reply ends, commits the notes Claude changed in the notes folder (local git only, never pushed), so an older version can be brought back. Basic: on.
 
 ## Where your data lives
 
