@@ -1,27 +1,36 @@
 # second-brain-kit
 
-給 Claude 一個筆記資料夾、一份記著還沒做完的事的追蹤表和安全檢查，讓它換了對話也記得你的事，並且從你的糾正中學習。**不用會寫程式**：在 Claude 桌面版 App 的 **Code** 分頁或終端機裡都能用。[English](README.md)
+讓 Claude 換了新對話也記得你：你的筆記、還沒做完的事、你喜歡的做法，都留在你自己電腦的資料夾裡。**不用會寫程式。**[English](README.md)
 
 ## 你會得到什麼
 
 ![裝好之後你得到什麼：你只跟一個 Claude 對話說話；安全檢查在旁邊看著；它有筆記資料夾、記著還沒做完的事的追蹤表，以及記你糾正過什麼的筆記](docs/diagrams/readme/a-what-you-get.zh.png)
 
-換了新對話也找得回你的筆記、沒做完的事有人幫你記、Claude 會學你喜歡的做法。
+## 開始前
+
+- **付費的 Claude 方案**（Pro、Max、Ultra、Team、Enterprise）或 Console 帳號，在 Claude 桌面版 App 的 **Code** 分頁或終端機裡用。免費方案和網頁聊天用不了。這套工具本身免費。
+- **Python 3**（免費）。沒裝的話，安裝過程中 Claude 會問你要不要幫你裝。
 
 ## 三步驟安裝
 
 ![三步驟安裝：打開 Claude Code、貼上一句話、回答 6 個問題](docs/diagrams/readme/b-install.zh.png)
 
-大約 15～30 分鐘，大部分時間是 Claude 自己在做；你回答 6 個問題、按幾次同意。
-
 第 2 步要貼的那一句：
 
 ```
 請從 https://github.com/0Smallcat0/second-brain-kit 安裝 second-brain-kit，
-照 docs/SETUP.md 幫我設定，用繁體中文跟我說話。我只有一個 Claude 帳號。
+照 docs/SETUP.md 幫我設定，用繁體中文跟我說話。
 ```
 
-想自己打指令？在 Claude Code 2.1.275 以上：`/plugin install second-brain-kit --marketplace 0Smallcat0/second-brain-kit`，再輸入 `/sbk-setup`。其他方式：[安裝細節](docs/zh-TW/安裝.md)。
+- 大約 15～30 分鐘，大部分時間是 Claude 自己在做。
+- 過程中 Claude 會跳出幾次權限確認，上面的指令看起來很技術，這是正常的，按允許就好。
+- 裝好後試著說：「我還有什麼沒做完？」
+
+<details><summary>給開發者：用指令安裝</summary>
+
+在 Claude Code 2.1.275 以上：`/plugin install second-brain-kit --marketplace 0Smallcat0/second-brain-kit`，再輸入 `/sbk-setup`。其他方式：[安裝細節](docs/zh-TW/安裝.md)。
+
+</details>
 
 ## 基本款還是完整款
 
@@ -40,7 +49,7 @@
 
 ![它怎麼學：你糾正它、Claude 記一行、每週整理、你說好、下個對話照著做](docs/diagrams/readme/d-how-it-learns.zh.png)
 
-你每次糾正它或說它做對了，Claude 就記一行。你沒說好之前，什麼都不會變成偏好。
+你沒說好之前，什麼都不會變成偏好。
 
 ## 每天怎麼用
 
@@ -50,16 +59,11 @@
 - 「我還有什麼沒做完？」
 - 「記住：我喜歡這樣做。」
 
-## 費用與方案
-
-- **費用：** 這套工具免費，和一般對話一樣用你的 Claude 方案。
-- **需要的方案：** 有 Claude Code 的付費方案（Pro、Max、Ultra、Team、Enterprise）或 Console 帳號，另外要有 [Python 3](https://www.python.org/downloads/)（免費）。免費的 claude.ai 方案和網頁聊天用不了。
-
 ## 安全與資料
 
-- **有風險的事先問你：** 要推上遠端、刪掉整個資料夾、丟掉 git 裡的工作、跳過 git 檢查、改受保護的規則檔，或把一張筆記砍到剩一小部分之前。
+- **先問你才做：** 刪掉整個資料夾、把一張筆記砍到剩一小部分、把筆記傳到網路上、改它自己受保護的規則之前。[完整清單](docs/zh-TW/安全與資料.md)
 - **全部留在你的電腦上：** 筆記是你選的資料夾裡的一般文字檔，這套工具不上傳任何東西（Claude 本身照常是線上服務）。
-- **git 的修改紀錄不是備份：** 請不時把筆記資料夾複製到另一顆硬碟或你信任的雲端硬碟。
+- **隨時可以不用：** 不用這套工具，筆記照樣打得開。記得不時把資料夾複製一份到另一顆硬碟或你信任的雲端硬碟。
 
 ## 更多
 
