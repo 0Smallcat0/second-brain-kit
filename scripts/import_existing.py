@@ -15,8 +15,8 @@ PLAN.json:
  "expect_rows": 83,                 optional: the number of rows the old tracker has; the import stops
                                     unless "items" accounts for exactly that many (nothing dropped silently)
  "keep_ids": true,                  optional: an old id that already has the tracker's form (L0412) stays the
-                                    item's id, so the notes and working files that name it stay right; new
-                                    items then continue after the highest one. Other ids get the next free id.
+                                    item's id, so the notes and working files that name it stay right; other
+                                    items get ids after the highest old one (kept or not).
  "topics": [{"name": "study",       folder managers/study (letters, digits, - and _)
              "keywords": "course, exam",       the routes.md row
              "scope": "the two courses",       goes into the topic's CLAUDE.md
@@ -161,7 +161,9 @@ def do_items(plan, home, apply, out):
         same = bool(plan.get("keep_ids"))
         fits = [str(it["old"]).strip() for it in plan.get("items") or []
                 if same and it.get("keep", True) and re.fullmatch(r"L\d{4}", str(it["old"]).strip())]
-        nxt = max([int(i[0][1:]) for i in items] + [int(o[1:]) for o in fits] + [0])
+        seen = [str(it["old"]).strip() for it in plan.get("items") or []
+                if same and re.fullmatch(r"L\d{4}", str(it["old"]).strip())]  # records too: their ids are not given out again
+        nxt = max([int(i[0][1:]) for i in items] + [int(o[1:]) for o in seen] + [0])
         for it in plan.get("items") or []:
             old = str(it["old"]).strip()
             if old in done:
