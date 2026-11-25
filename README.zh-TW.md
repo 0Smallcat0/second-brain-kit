@@ -17,7 +17,8 @@
 第 2 步要貼的那一句：
 
 ```
-請從 https://github.com/0Smallcat0/second-brain-kit 安裝 second-brain-kit，照 docs/SETUP.md 幫我設定，用繁體中文跟我說話。我只有一個 Claude 帳號。
+請從 https://github.com/0Smallcat0/second-brain-kit 安裝 second-brain-kit，
+照 docs/SETUP.md 幫我設定，用繁體中文跟我說話。我只有一個 Claude 帳號。
 ```
 
 想自己打指令？在 Claude Code 2.1.275 以上：`/plugin install second-brain-kit --marketplace 0Smallcat0/second-brain-kit`，再輸入 `/sbk-setup`。其他方式：[安裝細節](docs/zh-TW/安裝.md)。

@@ -17,7 +17,8 @@ About 15–30 minutes, mostly Claude working on its own; you answer 6 questions 
 The sentence for step 2:
 
 ```
-Install second-brain-kit from https://github.com/0Smallcat0/second-brain-kit and set me up by its docs/SETUP.md. I only have one Claude account.
+Install second-brain-kit from https://github.com/0Smallcat0/second-brain-kit
+and set me up by its docs/SETUP.md. I only have one Claude account.
 ```
 
 Prefer to type it yourself? In Claude Code 2.1.275 or later: `/plugin install second-brain-kit --marketplace 0Smallcat0/second-brain-kit`, then `/sbk-setup`. Other ways: [Install details](docs/INSTALL.md).
