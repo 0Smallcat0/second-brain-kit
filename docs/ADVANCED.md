@@ -317,6 +317,13 @@ Written for the Claude that switches a part on. Words (`KIT`, `SBK_HOME`, `VAULT
      Register-ScheduledTask -TaskName sbk-alarm -Action $a -Trigger $t -Settings $s
      ```
    - macOS/Linux: install with a command Claude can run, not `crontab -e` (an editor): `(crontab -l 2>/dev/null; echo '*/5 * * * * PATH=<the folders of claude and python3, e.g. $HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin> <PY> "$HOME/.sbk/bin/alarm.py" --tick') | crontab -` (cron has a minimal PATH and would not find `claude` or Homebrew's `python3`; `session.py check` also saves the absolute `claude_path` in `config.json`, which the tick uses first). On macOS a LaunchAgent (`~/Library/LaunchAgents/`, `StartInterval` 300, same `PATH` in `EnvironmentVariables`) is the better fit: cron may need Full Disk Access there. The tick appends its output to `SBK_HOME/logs/alarm.log`.
+   - Windows where `Register-ScheduledTask` is refused (no administrator rights, or a policy forbids scheduled tasks): start the loop at sign-in instead, with a shortcut in the user's Startup folder. It needs no rights, runs `--tick` every 5 minutes as a separate process, and only one loop runs per `SBK_HOME`:
+     ```powershell
+     $s = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path ([Environment]::GetFolderPath('Startup')) 'sbk-alarm.lnk'))
+     $s.TargetPath = "<path to pythonw.exe>"; $s.Arguments = ('"' + $env:USERPROFILE + '\.sbk\bin\alarm.py" --loop'); $s.Save()
+     Start-Process "<path to pythonw.exe>" -ArgumentList ('"' + $env:USERPROFILE + '\.sbk\bin\alarm.py" --loop')
+     ```
+     Check: `SBK_HOME/state/tick-loop.json` names a running process and `SBK_HOME/state/alarms.json` gets a new time within 5 minutes.
    A no is **not enabled**: reminders do not fire by themselves, `alarm.py --fire M01` still works by hand, and the scheduler check below is skipped.
 3. Tell the user: nothing fires while the computer is off or asleep; at the next check a missed reminder runs once, marked "(late)".
 

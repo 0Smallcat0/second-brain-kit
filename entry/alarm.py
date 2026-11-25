@@ -2,6 +2,7 @@
 """Alarm runner over the table in <SBK_HOME>/alarms.md.
 
     alarm.py --tick [--now 2000-01-31T21:05]   fire what is due (run this every 5 minutes)
+    alarm.py --loop [--every 300]              stay running and tick every N seconds (see below)
     alarm.py --list                            show rows, last fired, next due
     alarm.py --fire A01                        fire one row now
     alarm.py --prune                           delete one-time rows that already fired
@@ -44,11 +45,18 @@ Run it from the OS scheduler every 5 minutes (docs/ADVANCED.md A2 has the exact 
     macOS:    a LaunchAgent (StartInterval 300) with PATH set; Linux: crontab with PATH set:
               */5 * * * * PATH=... python3 <bin>/alarm.py --tick
 The tick appends what it prints to <SBK_HOME>/logs/alarm.log (a scheduled run has no screen).
+Where no scheduled task can be registered (no administrator rights, or a policy forbids it), start
+`alarm.py --loop` once at sign-in instead (a shortcut in the Startup folder, a login item): it runs
+`--tick` every 5 minutes as a separate process, so an error in one tick does not stop the next. Only
+one loop runs per SBK_HOME: a second one sees <SBK_HOME>/state/tick-loop.json and exits.
 """
 import datetime
 import json
+import os
 import re
+import subprocess
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -322,6 +330,38 @@ def prune(now):
     print("removed %d fired one-time rows" % dropped)
 
 
+def loop(every):
+    """Tick every `every` seconds until the process is ended. One loop per SBK_HOME."""
+    mark = send.home() / "state" / "tick-loop.json"
+    try:
+        old = json.loads(mark.read_text(encoding="utf-8"))
+    except Exception:
+        old = {}
+    if old.get("pid") != os.getpid() and session.pid_alive(old.get("pid")):
+        print("a tick loop is already running for this folder (pid %s, since %s)" % (old.get("pid"), old.get("since")))
+        return 0
+    mark.parent.mkdir(parents=True, exist_ok=True)
+    mark.write_text(json.dumps({"pid": os.getpid(), "since": ledger.now(), "every": every}), encoding="utf-8")
+    left = int(os.environ.get("SBK_LOOP_MAX", "0"))  # the selftest stops it after N ticks
+    while True:
+        try:
+            subprocess.run([sys.executable, str(Path(__file__).resolve()), "--tick"], stdin=subprocess.DEVNULL,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=1800,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        except Exception:
+            pass  # the tick writes its own log; the next one runs anyway
+        if left:
+            left -= 1
+            if not left:
+                break
+        time.sleep(every)
+    try:
+        mark.unlink()
+    except Exception:
+        pass
+    return 0
+
+
 def main():
     a = sys.argv[1:]
     # --tick runs from the OS scheduler: its output is also kept in <SBK_HOME>/logs/alarm.log. Under
@@ -330,7 +370,10 @@ def main():
     now = datetime.datetime.now().replace(second=0, microsecond=0)
     if "--now" in a:
         now = datetime.datetime.strptime(a[a.index("--now") + 1], "%Y-%m-%dT%H:%M")
-    if "--tick" in a:
+    if "--loop" in a:
+        every = int(a[a.index("--every") + 1]) if "--every" in a else 300
+        sys.exit(loop(max(1, every)))
+    elif "--tick" in a:
         tick(now)
     elif "--list" in a:
         listing(now)

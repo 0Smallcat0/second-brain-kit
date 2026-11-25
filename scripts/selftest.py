@@ -1500,6 +1500,19 @@ def main():
         (hw / "config.json").write_text(json.dumps({"routing": "live", "wake_limits": {"per_day": 9, "min_gap_min": 0}}), encoding="utf-8")
         rc, out, err = run([AL, "--fire", "A05"], env=envw)
         check("worker row: not started twice while the last one is still running", "still running" in out, out + err)
+        # --loop: the tick without an OS scheduler; one loop per folder
+        hl = tmp / "home-loop"
+        (hl / "state").mkdir(parents=True)
+        (hl / "alarms.md").write_text("| id | when | to | text |\n|---|---|---|---|\n| A01 | daily 00:00 | entry | loop test |\n", encoding="utf-8")
+        envl = {"SBK_HOME": str(hl), "SBK_VAULT": "", "ANTHROPIC_API_KEY": "", "SBK_AGENTS_JSON": str(agw),
+                "SBK_SESSION_DRYRUN": "1", "CLAUDE_CONFIG_DIR": str(tmp / "cc-worker"), "SBK_LOOP_MAX": "2"}
+        rc, out, err = run([AL, "--loop", "--every", "1"], env=envl)
+        check("loop: ticks run as separate processes and the marker is removed when the loop ends",
+              rc == 0 and (hl / "state" / "alarms.json").exists()
+              and not (hl / "state" / "tick-loop.json").exists(), out + err)
+        (hl / "state" / "tick-loop.json").write_text(json.dumps({"pid": os.getpid(), "since": "x"}), encoding="utf-8")
+        rc, out, err = run([AL, "--loop", "--every", "1"], env=envl)
+        check("loop: a second loop for the same folder exits at once", rc == 0 and "already running" in out, out + err)
         # learning loop numbers (learn.py)
         LE = KIT / "entry" / "learn.py"
         lv = tmp / "lvault2"
