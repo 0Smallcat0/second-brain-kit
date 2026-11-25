@@ -283,6 +283,59 @@ def model_args(name):
     return out
 
 
+GATE = """# Written by second-brain-kit (entry/session.py, config.json "skip_hooks"). Python imports a module named
+# sitecustomize at start. This folder is on PYTHONPATH only in sessions the kit started, so only there:
+# a script under one of the folders in UNDER (the user's older hooks) ends at once, exit 0 and no output,
+# which Claude Code reads as "this hook did nothing". Every other Python program runs as usual.
+import os
+import sys
+
+UNDER = %s
+KEEP = %s
+try:
+    _me = os.path.realpath(sys.argv[0]).replace("\\\\", "/").lower() if sys.argv and sys.argv[0] else ""
+except Exception:
+    _me = ""
+if _me and os.path.basename(_me) not in KEEP and any(_me.startswith(u) for u in UNDER):
+    _log = os.environ.get("SBK_GATE_LOG")
+    if _log:
+        try:
+            with open(_log, "a") as _f:
+                _f.write(os.path.basename(_me) + "\\n")
+        except Exception:
+            pass
+    os._exit(0)
+"""
+
+
+def gate(env):
+    """config.json "skip_hooks": {"under": ["<folder of the user's older hooks>"], "keep": ["name.py"]}: for a
+    computer whose settings.json already runs hooks of the user's own on every conversation. The kit's
+    sessions bring their own hooks (session_hooks), and running both sets doubles every check. Nothing in
+    settings.json and none of those hooks is edited, and conversations the kit did not start are not
+    touched: the sessions the kit starts get a folder on PYTHONPATH whose sitecustomize.py ends a Python
+    hook under one of those folders before it does anything. "keep" names hooks that stay on. Works for
+    hooks started as `python <script>` (not with -I, -E or -S; not for hooks that are not Python). If the
+    user's Python already has a sitecustomize of its own, that one is not loaded in these sessions."""
+    g = cfg().get("skip_hooks")
+    under = [str(Path(u).resolve()).replace("\\", "/").lower().rstrip("/") + "/"
+             for u in (g.get("under") or [])] if isinstance(g, dict) else []
+    if not under:
+        return env
+    keep = [str(k).lower() for k in (g.get("keep") or [])]
+    d = send.home() / "state" / "gate"
+    try:
+        d.mkdir(parents=True, exist_ok=True)
+        text = GATE % (json.dumps(under), json.dumps(keep))
+        f = d / "sitecustomize.py"
+        if not f.exists() or f.read_text(encoding="utf-8") != text:
+            f.write_text(text, encoding="utf-8")
+        env["PYTHONPATH"] = os.pathsep.join([str(d)] + ([env["PYTHONPATH"]] if env.get("PYTHONPATH") else []))
+    except Exception as e:
+        print("skip_hooks: not set up (%r); the older hooks will run in this session" % (e,))
+    return env
+
+
 def child_env():
     """The environment for claude: a session started from cron or the Windows task inherits a minimal PATH
     (agent view docs: a background session runs with the PATH of the shell it was dispatched from), so put
@@ -300,7 +353,7 @@ def child_env():
         if Path(d).is_dir():
             extra.append(d)
     env["PATH"] = os.pathsep.join(extra + [env.get("PATH", "")])
-    return env
+    return gate(env)
 
 
 def folder(name):

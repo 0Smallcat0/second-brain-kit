@@ -1451,6 +1451,31 @@ def main():
         rc, out, err = run([hb / "bin" / "session.py", "open", "entry"], env=envm)
         ssd = json.loads(ssf.read_text(encoding="utf-8")) if ssf.exists() else {}
         cmds = [h["command"] for ev in ssd.get("hooks", {}).values() for m in ev for h in m["hooks"]]
+        # skip_hooks: the user's older Python hooks end at once in sessions the kit starts, and only there
+        legacy = tmp / "legacy-hooks"
+        legacy.mkdir()
+        for n in ("old_check.py", "kept_check.py"):
+            (legacy / n).write_text("import sys\nopen(sys.argv[1], 'a').write('%s ran\\n')\n" % n, encoding="utf-8")
+        (tmp / "other.py").write_text("import sys\nopen(sys.argv[1], 'a').write('other ran\\n')\n", encoding="utf-8")
+        (hb / "config.json").write_text(json.dumps({"routing": "live", "skip_hooks": {"under": [str(legacy)], "keep": ["kept_check.py"]}}), encoding="utf-8")
+        penv = tmp / "penv.py"
+        penv.write_text("import sys\nsys.path.insert(0, %r)\nimport session\nprint(session.child_env().get('PYTHONPATH', ''))\n"
+                        % str(KIT / "entry"), encoding="utf-8")
+        rc, out, err = run([penv], env=envm)
+        gate_dir = out.strip().split(os.pathsep)[0] if out.strip() else ""
+        ran = tmp / "ran.txt"
+        skipped = tmp / "skipped.txt"
+        for script in (legacy / "old_check.py", legacy / "kept_check.py", tmp / "other.py"):
+            run([script, ran], env={"PYTHONPATH": gate_dir, "SBK_GATE_LOG": str(skipped)})
+        run([legacy / "old_check.py", ran], env={"PYTHONPATH": ""})
+        ran_t = ran.read_text(encoding="utf-8") if ran.exists() else ""
+        check("skip_hooks: in a kit session an older hook ends before it does anything; a kept one, any other script, and the same hook outside a kit session run",
+              rc == 0 and gate_dir and (Path(gate_dir) / "sitecustomize.py").exists()
+              and ran_t == "kept_check.py ran\nother ran\nold_check.py ran\n"
+              and skipped.exists() and skipped.read_text(encoding="utf-8").strip() == "old_check.py", out + err + ran_t)
+        (hb / "config.json").write_text(json.dumps({"routing": "live", "session_hooks": True}), encoding="utf-8")
+        rc, out, err = run([penv], env=dict(envm, PYTHONPATH=""))
+        check("skip_hooks: nothing is put on PYTHONPATH when it is not configured", rc == 0 and out.strip() == "", out + err)
         check("session hooks: from the installed layout the commands point at <home>/hooks",
               cmds and all((hb.resolve() / "hooks").as_posix() in c for c in cmds), out + err + str(cmds)[:300])
         (hb / "config.json").write_text(json.dumps({"routing": "live", "session_hooks": str(tmp / "no-such.json")}), encoding="utf-8")
