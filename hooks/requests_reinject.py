@@ -10,7 +10,10 @@ UserPromptSubmit (hand-over): when the conversation carries more than config "ha
 into ONE fixed task.md (<SBK_HOME>/task.md for the Basic main conversation, <SBK_HOME>/entry/task.md
 for the entry), save the user's words to <SBK_HOME>/requests/<session>.md, and record both in
 <SBK_HOME>/state/handover.json. This is for conversations in a window (the Basic main conversation,
-an entry the user types into); background sessions are replaced by entry/handover.py without the user.
+an entry the user types into). A kit session running in the background (the entry or a topic, live
+routing) is told to write the hand-over into its own task.md and to say nothing to the user; the hook
+flags it in <SBK_HOME>/state/handover_due.json and the alarm tick replaces it once that file is written
+and the session is idle (entry/handover.py due). The user is never asked to open a conversation there.
 
 SessionStart (startup, clear) in the notes folder or the entry folder: when a hand-over is waiting
 in handover.json, say so and name the two files, so the new conversation continues without the user
@@ -57,13 +60,27 @@ HAND_STATE = "handover.json"
 HAND_DAYS = 7
 
 
+def in_background():
+    """True in a session Claude Code runs as a background job (it sets CLAUDE_JOB_DIR there);
+    SBK_BACKGROUND=1 or 0 overrides (tests)."""
+    forced = os.environ.get("SBK_BACKGROUND")
+    if forced in ("0", "1"):
+        return forced == "1"
+    return bool(os.environ.get("CLAUDE_JOB_DIR"))
+
+
 def scope_of(cwd):
-    """Which conversation this is: 'entry' (the entry folder), 'main' (inside the notes folder) or None."""
+    """Which conversation this is: 'entry' (the entry folder), 'topic:<name>' (a topic or the maintenance
+    folder under managers/), 'main' (inside the notes folder) or None."""
     try:
         here = Path(cwd).resolve()
         entry = (home() / "entry").resolve()
         if here == entry or entry in here.parents:
             return "entry", entry / "task.md"
+        managers = (home() / "managers").resolve()
+        if managers in here.parents:
+            name = here.relative_to(managers).parts[0]
+            return "topic:" + name, managers / name / "task.md"
     except Exception:
         pass
     if find_vault(cwd):
@@ -134,6 +151,30 @@ def handover_notice(data, sid):
         pass
     saved = save(sid, collect(path))
     scope, task = scope_of(data.get("cwd") or os.getcwd())
+    if scope and scope != "main" and in_background() and config().get("routing") == "live":
+        name = "entry" if scope == "entry" else scope.split(":", 1)[1]
+        flag = home() / "state" / "handover_due.json"
+        try:
+            due = json.loads(flag.read_text(encoding="utf-8"))
+        except Exception:
+            due = {}
+        due[name] = {"ts": time.time(), "session": str(data.get("session_id") or "")}
+        try:
+            flag.write_text(json.dumps(due, indent=1), encoding="utf-8")
+        except Exception:
+            pass
+        add_context("UserPromptSubmit",
+                    "This conversation now carries about %dk tokens (hand-over threshold %dk). After answering "
+                    "this message, hand over: update %s (create it if missing; top section \"Now\" within 40 "
+                    "lines: decisions still in force with the user's words and dates, work half done, background "
+                    "jobs and their output paths, next steps and dates; finished items one line each under "
+                    "\"Closed\", the long text appended to task-archive.md next to it). The user's words are "
+                    "saved in %s. Say nothing about this to the user and do not ask them to open anything: once "
+                    "the file is written and you are idle, the kit replaces this conversation with a fresh one "
+                    "of the same name that reads it."
+                    % (n // 1000, limit // 1000, task, saved or "the requests folder"))
+        log("requests_reinject", "hand-over notice at %d tokens (%s, background: flagged for the tick)" % (n, name))
+        return
     if scope:
         hand = read_hand()
         hand[scope] = {"task": str(task), "words": saved, "date": time.strftime("%Y-%m-%d"),

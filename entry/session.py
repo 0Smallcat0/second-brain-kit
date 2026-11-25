@@ -32,6 +32,8 @@ conversation, same ID when Claude Code can) instead of starting a second empty c
 `claude respawn <id>` also restarts a stopped session with its conversation but takes no message, so it is
 not used for delivery.
 
+A session can be given its model and effort (config.json "session_models", see model_args).
+
 Each role has its own tool allowlist (config.json "allowed_tools": {"entry": ..., "topic": ..., "maintenance":
 ...}; the defaults are below). A tool call outside it is refused without a prompt (dontAsk), which a
 session must report to the entry in the same turn with the exact command.
@@ -104,6 +106,22 @@ def tools_for(name):
         exe_ = py.split()[0].replace("\\", "/")
         base += ",Bash(%s:*),PowerShell(%s:*)" % (exe_, exe_)
     return base
+
+
+def model_args(name):
+    """--model / --effort for one session, from config.json "session_models":
+    {"<session name>" or "<role>": {"model": "...", "effort": "..."}} (a name wins over its role: entry,
+    topic, maintenance). Nothing set: Claude Code's own default, as before."""
+    table = cfg().get("session_models")
+    if not isinstance(table, dict):
+        return []
+    pick = table.get(name) if isinstance(table.get(name), dict) else table.get(role_of(name))
+    out = []
+    for key in ("model", "effort"):
+        val = pick.get(key) if isinstance(pick, dict) else None
+        if isinstance(val, str) and re.fullmatch(r"[A-Za-z0-9._\[\]-]+", val.strip()):
+            out += ["--" + key, val.strip()]
+    return out
 
 
 def child_env():
@@ -330,6 +348,7 @@ def open_session(name, first="", replace_ok=False, text=None, fresh=False):
         return 4
     old = None if fresh else resumable(name, allrows)
     common = ["--permission-mode", "dontAsk", "--settings", INBOUND, "--allowedTools", tools_for(name)]
+    common += model_args(name)
     if c.get("vault"):
         common += ["--add-dir", c["vault"]]
     if old:

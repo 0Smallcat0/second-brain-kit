@@ -25,6 +25,7 @@ def check(name, ok, detail=""):
 
 def run(args, stdin=None, env=None, cwd=None):
     e = dict(os.environ)
+    e.pop("CLAUDE_JOB_DIR", None)   # the tests must not depend on being run from a background session
     e.update(env or {})
     r = subprocess.run([PY] + [str(a) for a in args], input=(json.dumps(stdin) if stdin is not None else ""),
                        capture_output=True, text=True, encoding="utf-8", errors="replace", env=e, cwd=cwd)
@@ -1344,6 +1345,66 @@ def main():
         jl(tt, [user("hi"), usage(20000)])
         rc, out, _ = run([H / "requests_reinject.py"], dict(evh, session_id="w2"), envw)
         check("hook requests_reinject: quiet below the threshold", out.strip() == "", out)
+        # a kit session in the background above the threshold: the kit replaces it, the user opens nothing
+        hb = tmp / "home-bg"
+        for d in ("entry", "managers/study", "managers/work", "state"):
+            (hb / d).mkdir(parents=True)
+        (hb / "alarms.md").write_text("| id | when | to | text |\n|---|---|---|---|\n", encoding="utf-8")
+        (hb / "config.json").write_text(json.dumps({
+            "routing": "live", "handover_quiet_min": 0,
+            "session_models": {"entry": {"model": "opus", "effort": "high"}, "study": {"model": "haiku"},
+                               "topic": {"model": "sonnet", "effort": "medium; rm -rf"}}}), encoding="utf-8")
+        envb = {"SBK_HOME": str(hb), "SBK_VAULT": "", "ANTHROPIC_API_KEY": "", "SBK_BACKGROUND": "1"}
+        sid_e = "22222222-aaaa-bbbb-cccc-000000000002"
+        jl(tt, [user("keep the budget under 200"), usage(170000)])
+        evb = {"session_id": sid_e, "hook_event_name": "UserPromptSubmit", "transcript_path": str(tt), "cwd": str(hb / "entry")}
+        rc, out, _ = run([H / "requests_reinject.py"], evb, envb)
+        ctx = json.loads(out)["hookSpecificOutput"]["additionalContext"] if out.strip() else ""
+        flag = hb / "state" / "handover_due.json"
+        check("hand-over: a background entry above the threshold is flagged for the tick; the user is not asked to open a conversation",
+              "hand over" in ctx and "start a new conversation" not in ctx and "Say nothing about this to the user" in ctx
+              and str((hb / "entry" / "task.md").resolve()) in ctx and flag.exists()
+              and json.loads(flag.read_text(encoding="utf-8")).get("entry", {}).get("session") == sid_e, out)
+        rc, out, _ = run([H / "requests_reinject.py"], dict(evb, session_id="w9", cwd=str(hb / "managers" / "study")),
+                         dict(envb, SBK_BACKGROUND="0"))
+        ctx = json.loads(out)["hookSpecificOutput"]["additionalContext"] if out.strip() else ""
+        check("hand-over: a topic the user typed into (a window) hands over into its own task.md, not the main one",
+              str((hb / "managers" / "study" / "task.md").resolve()) in ctx and "start a new conversation" in ctx
+              and "study" not in json.loads(flag.read_text(encoding="utf-8")), out)
+        HO = KIT / "entry" / "handover.py"
+        agb = tmp / "agents-bg.json"
+        row_e = {"id": "e1", "name": "entry", "kind": "background", "cwd": str(hb / "entry"), "pid": 4242,
+                 "status": "idle", "startedAt": 5, "sessionId": sid_e}
+        agb.write_text(json.dumps([row_e]), encoding="utf-8")
+        envd = dict(envb, SBK_AGENTS_JSON=str(agb), SBK_SESSION_DRYRUN="1")
+        rc, out, err = run([HO, "due"], env=envd)
+        check("hand-over due: nothing is replaced before the hand-over is written", "not written yet" in out and flag.exists(), out + err)
+        tk = hb / "entry" / "task.md"
+        tk.write_text("# Now\n", encoding="utf-8")
+        later = json.loads(flag.read_text(encoding="utf-8"))["entry"]["ts"] + 30
+        os.utime(tk, (later, later))
+        agb.write_text(json.dumps([dict(row_e, status="busy")]), encoding="utf-8")
+        rc, out, err = run([HO, "due"], env=envd)
+        check("hand-over due: a session that is working is left alone", "working, waits" in out and flag.exists(), out + err)
+        agb.write_text(json.dumps([row_e]), encoding="utf-8")
+        rc, out, err = run([KIT / "entry" / "alarm.py", "--tick", "--now", "2026-11-23T09:00"], env=envd)
+        check("hand-over due: the alarm tick replaces the flagged session once its task.md is written and it is idle",
+              "handover: RENEWED (dry run): entry" in out and not flag.exists(), out + err)
+        flag.write_text(json.dumps({"entry": {"ts": 1, "session": "some-earlier-conversation"}}), encoding="utf-8")
+        rc, out, err = run([HO, "due"], env=envd)
+        check("hand-over due: a flag left by an earlier conversation is dropped, the fresh one is not replaced again",
+              "flag dropped" in out and "RENEWED" not in out and not flag.exists(), out + err)
+        # model and effort per session (config.json session_models)
+        none_b = tmp / "agents-none.json"
+        none_b.write_text("[]", encoding="utf-8")
+        envm = dict(envb, SBK_AGENTS_JSON=str(none_b), SBK_SESSION_DRYRUN="1")
+        rc, out, err = run([KIT / "entry" / "session.py", "open", "entry"], env=envm)
+        check("session models: the entry gets its model and effort", "--model opus --effort high" in out, out + err)
+        rc, out, err = run([KIT / "entry" / "session.py", "open", "study", "go"], env=envm)
+        check("session models: a session's own row wins over its role", "--model haiku" in out and "--effort" not in out, out + err)
+        rc, out, err = run([KIT / "entry" / "session.py", "open", "work", "go"], env=envm)
+        check("session models: the role row applies to other topics; a value that is not a plain word is dropped",
+              "--model sonnet" in out and "--effort" not in out and "rm -rf" not in out, out + err)
         # learning loop numbers (learn.py)
         LE = KIT / "entry" / "learn.py"
         lv = tmp / "lvault2"

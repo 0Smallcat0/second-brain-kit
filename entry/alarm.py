@@ -195,6 +195,11 @@ def tick(now):
         st[row["id"]] = key
     save_state(st)
     drain(now)
+    if (send.home() / "state" / "handover_due.json").exists():
+        import handover
+        res = handover.due()
+        if res:
+            print("handover: " + res)
     if len(rows) > MAX_ROWS:
         print("WARNING: %d alarm rows. Alarms multiply; delete the ones nobody acts on." % len(rows))
 

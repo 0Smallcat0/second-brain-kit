@@ -5,6 +5,8 @@
                                  above the threshold that are idle (a stopped one is woken first) (the alarm row "handover" runs this)
     handover.py size NAME        how many tokens the running session NAME carries now
     handover.py run NAME         hand NAME over now, whatever its size
+    handover.py due              replace the background sessions a hook flagged as too long, once their
+                                 task.md is written and they are idle (the alarm tick runs this)
     handover.py words FILE.jsonl OUT.md      write the user's words of one transcript to OUT.md
 
 A session's state lives only in two files: its task.md and its words file. So a long conversation can
@@ -140,6 +142,14 @@ def run(name, wait_min=None):
     if not ok:
         return "NO-HANDOVER: task.md of %s did not change within %g minutes; the old session is kept" % (name, wait)
     old = session.find(name) or old  # a resumed conversation may have a new id
+    res = replace(name, old)
+    unflag(name)
+    return res
+
+
+def replace(name, old):
+    """Steps b to d: keep the words, stop and remove the old conversation, start the fresh one."""
+    d = session.folder(name)
     src = transcript(old["sessionId"])
     out = d / ("old-%s-words.md" % old["id"])
     n = words(src, out) if src else 0
@@ -163,6 +173,72 @@ def run(name, wait_min=None):
     if rc != 0 or not new:
         return "RENEW-FAILED: %s stopped, the new one did not start (its work waits in task.md and the inbox)" % name
     return "RENEWED: %s %s -> %s, %d user messages kept in %s" % (name, old["id"], new["id"], n, out)
+
+
+DUE = "handover_due.json"
+
+
+def read_due():
+    try:
+        d = json.loads((send.home() / "state" / DUE).read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def write_due(d):
+    f = send.home() / "state" / DUE
+    try:
+        if d:
+            f.write_text(json.dumps(d, indent=1), encoding="utf-8")
+        elif f.exists():
+            f.unlink()
+    except Exception:
+        pass
+
+
+def unflag(name):
+    d = read_due()
+    if name in d:
+        d.pop(name)
+        write_due(d)
+
+
+def due(now=None):
+    """Background sessions that hooks/requests_reinject.py flagged as above the threshold. A flagged session
+    was already told to write its hand-over; it is replaced when (a) it is still the flagged conversation,
+    (b) its task.md changed after the flag, (c) it is not working, and (d) its transcript has been quiet for
+    config "handover_quiet_min" minutes (default 3: the user may be typing to it). Otherwise it waits for the
+    next tick; one that never writes the hand-over is caught by the daily `check`."""
+    flags = read_due()
+    if not flags:
+        return ""
+    now = now or time.time()
+    quiet = float(session.cfg().get("handover_quiet_min", 3)) * 60
+    rows = session.rows_all()
+    out = []
+    for name, rec in list(flags.items()):
+        r = latest(name, rows)
+        if not r or (rec.get("session") and r["sessionId"] and rec["session"] != r["sessionId"]):
+            flags.pop(name)
+            out.append("%s: no longer that conversation, flag dropped" % name)
+            continue
+        if r["alive"] and r["status"] == "busy":
+            out.append("%s: working, waits" % name)
+            continue
+        task = session.folder(name) / "task.md"
+        if not (task.exists() and task.stat().st_mtime > float(rec.get("ts", 0))):
+            out.append("%s: hand-over not written yet" % name)
+            continue
+        src = transcript(r["sessionId"])
+        if src and now - src.stat().st_mtime < quiet:
+            out.append("%s: active less than %g minutes ago, waits" % (name, quiet / 60))
+            continue
+        flags.pop(name)
+        write_due(flags)
+        out.append("RENEWED (dry run): %s" % name if session.dry() else replace(name, r))
+    write_due(flags)
+    return "; ".join(out)
 
 
 def check_all():
@@ -202,6 +278,8 @@ def main():
         res = run(a[1], float(a[a.index("--wait") + 1]) if "--wait" in a else None)
         print(res)
         sys.exit(0 if res.startswith("RENEWED") else 1)
+    elif a[:1] == ["due"]:
+        print(due() or "nothing flagged")
     elif a[:1] == ["words"] and len(a) == 3:
         print("%d user messages -> %s" % (words(a[1], a[2]), a[2]))
     else:
