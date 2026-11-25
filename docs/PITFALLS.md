@@ -8,7 +8,7 @@ A rule in `CLAUDE.md` ("always verify before saying done") was in context when t
 
 ## 2. Too many gates block finishing
 A completion gate that can refuse forever is worse than no gate: a counter ("2 items MISSING") that never reaches zero because the thing it counts cannot be produced; verifier rounds that fail the same way six times in a row; a second session whose approval is needed before a third can proceed.
-**Fix:** every gate must be able to let go. In Basic the Stop hook only logs; switched to block (Advanced) it blocks at most once per turn (`stop_hook_active` means "already asked, let it through"). Nothing waits on another session's approval; topic sessions close their own ledger items by showing evidence. If you add a gate, say in one line how it ends when the check cannot pass.
+**Fix:** every gate must be able to let go. In Basic the Stop hook only logs; switched to block (Advanced) it blocks at most once per turn (`stop_hook_active` means "already asked, let it through"). Nothing waits on another session's approval; topic sessions close their own items in the tracker (ledger.py) by showing evidence; the supervisor checks them afterwards and sends back what does not hold, it does not hold anything up. If you add a gate, say in one line how it ends when the check cannot pass.
 
 ## 3. Long approval chains
 Request -> entry -> manager -> reviewer -> entry -> user: every hop is a place for work to stall, and each hop re-reads everything.
@@ -16,7 +16,7 @@ Request -> entry -> manager -> reviewer -> entry -> user: every hop is a place f
 
 ## 4. Alarms multiply
 Polling alarms ("check every 10 minutes whether X happened") and alarms created to re-ask about alarms grew from dozens to nearly eighty in a day. Each one fired into a session and created more work.
-**Fix:** only daily / weekly / once rows; firing writes a ledger item or an inbox line and is skipped if the same one is still open; a warning above 20 rows; `--prune` for fired one-time rows. If nobody acts on an alarm, delete it.
+**Fix:** only daily / weekly / monthly / once rows; firing writes a tracker item or an inbox line and is skipped if the same one is still open; a warning above 20 rows; `--prune` for fired one-time rows. If nobody acts on an alarm, delete it.
 
 ## 5. Quota is wasted in boring ways
 - The most expensive model used for loops and mechanical jobs.
@@ -35,7 +35,7 @@ Automated runs open windows, tabs and scratch files and never close them.
 
 ## 8. Wording checks get bypassed by rephrasing
 A check that looks for the word "done" is beaten by "that should be everything". A check for forbidden phrases trains the model to use other phrases.
-**Fix:** check facts, not words. The Stop hook's real test is the order of tool calls (was anything read back or run after the last edit?); the words are only the trigger. The ledger refuses to close an item without evidence text. Expect gaps; read the log.
+**Fix:** check facts, not words. The Stop hook's real test is the order of tool calls (was anything read back or run after the last edit?); the words are only the trigger. The tracker refuses to close an item without evidence text. Expect gaps; read the log.
 
 ## 9. New checks: log first, then block
 A brand-new block that fires wrongly costs the user's trust faster than the mistake it prevents.
@@ -56,10 +56,10 @@ Tools report "success" for a write that landed in the wrong folder, an upload th
 **Fix:** work until only the user's step is left (password, code, payment, signature, decision), prepare everything up to it, and list the minimum they must do in numbered lines. `todo-for-me.md` is that list; it must never hold something Claude could have done.
 
 ## 14. The entry does hands-on work
-An entry session that starts doing long jobs fills its context, forgets to route, and the ledger stops being updated.
-**Fix:** the entry's `CLAUDE.md` says: answer short questions, register everything else, hand it to a topic session, check the ledger.
+An entry session that starts doing long jobs fills its context, forgets to route, and the tracker stops being updated.
+**Fix:** the entry's `CLAUDE.md` says: answer short questions, register everything else, hand it to a topic session, check the tracker.
 
-## 15. Ledger and task.md rot
+## 15. Tracker and task.md rot
 Items that are never closed, `task.md` files that say "in progress" for things finished weeks ago.
 **Fix:** `ledger.py list` flags items older than 14 days; with reminders switched on (Advanced) the starting row is a weekly review; an item closes only with evidence or an explicit drop by the user.
 

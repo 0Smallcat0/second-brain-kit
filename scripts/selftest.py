@@ -448,6 +448,50 @@ def main():
         check("alarm: same unfinished alarm is not added twice", "skipped (same alarm still open)" in out, out + err)
         rc, out, err = run([A, "--prune"], env=env)
         check("alarm: prune removes fired one-time rows", "removed 1" in out, out + err)
+
+        # ---- Full plan: monthly rows and the wake choice (config "wake", honoured by alarm.py) ----
+        hw = tmp / "home-wake"
+        for d in ("supervisor", "maintenance", "study"):
+            (hw / "managers" / d).mkdir(parents=True)
+        (hw / "alarms.md").write_text(
+            "| id | when | to | text |\n|---|---|---|---|\n"
+            "| S01 | daily 21:00 | supervisor | check the entry and every topic |\n"
+            "| T01 | monthly 31 10:00 | maintenance | re-check the AI tool table |\n", encoding="utf-8")
+        tcfg = json.loads((KIT / "templates" / "config.json").read_text(encoding="utf-8"))
+        (hw / "config.json").write_text(json.dumps(tcfg), encoding="utf-8")
+        envw = {"SBK_HOME": str(hw), "SBK_VAULT": "", "ANTHROPIC_API_KEY": "", "SBK_WAKE_DRYRUN": "1"}
+        rc, out, err = run([A, "--tick", "--now", "2026-11-29T21:01"], env=envw)
+        check("alarm: supervisor row lands in the supervisor inbox", "S01: inbox of supervisor" in out
+              and "check the entry" in (hw / "inbox" / "supervisor.md").read_text(encoding="utf-8"), out + err)
+        check("wake: template default is manual, nothing is started", rc == 0 and "wake" not in out, out + err)
+        rc, out, err = run([A, "--tick", "--now", "2026-11-29T10:05"], env=envw)
+        check("alarm: monthly 31 in a 30-day month waits for day 30", "T01" not in out, out + err)
+        rc, out, err = run([A, "--tick", "--now", "2026-11-30T10:05"], env=envw)
+        check("alarm: monthly 31 fires on the last day of a 30-day month", "T01: inbox of maintenance" in out, out + err)
+        rc, out, err = run([A, "--tick", "--now", "2026-12-15T10:05"], env=envw)
+        check("alarm: monthly row does not fire mid-month", "T01" not in out, out + err)
+        (hw / "inbox" / "study.md").write_text("- [ ] L0009 | x | read chapter 4\n", encoding="utf-8")
+        (hw / "config.json").write_text(json.dumps(dict(tcfg, plan="max", vault=str(vault),
+                                                         wake={"supervisor": "auto", "topics": "manual"})), encoding="utf-8")
+        rc, out, err = run([A, "--tick", "--now", "2026-12-15T10:10"], env=envw)
+        check("wake: supervisor auto -> started with claude -p in the background", "wake supervisor (dry run): " in out
+              and " -p " in out and "--add-dir" in out, out + err)
+        check("wake: topics manual -> topics with open inbox lines stay closed",
+              "wake study" not in out and "wake maintenance" not in out, out + err)
+        rc, out, err = run([A, "--tick", "--now", "2026-12-15T10:40"], env=envw)
+        check("wake: at most once per hour per session", "wake supervisor" not in out, out + err)
+        (hw / "config.json").write_text(json.dumps(dict(tcfg, wake={"supervisor": "auto", "topics": "auto"})), encoding="utf-8")
+        rc, out, err = run([A, "--tick", "--now", "2026-12-15T11:20"], env=envw)
+        check("wake: topics auto -> study and maintenance started too", "wake study" in out and "wake maintenance" in out
+              and "wake supervisor" in out, out + err)
+        (hw / "inbox" / "study.md").write_text("- [x] L0009 | x | read chapter 4\n", encoding="utf-8")
+        rc, out, err = run([A, "--tick", "--now", "2026-12-15T12:30"], env=envw)
+        check("wake: an inbox with nothing unticked is not started", "wake study" not in out, out + err)
+        (hw / "config.json").write_text(json.dumps(dict(tcfg, wake="garbage")), encoding="utf-8")
+        rc, out, err = run([A, "--tick", "--now", "2026-12-15T14:30"], env=envw)
+        check("wake: unreadable wake setting counts as manual", rc == 0 and "wake" not in out, out + err)
+        rc, out, err = run([A, "--list"], env=envw)
+        check("alarm --list shows the wake choice", "wake: supervisor=manual topics=manual" in out, out + err)
         (home / "task.md").write_text("# big job\n- [ ] step one\n- [ ] step two\n- [x] step zero\n", encoding="utf-8")
         rc, out, err = run([KIT / "entry" / "status.py", "--all"], env=env)
         check("status: lists ledger, tasks, inbox", "== Ledger ==" in out and "study: 1 open" in out and "study: 1" in out, out + err)
@@ -455,6 +499,8 @@ def main():
 
         # ---- the Basic config that setup writes (templates/config.json) ----
         cfg = json.loads((KIT / "templates" / "config.json").read_text(encoding="utf-8"))
+        check("config template: plan empty until asked, every session wakes manually by default",
+              cfg.get("plan") == "" and cfg.get("wake") == {"supervisor": "manual", "topics": "manual"}, cfg)
         check("config template: Basic level, history not read until the user says yes, modes", cfg.get("level") == "basic" and cfg.get("read_history") is False and cfg["modes"] == {
             "vault_guard": "ask", "read_whole": "deny", "requests_reinject": "warn",
             "stop_evidence": "log", "usage_warn": "off", "inbox_notice": "off", "level_notice": "warn"}, cfg)
@@ -610,6 +656,64 @@ def main():
         svg = (KIT / "docs" / "diagrams" / "00-basic.svg").read_text(encoding="utf-8")
         check("diagram 00-basic: names the App way and the terminal way, no desktop launcher",
               "Open folder" in svg and "or terminal: claude" in svg and "desktop launcher" not in svg)
+
+        # ---- docs: plan labels, tracker wording, fixed sessions, wake choice, hook list ----
+        zh_files = [KIT / "README.zh-TW.md"] + sorted((KIT / "docs" / "zh-TW").glob("*.md")) + sorted((KIT / "templates").glob("*.md")) \
+            + sorted((KIT / "skills").rglob("*.md")) + sorted((KIT / "docs" / "diagrams").glob("*.svg"))
+        old = [str(p.relative_to(KIT)) for p in zh_files if any(w in p.read_text(encoding="utf-8") for w in ("帳本", "工作清單"))]
+        check("docs: zh text says 追蹤表, never 帳本 or 工作清單", not old, ", ".join(old))
+        en_old = [str(p.relative_to(KIT)) for p in [KIT / "README.md", KIT / ".claude-plugin" / "plugin.json", KIT / ".claude-plugin" / "marketplace.json"]
+                  + sorted((KIT / "docs").glob("*.md")) if "work list" in p.read_text(encoding="utf-8").lower()]
+        check("docs: English text says tracker, not work list", not en_old, ", ".join(en_old))
+        untitled = []
+        for p in sorted((KIT / "docs" / "diagrams").glob("*.svg")):
+            t = p.read_text(encoding="utf-8")
+            if not any(w in t for w in ("BASIC PLAN", "FULL PLAN", "BASIC AND FULL")) or not any(w in t for w in ("基本款", "完整款")):
+                untitled.append(p.name)
+        check("diagrams: every drawn picture says Basic or Full (EN and zh)", not untitled, ", ".join(untitled))
+        mm_untitled = []
+        for p in (KIT / "README.md", KIT / "README.zh-TW.md", KIT / "docs" / "ADVANCED.md", KIT / "docs" / "zh-TW" / "進階功能.md"):
+            t = p.read_text(encoding="utf-8")
+            for blk in t.split("```mermaid")[1:]:
+                head = blk[:200]
+                if not (head.lstrip().startswith("---") and any(w in head for w in ("Basic", "Full", "基本款", "完整款"))):
+                    mm_untitled.append(p.name)
+        check("docs: every Mermaid picture has a Basic/Full title", not mm_untitled, ", ".join(mm_untitled))
+        hooks7 = ("vault_guard", "read_whole", "requests_reinject", "stop_evidence", "level_notice", "inbox_notice", "usage_warn")
+        for p in (KIT / "README.md", KIT / "README.zh-TW.md", KIT / "docs" / "ADVANCED.md", KIT / "docs" / "zh-TW" / "進階功能.md"):
+            t = p.read_text(encoding="utf-8")
+            listed = [h for h in hooks7 if ("- `%s`" % h) in t]
+            check("docs %s: one line per hook, all 7, with Basic on/off" % p.name, len(listed) == 7 and t.count("Basic: o") + t.count("基本款：") >= 7, listed)
+        check("hooks: the 7 hooks in the docs are the hooks the plugin runs",
+              all((H / (h + ".py")).exists() for h in hooks7))
+        adv = (KIT / "docs" / "ADVANCED.md").read_text(encoding="utf-8")
+        advz = (KIT / "docs" / "zh-TW" / "進階功能.md").read_text(encoding="utf-8")
+        check("advanced: Basic and Full table in both languages",
+              "## Basic and Full" in adv and "| | Basic | Full |" in adv and "## 基本款和完整款" in advz and "| | 基本款 | 完整款 |" in advz)
+        check("readme: short Basic and Full table, linked to the full one",
+              "| | Basic | Full |" in (KIT / "README.md").read_text(encoding="utf-8") and "ADVANCED.md#basic-and-full" in (KIT / "README.md").read_text(encoding="utf-8")
+              and "| | 基本款 | 完整款 |" in (KIT / "README.zh-TW.md").read_text(encoding="utf-8") and "#基本款和完整款" in (KIT / "README.zh-TW.md").read_text(encoding="utf-8"))
+        check("full: three fixed sessions have templates and routes rows",
+              (KIT / "templates" / "supervisor-CLAUDE.md").exists() and (KIT / "templates" / "maintenance-CLAUDE.md").exists()
+              and all(w in (KIT / "templates" / "routes.md").read_text(encoding="utf-8") for w in ("supervisor", "maintenance"))
+              and all(w in (KIT / "templates" / "entry-CLAUDE.md").read_text(encoding="utf-8") for w in ("supervisor", "maintenance")))
+        check("templates: checking the notes first is step one in CLAUDE.md and AGENTS.md",
+              "動手前先查第二大腦" in (KIT / "templates" / "CLAUDE.md").read_text(encoding="utf-8")
+              and "動手前先查第二大腦" in (KIT / "templates" / "AGENTS.md").read_text(encoding="utf-8"))
+        se = (KIT / "docs" / "SETUP.md").read_text(encoding="utf-8")
+        sz = (KIT / "docs" / "zh-TW" / "SETUP.md").read_text(encoding="utf-8")
+        check("setup: asks the Claude plan and offers the wake choice in both languages",
+              "ask five things" in se and "Which Claude plan" in se and "Wake choice" in se and "問五件事" in sz and "哪種方案" in sz and "喚醒方式" in sz)
+        check("docs: sessions do not start by themselves unless auto-wake",
+              "do not start by themselves" in (KIT / "README.md").read_text(encoding="utf-8") and "不會自己開工" in (KIT / "README.zh-TW.md").read_text(encoding="utf-8")
+              and "never start by themselves" in adv and "不會自己開工" in advz)
+        mt = (KIT / "docs" / "MULTI-TOOL.md").read_text(encoding="utf-8")
+        check("multi-tool: rules by kind of work, table filled by the user's Claude, monthly re-check",
+              "## Kinds of work" in mt and "## Filling and re-checking the table" in mt
+              and "Kind of work" in (KIT / "templates" / "channels.md").read_text(encoding="utf-8"))
+        ver = {json.loads((KIT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"],
+               json.loads((KIT / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))["plugins"][0]["version"]}
+        check("plugin and marketplace versions match", len(ver) == 1, ver)
 
         # ---- launcher wrapper ----
         sh = shutil.which("sh")

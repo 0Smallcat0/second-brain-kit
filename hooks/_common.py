@@ -12,7 +12,7 @@ MODES = {"off", "log", "warn", "ask", "deny", "block"}
 
 
 def home():
-    """Runtime folder: ledger, alarms, routes, inbox, logs. Override with SBK_HOME."""
+    """Runtime folder: tracker (ledger.md), alarms, routes, inbox, logs. Override with SBK_HOME."""
     env = os.environ.get("SBK_HOME")
     return Path(env) if env else Path.home() / ".claude" / "sbk"
 

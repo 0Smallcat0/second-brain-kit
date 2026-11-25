@@ -23,7 +23,7 @@ Triggers (docs/ADVANCED.md, "When Claude suggests it") are pain signals, not vol
 Volume (open items, topics, compactions) is still counted and reported as supporting numbers,
 but never fires a trigger on its own.
 A trigger whose part is already on, or that the user declined in the last 28 days, is left out.
-If config "read_history" is false the conversations are not read at all (ledger and log only).
+If config "read_history" is false the conversations are not read at all (tracker and log only).
 
 Reads SBK_HOME (ledger.md, task.md, config.json, logs/stop_evidence.log, alarms.md, routes.md,
 channels.md) and CLAUDE_CONFIG_DIR/projects (default ~/.claude/projects). Writes only

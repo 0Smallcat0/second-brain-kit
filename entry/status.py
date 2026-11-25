@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""One screen of everything still open: the work list (ledger), task.md files, unread inboxes, alarms.
+"""One screen of everything still open: the tracker (ledger), task.md files, unread inboxes, alarms.
 
     status.py [--all]     (--all also lists every open task line, not just the first 5 per file)
 
 Reads <SBK_HOME> (default ~/.claude/sbk): <SBK_HOME>/task.md (Basic: one large job), entry/ and
-managers/*/task.md (Advanced). Extra task.md files can be listed in
+managers/*/task.md (Full). Extra task.md files can be listed in
 <SBK_HOME>/config.json as  {"task_files": ["/path/to/task.md"]}.
 """
 import json

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Hand a piece of work to a topic session (a "manager") through its inbox.
 
-    send.py MANAGER "text"            put the text in the manager's inbox and in the ledger
-    send.py MANAGER "text" --ledger L0003   same, but for an existing ledger item (no new item)
+    send.py MANAGER "text"            put the text in the manager's inbox and in the tracker
+    send.py MANAGER "text" --ledger L0003   same, but for an existing tracker item (no new item)
 
 The manager is Claude started inside <SBK_HOME>/managers/<MANAGER>/ ; its SessionStart and
 prompt hooks (hooks/inbox_notice.py) show the unticked inbox lines, so the work cannot be

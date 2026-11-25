@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The ledger: one line per thing the user asked for, so nothing gets lost between sessions.
+"""The tracker (ledger.md): one line per thing the user asked for, so nothing gets lost between sessions.
 
     ledger.py add "text" [--to MANAGER]        new item (open, or dispatched if --to)
     ledger.py list [--all]                     open and dispatched items (--all adds closed)

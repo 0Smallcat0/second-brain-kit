@@ -1,16 +1,16 @@
 # SETUP：給負責安裝的 Claude 的步驟
 
-這份是寫給**你（Claude）**看的，不是給使用者看的。使用者請你幫他安裝 second-brain-kit，他可能完全不懂技術：事情由你做，他只要回答四個簡單問題、確認你建議裝哪些，並對會動到他電腦設定的地方說同意或不同意。安裝的問題和步驟只寫在這裡（`/sbk-setup` 指令和 `setup-second-brain` 技能都指到這份）；英文版 `docs/SETUP.md` 是同樣的步驟。
+這份是寫給**你（Claude）**看的，不是給使用者看的。使用者請你幫他安裝 second-brain-kit，他可能完全不懂技術：事情由你做，他只要回答五個簡單問題、確認你建議裝哪些，並對會動到他電腦設定的地方說同意或不同意。安裝的問題和步驟只寫在這裡（`/sbk-setup` 指令和 `setup-second-brain` 技能都指到這份）；英文版 `docs/SETUP.md` 是同樣的步驟。
 
 **要裝哪些由你逐項建議、使用者確認**（步驟 0 第 4 點）：主要看他對「你用 Claude 最常卡在哪？」的回答；他同意你看這台電腦上的 Claude 對話紀錄時，紀錄的數字當佐證。他不同意、或這台電腦沒有紀錄（新使用者），就只照回答；回答沒說到哪一項就裝基本款。每一項用一句話說建議和理由，他可以改。
-- **基本款**：一個在筆記資料夾裡工作的主對話；只放使用者用得到的區的筆記資料夾；一份工作清單（帳本，由你使用，使用者不用打指令）；安全檢查；簡短的通用原則。
-- **加開的項目**（主題對話、提醒、和其他 AI 工具分工）：逐項建議，他確認的才在步驟 5b 照[進階功能.md](進階功能.md)開。有加開任何一項，設定檔裡記成 `full`（完整款）。
+- **基本款**：一個在筆記資料夾裡工作的主對話；只放使用者用得到的區的筆記資料夾；一份追蹤表（`ledger.py`：還沒做完的事，一件一行，做完時附上怎麼確認的；由你使用，使用者不用打指令）；安全檢查；簡短的通用原則。
+- **加開的項目**（多個對話：固定的入口、監督、系統維護，再加上一件事一個的主題對話；提醒；和其他 AI 工具分工）：逐項建議，他確認的才在步驟 5b 照[進階功能.md](進階功能.md)開。有加開任何一項，設定檔裡記成 `full`（完整款）。比較表在進階功能.md 的〈基本款和完整款〉。
 
 其他的一律先關著。裝好之後，每週的檢查（`level_check.py`）會量看看還有哪一項用得到；用得到時由你問使用者一個要不要的問題。
 
 下面用到的代號：
 - `KIT`：裡面有 `.claude-plugin/plugin.json`、且寫著 `"name": "second-brain-kit"` 的那個資料夾。用外掛（plugin，Claude Code 的擴充套件）安裝時就是 `${CLAUDE_PLUGIN_ROOT}`（外掛的 hook 和指令裡才有這個值；在這個對話裡請到 `~/.claude/plugins` 底下的外掛快取找那個檔案）。手動 clone 時就是 clone 下來的資料夾。
-- `SBK_HOME`：`~/.claude/sbk`（工作清單、紀錄、套件設定放這裡）。
+- `SBK_HOME`：`~/.claude/sbk`（追蹤表、紀錄、套件設定放這裡）。
 - `VAULT`：使用者選的筆記資料夾（預設 `~/second-brain`）。
 - `SURFACE`：使用者怎麼開 Claude：`app`（Claude 桌面版 App 的 **Code** 分頁）或 `terminal`（在終端機視窗輸入 `claude`）。步驟 0.2 決定；步驟 5、6、7 依它分開做。
 - 路徑：Windows 上用正斜線或加引號。Python：`python3`、`python`、`py` 哪個能跑 Python 3 就用哪個。
@@ -33,46 +33,56 @@
 
 **檢查：** `KIT/.claude-plugin/plugin.json` 存在且寫著 `second-brain-kit`；`claude plugin list` 列出 second-brain-kit（走 clone 的話，記下你用的是 clone）。
 
-## 步驟 0：檢查電腦、問四件事、逐項建議要裝哪些
+## 步驟 0：檢查電腦、問五件事、逐項建議要裝哪些
 
 1. 執行 `python --version`（或 `python3`／`py`）和 `git --version`；需要 Python 3.8 以上和 git。用終端機的人還要 `claude --version` 跑得起來；用 App 的人不用（桌面版 App 內建 Claude Code，也沒有 `claude -p`）。
    缺哪個就提議幫他裝（「我幫你裝 Python 好嗎？」），他同意就裝：Windows 用 `winget install -e --id Python.Python.3.12`／`winget install -e --id Git.Git`；macOS 用 `xcode-select --install`（會裝好 git 和 python3），有 Homebrew 的話也可以 `brew install python git`；Linux 用套件管理員。要輸入管理員密碼、或要在安裝視窗按按鈕的部分算**要你做**：告訴使用者是哪個視窗、哪個指令，然後繼續。
 2. 先決定 `SURFACE`。讀環境變數 `CLAUDE_CODE_ENTRYPOINT`（`echo $CLAUDE_CODE_ENTRYPOINT`；PowerShell 用 `$env:CLAUDE_CODE_ENTRYPOINT`）：`claude-desktop` 或 `claude-desktop-3p` → `app`；`cli` → `terminal`。這些是 Anthropic 監控說明頁列出的「對話怎麼啟動的」值；這個變數本身官方沒寫，只當線索。其他值（`claude-vscode`、`sdk-cli`……）或沒有：看不出來，就在下面第 1 題後面加一句「你平常是用 Claude 桌面版 App（Code 分頁），還是在終端機視窗裡用？」，照他的回答。使用者的回答永遠大過這個變數。
-   然後用**一則訊息**、白話問這四題，然後等他回答：
+   然後用**一則訊息**、白話問這五題，然後等他回答：
    1. 「筆記要放在哪裡？我建議 `~/second-brain`（直接說好就用這個）。」
    2. 「筆記和回覆要用哪種語言？」
    3. 「你用 Claude 最常卡在哪？例如同時好幾件事會搞混、常忘記期限、要一直重講背景、還是都還好？（如果你也有 ChatGPT、Gemini 這類其他 AI 的帳號，順便說一聲；沒有就不用提，一個 Claude 帳號就夠了。）」
    4. 「我可以看這台電腦上你的 Claude 對話紀錄來幫你判斷嗎？安裝時只數近兩週有幾個專案資料夾在用、有沒有對話長到被自動濃縮兩次以上；之後大約每週只看在筆記資料夾裡的對話，數你請我提醒、說事情搞混了幾次。只在這台電腦上數，不上傳、不改任何東西。不要也完全沒關係。」
-   這裡和之後的安裝過程都不要再問別的。不算多問的只有：變數看不出來時問「App 還是終端機」，要改他電腦設定前問同意，以及第 4 點建議開主題對話時順便問要分哪幾件事。不做個人資料訪談、不逐一列工具問、不問「要基本款還是完整款？」。
-3. 建立 `SBK_HOME`。如果 `SBK_HOME/config.json` 不存在，把 `KIT/templates/config.json` 複製過去，填上 `vault`（絕對路徑）、`language`、`uses`（第 3 題的原話）、`other_tools`（只填他說他**有帳號**的工具；沒提就留空）、`read_history`（第 4 題：同意 `true`，不同意 `false`）。如果已經存在（修復或第二次安裝），保留裡面所有的值，只補模板有、檔案缺的欄位。
+   5. 「你的 Claude 是哪種方案：Pro、Max、Team、Enterprise，還是 API（用多少付多少）？不確定也沒關係。這只用來決定哪些東西可以自己跑、跑多勤，才不會超過你的用量上限。」
+   這裡和之後的安裝過程都不要再問別的。不算多問的只有：變數看不出來時問「App 還是終端機」，要改他電腦設定前問同意，以及第 4 點建議開主題對話時順便問要分哪幾件事和喚醒方式。不做個人資料訪談、不逐一列工具問、不問「要基本款還是完整款？」。
+3. 建立 `SBK_HOME`。如果 `SBK_HOME/config.json` 不存在，把 `KIT/templates/config.json` 複製過去，填上 `vault`（絕對路徑）、`language`、`uses`（第 3 題的原話）、`other_tools`（只填他說他**有帳號**的工具；沒提就留空）、`read_history`（第 4 題：同意 `true`，不同意 `false`）、`plan`（第 5 題：`pro`、`max`、`team`、`enterprise` 或 `api`；不確定就留空）。如果已經存在（修復或第二次安裝），保留裡面所有的值，只補模板有、檔案缺的欄位。
 4. **逐項建議要裝哪些，他確認。**
    - 第 4 題同意：執行 `python KIT/scripts/level_check.py --install`。它只在這台電腦上數兩件事：`~/.claude/projects` 裡近 14 天有在用的專案資料夾有幾個，以及有沒有哪個對話被自動摘要（compact）兩次以上。對話內容不讀，也不改任何東西。輸出有 `"partial": true` 表示數了 30 秒就停：照它數到的算。
    - 第 4 題不同意：不執行，也不看 `~/.claude/projects`。同意了但 `active_projects_14d` 是 0（新使用者，沒有紀錄）也一樣：只照他的回答。
    - 每一項主要看第 3 題的回答；紀錄的數字只當佐證，回答沒說到的不靠數字硬開：
-     - **主題對話**（進階功能 A1，一件事一個對話）：他說同時好幾件事會搞混；或他回答「不確定」，而紀錄顯示近兩週 3 個以上專案資料夾在用、且 `session_compacted_2plus_14d` 是 1。
+     - **主題對話**（進階功能 A1：固定的入口、監督、系統維護三個對話，再加上一件事一個對話）：他說同時好幾件事會搞混；或他回答「不確定」，而紀錄顯示近兩週 3 個以上專案資料夾在用、且 `session_compacted_2plus_14d` 是 1。
      - **提醒**（A2）：他說常忘記期限，或想被提醒。
      - **和其他 AI 工具分工**（A5）：只有他說他有那個工具的帳號才建議；只提到名字不算。
-     - 他說「要一直重講背景」：基本款本來就在處理（筆記換了對話也找得回來、工作清單、長對話被濃縮後把他的原話放回去），不另外開；他同時也說好幾件事會搞混，就照主題對話那條。
+     - 他說「要一直重講背景」：基本款本來就在處理（筆記換了對話也找得回來、追蹤表、長對話被濃縮後把他的原話放回去），不另外開；他同時也說好幾件事會搞混，就照主題對話那條。
      - 「都還好」、沒回答、或回答沒說到上面任何一項：**基本款**，不加開。
    硬碟空間、作業系統、git 提交次數決定的是某一項*能不能*跑，不是需不需要，不能當理由。
-   - 用**一則訊息**、他的語言，每一項一行：建議開或先不開，加一句附數字的理由；最後問「這樣可以嗎？想加或拿掉哪一項直接說。」建議開主題對話時，同一則訊息問「要分成哪幾件事、各開一個對話？（二到四件）」。例如：
+   - 用**一則訊息**、他的語言，每一項一行：建議開或先不開，加一句附數字的理由；最後問「這樣可以嗎？想加或拿掉哪一項直接說。」建議開主題對話時，同一則訊息問「要分成哪幾件事、各開一個對話？（二到四件）」，並加一行下面的**喚醒方式**。例如：
      「我建議這樣裝：
-     - 基本款：一定裝（筆記、工作清單、安全檢查）。
+     - 基本款：一定裝（筆記、追蹤表、安全檢查）。
      - 提醒：開。你說常忘記期限。
      - 主題對話：先不開。你說事情不會搞混；這台電腦近兩週只有 1 個專案資料夾在用。
      - 和其他 AI 分工：先不開。你沒有提到其他 AI 的帳號。
      這樣可以嗎？想加或拿掉哪一項直接說。」
      等他回答。他確認的就是決定；他之後改主意也照他的。
-   - 把 `level`（有加開任何一項是 `full`，否則 `basic`）和 `level_reason`（那幾行，併成一行）寫進 `SBK_HOME/config.json`。你建議了、他卻不要的項目，執行 `python KIT/scripts/level_check.py --decline <代號>`（`multi_session`、`alarms`、`multi_tool` 中對應的），每週檢查四週內就不會再問。
+   - **喚醒方式（只有開主題對話時才有）。** 對話不會自己開工，除非使用者選了自動喚醒。兩種：**手動**——每個對話（監督、系統維護、主題）都要使用者自己點開才會做事；**自動喚醒**——電腦的系統排程在某個對話的收件匣有工作時，在背景把它叫起來（每個對話最多一小時一次；會用掉使用者的額度）。照方案用一行建議，讓他改：
 
-**檢查：** `python -c "import json,os;c=json.load(open(os.path.expanduser('~/.claude/sbk/config.json'),encoding='utf-8'));print(c['level'],c['read_history'],c['vault'],c['modes'])"` 印出 `basic` 或 `full`（和他確認的一樣）、`True` 或 `False`（和第 4 題一樣）、筆記資料夾路徑、模板裡的模式（修復時是他原本的模式）。
+     | 方案（第 5 題） | 建議的喚醒方式 | 監督多久檢查一次 |
+     |---|---|---|
+     | Pro | 全部手動 | 每週，週日 19:00 |
+     | Max、Team、Enterprise | 監督自動，主題和系統維護手動（他想要才也改自動） | 每天 21:00 |
+     | API（用多少付多少），或不確定 | 全部手動（每次叫醒都要付費，或不知道上限） | 每週，週日 19:00 |
 
-## 步驟 1：工作清單的工具
+     自動喚醒需要 `claude` 指令（`claude --version` 跑得起來；只用 App 的人常常沒有）和系統排程（進階功能 A2 那一題）。沒有的話就建議手動，並說原因。例句：「喚醒：你是 Max 方案，我建議每天晚上 21:00 由排程叫監督起來，檢查有沒有漏掉或沒證據的事（會用到一些額度）；你的主題對話要你點開才會做事。還是全部手動？」
+   - 把 `level`（有加開任何一項是 `full`，否則 `basic`）、`level_reason`（那幾行，併成一行），以及開主題對話時的 `wake`（`{"supervisor": "auto" 或 "manual", "topics": "auto" 或 "manual"}`；`topics` 包含系統維護和使用者的主題；沒開主題對話就維持模板的全部手動）寫進 `SBK_HOME/config.json`。你建議了、他卻不要的項目，執行 `python KIT/scripts/level_check.py --decline <代號>`（`multi_session`、`alarms`、`multi_tool` 中對應的），每週檢查四週內就不會再問。
+
+**檢查：** `python -c "import json,os;c=json.load(open(os.path.expanduser('~/.claude/sbk/config.json'),encoding='utf-8'));print(c['level'],c['read_history'],c['vault'],c['plan'],c['wake'],c['modes'])"` 印出 `basic` 或 `full`（和他確認的一樣）、`True` 或 `False`（和第 4 題一樣）、筆記資料夾路徑、方案（第 5 題）、喚醒方式（他沒選自動喚醒就全部是 `manual`）、模板裡的模式（修復時是他原本的模式）。
+
+## 步驟 1：追蹤表的工具（ledger.py）
 
 1. 建立 `SBK_HOME/bin` 和 `SBK_HOME/logs`。
 2. 把 `KIT/entry/ledger.py`、`status.py`、`send.py`、`alarm.py` 和 `KIT/scripts/level_check.py` 複製到 `SBK_HOME/bin/`（`status.py` 會用到 `ledger.py`、`send.py`；`/sbk-status` 和每週檢查會跑 `level_check.py`）。把 `KIT/templates/task.md` 複製成 `SBK_HOME/task-template.md`。一律用複製的，不要直接指到外掛快取：更新時那個路徑會變。
 
-**檢查**（新的或已有的工作清單都適用）：
+**檢查**（新的或已有的追蹤表都適用）：
 1. `python SBK_HOME/bin/ledger.py list`，記下輸出。
 2. `python SBK_HOME/bin/ledger.py add "sbk setup check"` 會印出一個新編號；用它印出的編號（不要假設是 `L0001`）。
 3. `python SBK_HOME/bin/ledger.py done <編號> --evidence "setup step 1: add, done and list ran"` 印出 `<編號> done`。
@@ -188,7 +198,7 @@ hook 是 Claude Code 在特定時刻（執行指令前、Claude 說做完時）�
 ## 步驟 5b：開啟他確認要加開的項目
 
 沒有加開任何一項：**不適用**。有的話，依 A1、A2、A5 的順序，照[進階功能.md](進階功能.md)開他在步驟 0 確認的每一項。安裝時的規則：
-- A1：主題就是他在步驟 0 說要分開的那幾件事（二到四個）；沒說清楚的歸到一個 `general` 主題。不要再問 A1 的「哪兩件事要各有自己的對話？」。
+- A1：一定有三個固定對話（入口、監督、系統維護），再加上他在步驟 0 說要分開的那幾件事（二到四個）；沒說清楚的歸到一個 `general` 主題。不要再問 A1 的「哪兩件事要各有自己的對話？」。監督的提醒列和 `config.json` 的 `"wake"` 用步驟 0 第 4 點的方案與喚醒方式；系統排程那一題只問一次（A1 或 A2），因為監督那一列和自動喚醒都要靠它。
 - A2：要不要加系統排程的那一題是問同意，照樣要問；他說不要的話，只有排程是**沒開啟**。
 - A5：只接他說有帳號的工具。
 
@@ -202,27 +212,27 @@ hook 是 Claude Code 在特定時刻（執行指令前、Claude 說做完時）�
 3. 記下 `ledger.py list` 的輸出。加一個測試項目：`python SBK_HOME/bin/ledger.py add "Setup test <代號>: add the line resumed by a new session to the note 02-99 SBK 安裝測試"`，記下印出的編號。
 4. 在筆記資料夾開一個完全不知道這次對話的**新**對話：
    先 `cd "<VAULT>"`，再
-   `claude -p "Setup test. Follow this folder's AGENTS.md: find the open work-list item that mentions <代號>, open the note it names, add the line 'resumed by a new session' at the end, close the item with evidence. Do not commit. Reply with the note path and the item id." --allowedTools "Read,Grep,Glob,Edit,Bash(python:*)"`
+   `claude -p "Setup test. Follow this folder's AGENTS.md: find the open tracker item that mentions <代號>, open the note it names, add the line 'resumed by a new session' at the end, close the item with evidence. Do not commit. Reply with the note path and the item id." --allowedTools "Read,Grep,Glob,Edit,Bash(python:*)"`
    這裡跑不了 `claude -p` 的話（用 App 的人常常沒有 `claude` 指令，App 也沒有 `-p`），請使用者在筆記資料夾另開一個對話：App 就點側邊欄 **+ New**，再照步驟 5 選 **Open folder…** `<VAULT>`；終端機就打開步驟 5 的捷徑，或在另一個視窗 `cd "<VAULT>"` 再輸入 `claude`；然後說「繼續安裝測試那個項目」，等它回完再告訴你；這段時間這個對話保持開著。
 5. 收拾：刪掉測試筆記；再跑一次 `gen_jdex.py` 和 `vault_lint.py`；測試項目保持已關閉（關閉的項目不會顯示）。
 
-**檢查：** 收拾前，筆記最後一行是 `resumed by a new session`，`ledger.py list --all` 顯示測試編號已完成、證據是新對話寫的；收拾後，筆記不在了，lint 最後是 `RESULT: PASS`，`git -C VAULT status --short` 看不到測試檔，`ledger.py list` 的輸出和第 3 點完全一樣。新對話沒找到項目的話，看它回了什麼，修好原因（通常是 `VAULT/CLAUDE.md` 或 `AGENTS.md` 裡工作清單的路徑），再測一次。
+**檢查：** 收拾前，筆記最後一行是 `resumed by a new session`，`ledger.py list --all` 顯示測試編號已完成、證據是新對話寫的；收拾後，筆記不在了，lint 最後是 `RESULT: PASS`，`git -C VAULT status --short` 看不到測試檔，`ledger.py list` 的輸出和第 3 點完全一樣。新對話沒找到項目的話，看它回了什麼，修好原因（通常是 `VAULT/CLAUDE.md` 或 `AGENTS.md` 裡追蹤表的路徑），再測一次。
 
 ## 步驟 7：最後檢查、交接、兩分鐘上手
 
 1. `python KIT/scripts/selftest.py` → `0 failed`；`vault_lint.py` → `RESULT: PASS`；`python SBK_HOME/bin/status.py` 跑得起來。
 2. 寫入口說明頁 `VAULT/README.md`（檢查程式允許筆記資料夾最上層有這個檔名），用使用者的語言、30 行以內、給使用者看（不是給 Claude）。只寫怎麼開始、怎麼讓 Claude 記住、怎麼看還有什麼沒做完、怎麼請它修：
-   - 怎麼開始，照 `SURFACE`：App——步驟 5 那幾步（Code 分頁、**Open folder…**、下次點側邊欄那個對話）；終端機——捷徑的名稱和位置，或 `cd` 到筆記資料夾輸入 `claude`。完整款：新的需求交給入口對話；要某個主題動工就打開它的對話；
+   - 怎麼開始，照 `SURFACE`：App——步驟 5 那幾步（Code 分頁、**Open folder…**、下次點側邊欄那個對話）；終端機——捷徑的名稱和位置，或 `cd` 到筆記資料夾輸入 `claude`。完整款：新的需求交給入口對話；主題對話要你打開才會做事（你選了自動喚醒的，才由排程叫起來）；結果由入口告訴你，核對是對話之間的事；
    - 四句範例：「記住：……」「找我之前記的……」「還有什麼沒做完？」「接著上次的……繼續」；
    - 「哪裡卡卡的就跟 Claude 說，例如：『做完檢查太嚴了，調鬆一點』」；
-   - 東西放在哪：筆記在這個資料夾；工作清單和紀錄在 `~/.claude/sbk/`；本機 git 記下修改的歷史，但**不是**硬碟的備份：要不時把這個資料夾複製到另一顆硬碟或你信任的雲端硬碟；
+   - 東西放在哪：筆記在這個資料夾；追蹤表和紀錄在 `~/.claude/sbk/`；本機 git 記下修改的歷史，但**不是**硬碟的備份：要不時把這個資料夾複製到另一顆硬碟或你信任的雲端硬碟；
    - 「Claude 大約每週會看一次還有沒有哪一項用得到（主題對話、提醒、其他 AI 工具），會先問你。你也可以直接說，例如：幫我開主題對話。」
 3. 最後一則訊息，簡短、用使用者的語言：
    - 第一行：裝了哪些（基本款＋他確認加開的項目）、各為什麼（步驟 0 第 4 點那幾行，併成一行）；
    - 每一步一行，附狀態詞（完成／沒開啟／不適用／要你做／沒驗證）；
    - 每個安全檢查實際上會對他做什麼；
    - 你沒做的事和原因；只有他能做的事寫成編號清單（有的話）；
-   - **兩分鐘上手**：（1）App：在 Claude App 側邊欄點筆記資料夾那個對話（或 **+ New**，再 **Open folder…** `<VAULT>`）；終端機：關掉這個視窗，點兩下捷徑（或 `cd` 到筆記資料夾輸入 `claude`）；（2）說「記住：我這週要讀完第三章」，Claude 會存起來；（3）說「還有什麼沒做完？」，Claude 會列出工作清單；（4）說「找我之前說的第三章」，Claude 會找到那張筆記。每天就是這樣用。
+   - **兩分鐘上手**：（1）App：在 Claude App 側邊欄點筆記資料夾那個對話（或 **+ New**，再 **Open folder…** `<VAULT>`）；終端機：關掉這個視窗，點兩下捷徑（或 `cd` 到筆記資料夾輸入 `claude`）；（2）說「記住：我這週要讀完第三章」，Claude 會存起來；（3）說「還有什麼沒做完？」，Claude 會列出追蹤表；（4）說「找我之前說的第三章」，Claude 會找到那張筆記。每天就是這樣用。
 
 **檢查：** `VAULT/README.md` 存在、lint 仍然通過；最後一則訊息第一行是裝了哪些那一句，步驟 00 到 7（含 5b）每一步都有狀態詞。
 
@@ -230,9 +240,9 @@ hook 是 Claude Code 在特定時刻（執行指令前、Claude 說做完時）�
 
 ## 更新、修復、移除
 
-- **修復或第二次安裝：** 照順序重跑每一步。每一步都保留已有的東西：設定值、筆記、工作清單（`ledger.md`）、`task.md`、`requests/`、`logs/`，以及進階功能的 `routes.md`、`alarms.md`、`state/alarms.json`，一律不刪、不重設。只補缺的；套件裡改過的檔案先給使用者看，才取代任何東西。
-- **更新：** 更新外掛（`claude plugin update second-brain-kit@second-brain-kit`）或在 clone 資料夾 `git pull`；再重做步驟 1 的複製，clone 安裝的話再重做步驟 4 的複製。不動使用者的筆記和工作清單。
-- **移除：** 刪掉 `~/.claude/CLAUDE.md` 裡兩個 `sbk` 標記中間的段落，移除外掛（或刪掉 `settings.json` 裡的 hook 項目），有做捷徑的話刪掉（只有終端機使用者有），進階功能還要刪系統排程。筆記資料夾和 `SBK_HOME`（工作清單、紀錄）預設保留；要刪之前先問：那裡面是使用者的資料。最後告訴他保留了什麼、在哪裡。
+- **修復或第二次安裝：** 照順序重跑每一步。每一步都保留已有的東西：設定值、筆記、追蹤表（`ledger.md`）、`task.md`、`requests/`、`logs/`，以及進階功能的 `routes.md`、`alarms.md`、`state/alarms.json`，一律不刪、不重設。只補缺的；套件裡改過的檔案先給使用者看，才取代任何東西。
+- **更新：** 更新外掛（`claude plugin update second-brain-kit@second-brain-kit`）或在 clone 資料夾 `git pull`；再重做步驟 1 的複製，clone 安裝的話再重做步驟 4 的複製。不動使用者的筆記和追蹤表。
+- **移除：** 刪掉 `~/.claude/CLAUDE.md` 裡兩個 `sbk` 標記中間的段落，移除外掛（或刪掉 `settings.json` 裡的 hook 項目），有做捷徑的話刪掉（只有終端機使用者有），進階功能還要刪系統排程。筆記資料夾和 `SBK_HOME`（追蹤表、紀錄）預設保留；要刪之前先問：那裡面是使用者的資料。最後告訴他保留了什麼、在哪裡。
 
 ## 進階功能
 

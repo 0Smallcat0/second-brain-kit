@@ -1,13 +1,13 @@
 {
   "name": "second-brain-kit",
   "owner": {"name": "second-brain-kit contributors"},
-  "description": "A working method for Claude Code: notes folder, work list, evidence checks and safety hooks; topic sessions and reminders when you want them.",
+  "description": "A working method for Claude Code: notes folder, a tracker of open work, evidence checks and safety hooks; Full plan (entry, supervisor, maintenance and topic sessions, reminders) when you want it.",
   "plugins": [
     {
       "name": "second-brain-kit",
       "source": "./",
-      "version": "0.2.3",
-      "description": "Claude sets it up and suggests each extra part, you confirm: one main session in a numbered notes folder, a work list Claude keeps, a done-check that logs and safety hooks, plus only the Advanced parts you confirm. A weekly check offers more, with your yes."
+      "version": "0.2.4",
+      "description": "Claude sets it up and suggests each extra part, you confirm: one main session in a numbered notes folder, a tracker Claude keeps, a done-check that logs and safety hooks, plus only the Full parts you confirm. A weekly check offers more, with your yes."
     }
   ]
 }

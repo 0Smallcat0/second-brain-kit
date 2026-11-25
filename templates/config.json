@@ -6,6 +6,8 @@
   "uses": "",
   "other_tools": "",
   "read_history": false,
+  "plan": "",
+  "wake": {"supervisor": "manual", "topics": "manual"},
   "modes": {
     "vault_guard": "ask",
     "read_whole": "deny",
