@@ -67,6 +67,17 @@ CORRECTION = [
     r"我(?:之前|剛剛|剛才|已經)?不是(?:有)?(?:說過|講過|讓你|叫你|要你|請你)",
     r"搞什麼|到底在(?:搞|幹|做什麼)|不夠(?:全面|仔細|完整)|(?:你|都|還|根本)沒(?:有)?做(?:好|完)(?!了?[嗎?？的])",
     r"下次(?:你)?(?:應該|要記得|記得|不要|別)|你(?:應該|要)自己|你(?:不應該|不該)|回去(?:檢查|看|改|重做)",
+    # complaints said as questions or remarks, with no "wrong" in them (measured on 53 real messages to an
+    # entry session: the lists above caught 2 of 12 complaints; the commonest form is the impatient question)
+    r"到底(?:為什麼|怎麼|是怎樣|有沒有|要不要|還要)|到底.{0,10}(?:了沒|沒有|好了嗎)|根本(?:就)?(?:沒|不)",
+    r"為什麼你|為什麼(?:又|還是)(?!要)|為什麼.{0,10}(?:都沒|沒有)[啊阿呀]?[?？!！]*\s*$|明明(?:就)?(?:有|說|是|已經)",
+    r"都沒(?:有)?(?:主動)?(?:回報|回覆|通知|更新|檢查|處理|改)",
+    r"(?:好|完|完成|結束|送出|處理|更新|上傳)了沒",
+    r"(?:寫|放|給|列|講|說|做|回答|回覆|敘述|文字|內容|字).{0,6}太(?:多|少|長|短|亂|雜|複雜|囉嗦|冗長|簡略)|太慢了",
+    r"應該(?:要|是)?.{0,40}而不是",
+    r"忍(?:耐|了)?很久|受夠了",
+    r"(?i)\bwhy (?:didn'?t|haven'?t|aren'?t|don'?t|can'?t|won'?t) you\b|\bwhy (?:is|are|was|were) (?:there|it|this|they) still\b",
+    r"(?i)\bhow many times\b|\b(?:is|are) (?:it|you|this|that) (?:done|finished|ready) (?:yet|or not)\b|\bwhat(?:'s| is) taking so long\b",
     r"(?i)\bthat'?s (?:wrong|not (?:it|right|what i (?:asked|said|wanted|meant)))",
     r"(?i)\bnot what i (?:asked|said|wanted|meant)\b",
     r"(?i)\bi (?:already |just )?told you\b|\bi (?:already|just) said\b|\bas i said\b",

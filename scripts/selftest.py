@@ -405,6 +405,13 @@ LEARN_NORMAL = [
     '上次說的那個網站叫什麼',
     '你可以幫我把這份文件轉成 PDF 嗎',
     '今天先到這裡，幫我記下進度',
+    '今天作業太多了，幫我排順序',
+    '這篇文章太長了，幫我摘要',
+    '這個函式為什麼沒有回傳值',
+    '說到底這門課要考什麼',
+    '好了嗎？',
+    '為什麼天空是藍的',
+    'Why is the sky blue?',
 ]
 LEARN_CORRECTIONS = [
     '不對，我要的是第三章不是第二章',
@@ -421,6 +428,16 @@ LEARN_CORRECTIONS = [
     "Don't add a summary at the end again",
     'No, I meant the second version',
     "That's wrong, the deadline is Friday",
+    '到底為什麼表格只放三列？',
+    '做完了沒？都沒有回報',
+    '為什麼你每次都漏掉附件',
+    '說明文字寫太多了',
+    '應該要放圖比較直接，而不是全用文字',
+    '這筆紀錄根本就沒有出現在清單裡',
+    '這個做法我忍很久了',
+    '明明就有範本了，為什麼還要重寫',
+    "Why didn't you check the file first?",
+    'How many times do I have to say it',
 ]
 LEARN_CONFIRMED = [
     '很好，就是這樣',
