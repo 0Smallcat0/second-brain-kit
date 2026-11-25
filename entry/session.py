@@ -128,7 +128,8 @@ def permission_mode(name):
 def settings_arg():
     """The --settings value of a kit session. Default: only "accept messages from the user's other
     sessions". With config.json "session_hooks" (true = the kit's own hook set,
-    templates/settings.hooks.example.json; or the path of a settings file of the user's), that file's
+    templates/settings.hooks.example.json, which setup copies next to the hook files in <SBK_HOME>/hooks;
+    or the path of a settings file of the user's), that file's
     content is given to the sessions the kit starts and to no other conversation. This is for a computer
     whose settings.json already carries hooks: installing the plugin there would put the kit's hooks on
     every conversation, next to the ones already running. "__KIT__" in the file becomes the kit's hooks
@@ -136,10 +137,13 @@ def settings_arg():
     which = cfg().get("session_hooks")
     if not which:
         return INBOUND
-    kit = Path(__file__).resolve().parent.parent
-    src = kit / "templates" / "settings.hooks.example.json" if which is True else Path(str(which))
+    up = Path(__file__).resolve().parent.parent  # the kit (entry/ next to hooks/) or SBK_HOME (bin/ next to hooks/)
+    name = "settings.hooks.example.json"
+    src = Path(str(which))
+    if which is True:
+        src = next((p for p in (up / "templates" / name, up / "hooks" / name) if p.exists()), up / "hooks" / name)
     try:
-        data = json.loads(src.read_text(encoding="utf-8").replace("__KIT__", (kit / "hooks").as_posix()))
+        data = json.loads(src.read_text(encoding="utf-8").replace("__KIT__", (up / "hooks").as_posix()))
         data.pop("_comment", None)
         data["crossSessionInbound"] = "accept"
         out = send.home() / "state" / "session-settings.json"

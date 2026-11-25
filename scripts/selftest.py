@@ -1424,6 +1424,18 @@ def main():
               and '{"crossSessionInbound"' not in out, out + err + str(ssd)[:300])
         rc, out, err = run([KIT / "entry" / "session.py", "open", "work", "go"], env=envm)
         check("session settings: a mode that is not a real one falls back to dontAsk", "--permission-mode dontAsk" in out, out + err)
+        # the installed layout: the scripts in <home>/bin, the hooks and their settings file in <home>/hooks
+        (hb / "bin").mkdir(exist_ok=True)
+        (hb / "hooks").mkdir(exist_ok=True)
+        for f in ("session.py", "send.py", "ledger.py", "handover.py"):
+            shutil.copy(str(KIT / "entry" / f), str(hb / "bin" / f))
+        shutil.copy(str(KIT / "templates" / "settings.hooks.example.json"), str(hb / "hooks" / "settings.hooks.example.json"))
+        ssf.unlink()
+        rc, out, err = run([hb / "bin" / "session.py", "open", "entry"], env=envm)
+        ssd = json.loads(ssf.read_text(encoding="utf-8")) if ssf.exists() else {}
+        cmds = [h["command"] for ev in ssd.get("hooks", {}).values() for m in ev for h in m["hooks"]]
+        check("session hooks: from the installed layout the commands point at <home>/hooks",
+              cmds and all((hb.resolve() / "hooks").as_posix() in c for c in cmds), out + err + str(cmds)[:300])
         (hb / "config.json").write_text(json.dumps({"routing": "live", "session_hooks": str(tmp / "no-such.json")}), encoding="utf-8")
         rc, out, err = run([KIT / "entry" / "session.py", "open", "work", "go"], env=envm)
         check("session hooks: an unreadable file is reported and the session still starts",
