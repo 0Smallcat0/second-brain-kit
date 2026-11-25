@@ -14,6 +14,9 @@ PLAN.json:
 {
  "expect_rows": 83,                 optional: the number of rows the old tracker has; the import stops
                                     unless "items" accounts for exactly that many (nothing dropped silently)
+ "keep_ids": true,                  optional: an old id that already has the tracker's form (L0412) stays the
+                                    item's id, so the notes and working files that name it stay right; new
+                                    items then continue after the highest one. Other ids get the next free id.
  "topics": [{"name": "study",       folder managers/study (letters, digits, - and _)
              "keywords": "course, exam",       the routes.md row
              "scope": "the two courses",       goes into the topic's CLAUDE.md
@@ -154,7 +157,11 @@ def do_items(plan, home, apply, out):
     inbox = []
     with ledger.locked():
         head, items = ledger.load()
-        nxt = max([int(i[0][1:]) for i in items] + [0])
+        used = {i[0] for i in items}
+        same = bool(plan.get("keep_ids"))
+        fits = [str(it["old"]).strip() for it in plan.get("items") or []
+                if same and it.get("keep", True) and re.fullmatch(r"L\d{4}", str(it["old"]).strip())]
+        nxt = max([int(i[0][1:]) for i in items] + [int(o[1:]) for o in fits] + [0])
         for it in plan.get("items") or []:
             old = str(it["old"]).strip()
             if old in done:
@@ -164,13 +171,17 @@ def do_items(plan, home, apply, out):
                 done[old] = {"record": ledger.clean(str(it["text"]))}
                 rec += 1
                 continue
-            text = ledger.clean(str(it["text"])) + " (was %s)" % old
+            if old in fits and old not in used:
+                lid = old
+            else:
+                nxt += 1
+                lid = "L%04d" % nxt
+            used.add(lid)
+            text = ledger.clean(str(it["text"])) + ("" if lid == old else " (was %s)" % old)
             if it.get("done_when"):
                 text += "; done when: " + ledger.clean(str(it["done_when"]))
             if it.get("said"):
                 text += '; said: "' + ledger.clean(str(it["said"])) + '"'
-            nxt += 1
-            lid = "L%04d" % nxt
             items.append([lid, ("dispatched:" + it["to"]) if it.get("to") else "open", it.get("ts") or ledger.now(), text, ""])
             done[old] = {"new": lid}
             if it.get("to"):

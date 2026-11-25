@@ -1614,6 +1614,19 @@ def main():
         check("import: a plan that drops a row or has an unreadable time is refused whole",
               rc == 2 and "has 4 rows, the plan accounts for 3" in out and "when not readable" in out
               and (hi / "ledger.md").read_text(encoding="utf-8") == led, out + err)
+        hk = tmp / "home-import-ids"
+        (hk / "managers" / "maintenance").mkdir(parents=True)
+        (hk / "config.json").write_text(json.dumps({"vault": ""}), encoding="utf-8")
+        pk = tmp / "plan-ids.json"
+        pk.write_text(json.dumps({"keep_ids": True, "items": [
+            {"old": "L0412", "text": "send the form"}, {"old": "L0398", "keep": False, "text": "done, receipt"},
+            {"old": "G01", "text": "a group of small jobs"}, {"old": "L0405", "text": "book the room"}]}), encoding="utf-8")
+        rc, out, err = run([IMP, pk, "--apply"], env={"SBK_HOME": str(hk), "SBK_VAULT": "", "ANTHROPIC_API_KEY": ""})
+        ledk = (hk / "ledger.md").read_text(encoding="utf-8") if (hk / "ledger.md").exists() else ""
+        imk = json.loads((hk / "state" / "import-map.json").read_text(encoding="utf-8")) if (hk / "state" / "import-map.json").exists() else {}
+        check("import: keep_ids leaves an old id of the tracker's form as it is and numbers the others after the highest",
+              rc == 0 and imk.get("L0412") == {"new": "L0412"} and imk.get("L0405") == {"new": "L0405"} and imk.get("G01") == {"new": "L0413"}
+              and "- L0412 | open |" in ledk and "send the form (was" not in ledk and "a group of small jobs (was G01)" in ledk, out + err + ledk)
         # learning loop numbers (learn.py)
         LE = KIT / "entry" / "learn.py"
         lv = tmp / "lvault2"
