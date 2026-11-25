@@ -2,24 +2,28 @@
 """Measured "time for more?" check for second-brain-kit. Python 3 standard library only.
 
     level_check.py                  compute the upgrade triggers now; print one JSON line
-    level_check.py --install        facts for the install decision (Basic or Full); one JSON line
+    level_check.py --install        supporting facts for the install suggestion (run only after the
+                                    user allowed reading their history); one JSON line
     level_check.py --hook           SessionStart hook (via hooks/level_notice.py): at most once per
                                     7 days, inside the notes folder only; if a trigger holds, one line
                                     of context asking Claude to offer the upgrade as one yes/no
     level_check.py --decline ID..   the user said no: do not offer these triggers again for 28 days
     --now 2026-11-25T10:00:00       pretend it is this time (tests; env SBK_NOW does the same)
 
-Triggers (docs/ADVANCED.md, "When Claude suggests it"):
-    multi_session  open items >= 10, or open items in >= 3 topics, on two checks 7-21 days apart;
-                   or sessions in the notes folder were compacted >= 2 times in the last 7 days
-    alarms         an open item with "due YYYY-MM-DD" in the past, or the user asked to be
-                   reminded in a notes-folder session in the last 14 days
-    block_mode     stop_evidence has been in log mode >= 14 days, >= 4 flagged turns could be
-                   judged, and < 25% of them were false alarms (false alarm = the user's next
-                   message did not report a problem)
-    multi_tool     the user named another AI tool (config other_tools, or a notes-folder session
-                   in the last 14 days)
+Triggers (docs/ADVANCED.md, "When Claude suggests it") are pain signals, not volume:
+    multi_session  in notes-folder sessions in the last 7 days the user said twice or more that
+                   things got mixed up ("you mixed up the two reports", "作業搞混了")
+    alarms         the user asked to be reminded twice or more in the last 7 days, or an open item
+                   with "due YYYY-MM-DD" is still open 3+ days after that date
+    block_mode     stop_evidence has been in log mode >= 14 days, >= 20 flagged turns could be
+                   judged (small samples mislead), and < 25% of them were false alarms (false
+                   alarm = the user's next message did not report a problem)
+    multi_tool     the user said they have another AI tool account (config other_tools, from setup
+                   or later); a mere mention of a tool in a conversation does not count
+Volume (open items, topics, compactions) is still counted and reported as supporting numbers,
+but never fires a trigger on its own.
 A trigger whose part is already on, or that the user declined in the last 28 days, is left out.
+If config "read_history" is false the conversations are not read at all (ledger and log only).
 
 Reads SBK_HOME (ledger.md, task.md, config.json, logs/stop_evidence.log, alarms.md, routes.md,
 channels.md) and CLAUDE_CONFIG_DIR/projects (default ~/.claude/projects). Writes only
@@ -40,6 +44,8 @@ from pathlib import Path
 
 THROTTLE_DAYS = 7
 DECLINE_DAYS = 28
+OVERDUE_GRACE_DAYS = 3
+MIN_JUDGED = 20
 PARTS = {"multi_session": "A1", "alarms": "A2", "block_mode": "A4", "multi_tool": "A5"}
 NAMES = {"multi_session": "topic sessions (one conversation per subject)",
          "alarms": "reminders", "block_mode": "the stricter done-check",
@@ -50,6 +56,16 @@ TOPIC = re.compile(r"^\s*\[([^\]]{1,40})\]")
 DUE = re.compile(r"(?:due|deadline|截止|期限|到期)\s*[:：]?\s*(\d{4}-\d{2}-\d{2})", re.I)
 OPEN_TASK = re.compile(r"^\s*- \[ \] ?(.*)$")
 REMIND = re.compile(r"remind me|set (?:a |an )?(?:reminder|alarm)|提醒我|幫我提醒|設(?:個|一個)?提醒|記得叫我|到時(?:候)?(?:叫|提醒)我", re.I)
+_THINGS_ZH = r"(?:專案|主題|作業|報告|事情|工作|對話|課|件事)"
+_MIX_ZH = r"(?:搞混|弄混|混在一起|搞錯|弄錯|混淆|搞亂)"
+_THINGS_EN = r"(?:projects?|tasks?|topics?|subjects?|courses?|assignments?|reports?|conversations?)"
+MIXUP = re.compile(_MIX_ZH + r"了?.{0,8}" + _THINGS_ZH + r"|" + _THINGS_ZH + r".{0,8}" + _MIX_ZH +
+                   r"|不是(?:這|那)個(?:專案|主題|作業|報告|課)"
+                   r"|mix(?:ed|ing)? up (?:the |my |two |these |those )?" + _THINGS_EN +
+                   r"|" + _THINGS_EN + r" (?:got |are |were )?mixed up"
+                   r"|wrong (?:project|task|topic|course|assignment|report)"
+                   r"|not that (?:project|course|assignment|report)", re.I)
+NO_TOOL = re.compile(r"^\s*(?:no|none|nope|n/a|-|沒有|無|沒|不用|都沒有)\s*[.。!！]?\s*$", re.I)
 TOOLS = re.compile(r"\b(ChatGPT|GPT-?[45]\w*|Codex|Gemini|Antigravity|Colab|OpenRouter|Copilot|Perplexity|"
                    r"DeepSeek|Grok|Kimi|Qwen)\b|(通義|文心|豆包)", re.I)
 COMPLAINT = re.compile(r"不對|錯了|有錯|沒改|沒有改|沒做|沒有做|還是(?:不|沒|一樣|錯)|失敗|壞了|跑不起來|打不開|"
@@ -223,13 +239,13 @@ def ledger_facts(home, now):
             if m:
                 topics.add(m.group(1).strip().lower())
         for d in DUE.findall(text):
-            if d < day(now):
+            if d < day(now - timedelta(days=OVERDUE_GRACE_DAYS)):
                 overdue.append(lid)
                 break
     try:  # the Basic task.md of one large job
         for l in (home / "task.md").read_text(encoding="utf-8").splitlines():
             m = OPEN_TASK.match(l)
-            if m and any(d < day(now) for d in DUE.findall(m.group(1))):
+            if m and any(d < day(now - timedelta(days=OVERDUE_GRACE_DAYS)) for d in DUE.findall(m.group(1))):
                 overdue.append("task.md")
                 break
     except Exception:
@@ -267,14 +283,13 @@ def in_vault(rec, vault_n):
 
 
 def transcript_facts(vault, now):
-    """Compactions in the last 7 days, reminder requests and tool names in the last 14 days."""
-    comp, remind, tools = 0, 0, set()
+    """Notes-folder sessions, last 7 days: compactions, reminder requests, mix-up complaints."""
+    comp, remind, mixup = 0, 0, 0
     if not vault:
-        return comp, remind, tools
+        return comp, remind, mixup
     vault_n = norm(vault)
-    t14 = now - timedelta(days=14)
     t7 = now - timedelta(days=7)
-    for f in vault_transcripts(vault, time.mktime(t14.timetuple())):
+    for f in vault_transcripts(vault, time.mktime(t7.timetuple())):
         for ts, cwd in compaction_lines(f):
             if ts and t7 <= ts <= now and in_vault({"cwd": cwd}, vault_n):
                 comp += 1
@@ -282,19 +297,19 @@ def transcript_facts(vault, now):
             if not in_vault(rec, vault_n):
                 continue
             ts = parse_ts(rec.get("timestamp"))
-            if ts is None or ts > now or ts < t14:
+            if ts is None or ts > now or ts < t7:
                 continue
             text = human_text(rec)
             if not text:
                 continue
             if REMIND.search(text):
                 remind += 1
-            for m in TOOLS.finditer(text):
-                tools.add((m.group(1) or m.group(2)).lower())
-    return comp, remind, tools
+            if MIXUP.search(text):
+                mixup += 1
+    return comp, remind, mixup
 
 
-def stop_log_facts(home, now, state):
+def stop_log_facts(home, now, state, read_history=True):
     """Days in log mode, flagged turns, judged turns, false alarms (no complaint in the next message)."""
     first = None
     flags = []
@@ -316,7 +331,7 @@ def stop_log_facts(home, now, state):
     days = (now - min(starts)).days if starts else 0
     humans = {}
     judged = false = 0
-    for turn, path in flags:
+    for turn, path in (flags if read_history else []):
         if path not in humans:
             humans[path] = [t for t in (human_text(r) for r in human_records(path)) if t]
         msgs = humans[path]
@@ -401,16 +416,19 @@ def compute(now, state):
     vault = cfg.get("vault") or os.environ.get("SBK_VAULT") or ""
     on = parts_on(home, cfg)
     open_items, open_topics, overdue = ledger_facts(home, now)
-    comp, remind, tools = transcript_facts(vault, now)
-    if str(cfg.get("other_tools") or "").strip():
-        for m in TOOLS.finditer(str(cfg["other_tools"])):
+    read_history = cfg.get("read_history", True) is not False
+    comp, remind, mixup = transcript_facts(vault, now) if read_history else (0, 0, 0)
+    tools = set()
+    said = str(cfg.get("other_tools") or "").strip()
+    if said and not NO_TOOL.match(said):  # the user said they have one (setup question, or told Claude later)
+        for m in TOOLS.finditer(said):
             tools.add((m.group(1) or m.group(2)).lower())
         if not tools:
             tools.add("other (config)")
     mode_se = (cfg.get("modes") or {}).get("stop_evidence", "log")
     if mode_se == "log" and not state.get("log_mode_since"):
         state["log_mode_since"] = day(now)
-    log_days, flags, judged, false = stop_log_facts(home, now, state)
+    log_days, flags, judged, false = stop_log_facts(home, now, state, read_history)
 
     checks = [c for c in state.get("checks", []) if isinstance(c, dict) and c.get("date")]
     prev = None
@@ -430,17 +448,16 @@ def compute(now, state):
         "prev_check": prev["date"] if prev else None,
         "prev_open_items": prev.get("open_items") if prev else None,
         "prev_open_topics": prev.get("open_topics") if prev else None,
-        "compactions_7d": comp, "overdue_items": len(overdue), "remind_requests_14d": remind,
+        "compactions_7d": comp, "mixups_7d": mixup, "overdue_items": len(overdue),
+        "remind_requests_7d": remind, "read_history": read_history,
         "stop_log_days": log_days, "stop_flags": flags, "stop_flags_judged": judged,
         "stop_false_alarm_pct": (round(100.0 * false / judged) if judged else None),
-        "tools_mentioned": sorted(tools), "parts_on": [k for k, v in on.items() if v],
+        "other_tools": sorted(tools), "parts_on": [k for k, v in on.items() if v],
     }
-    hold = {
-        "multi_session": (prev is not None and (
-            (open_items >= 10 and (prev.get("open_items") or 0) >= 10) or
-            (open_topics >= 3 and (prev.get("open_topics") or 0) >= 3))) or comp >= 2,
-        "alarms": bool(overdue) or remind >= 1,
-        "block_mode": mode_se == "log" and log_days >= 14 and judged >= 4 and false * 4 < judged,
+    hold = {  # pain signals only; the volume numbers above are support quoted in the question
+        "multi_session": mixup >= 2,
+        "alarms": bool(overdue) or remind >= 2,
+        "block_mode": mode_se == "log" and log_days >= 14 and judged >= MIN_JUDGED and false * 4 < judged,
         "multi_tool": bool(tools),
     }
     declined = state.get("declined") or {}
@@ -460,25 +477,24 @@ def compute(now, state):
 
 def why(k, n):
     if k == "multi_session":
-        bits = []
-        if n["prev_check"] and n["open_items"] >= 10 and (n["prev_open_items"] or 0) >= 10:
-            bits.append("%d open items now and %d on %s" % (n["open_items"], n["prev_open_items"], n["prev_check"]))
-        if n["prev_check"] and n["open_topics"] >= 3 and (n["prev_open_topics"] or 0) >= 3:
-            bits.append("open items in %d topics now and %d on %s" % (n["open_topics"], n["prev_open_topics"], n["prev_check"]))
-        if n["compactions_7d"] >= 2:
-            bits.append("the notes-folder session was compacted %d times in 7 days" % n["compactions_7d"])
+        bits = ["you said things got mixed up %d times in 7 days" % n["mixups_7d"],
+                "supporting: %d open items in %d topics" % (n["open_items"], n["open_topics"])]
+        if n["prev_check"]:
+            bits[-1] += " (%d items on %s)" % (n["prev_open_items"] or 0, n["prev_check"])
+        if n["compactions_7d"]:
+            bits.append("the notes-folder session was summarised %d time(s) in 7 days" % n["compactions_7d"])
         return "; ".join(bits)
     if k == "alarms":
         bits = []
         if n["overdue_items"]:
-            bits.append("%d open item(s) passed their due date" % n["overdue_items"])
-        if n["remind_requests_14d"]:
-            bits.append("asked to be reminded %d time(s) in 14 days" % n["remind_requests_14d"])
+            bits.append("%d open item(s) still open %d+ days after their due date" % (n["overdue_items"], OVERDUE_GRACE_DAYS))
+        if n["remind_requests_7d"] >= 2:
+            bits.append("asked to be reminded %d times in 7 days" % n["remind_requests_7d"])
         return "; ".join(bits)
     if k == "block_mode":
         return ("done-check logged for %d days; %d flagged turns judged, %d%% false alarms"
                 % (n["stop_log_days"], n["stop_flags_judged"], n["stop_false_alarm_pct"] or 0))
-    return "mentioned: " + ", ".join(n["tools_mentioned"])
+    return "you said you have: " + ", ".join(n["other_tools"])
 
 
 def hook_line(trigs, numbers):

@@ -85,7 +85,7 @@ A README that promises a command the code does not have, or settings the code ig
 
 ## 21. Over-design
 Each extra mechanism has a cost in tokens, attention and breakage.
-**Fix:** before adding a rule, hook or table, write down which mistake that really happened it prevents. If you cannot, do not add it. Install only what the facts call for: Claude picks Basic (one main session in the notes folder) or Full from one question and the user's Claude history. Add topic sessions later only when the measured triggers show subjects crowding one session, and only after the user's yes ([ADVANCED.md](ADVANCED.md)).
+**Fix:** before adding a rule, hook or table, write down which mistake that really happened it prevents. If you cannot, do not add it. Install only what the user's pain calls for: Claude suggests each part from one question ("where do you get stuck?"), with the user's Claude history as support only if they allow it, and the user confirms. Later parts come only from pain signals (for example asking for reminders twice in a week, saying things got mixed up), never from volume alone, and only after the user's yes ([ADVANCED.md](ADVANCED.md)).
 
 ## 22. Hooks that only work on one machine
 Hard-coded paths, a Windows-only call, a byte-order mark in a JSON line.

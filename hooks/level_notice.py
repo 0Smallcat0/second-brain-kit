@@ -2,7 +2,7 @@
 """SessionStart hook: the weekly upgrade check (scripts/level_check.py --hook).
 
 At most once per 7 days, and only in a session inside the notes folder (or ~/.claude/sbk), it
-computes the measured triggers in docs/ADVANCED.md. If one holds, it adds one line of context
+computes the pain-signal triggers in docs/ADVANCED.md. If one holds, it adds one line of context
 asking Claude to offer that part to the user as a single yes/no question with the numbers. It
 never switches anything on. Mode: config.json "modes": {"level_notice": "warn"} (default; "off"
 silences it). Fails open.

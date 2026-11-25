@@ -1,7 +1,7 @@
 {
   "name": "second-brain-kit",
-  "version": "0.2.1",
-  "description": "A working method for Claude Code, set up by Claude. Claude picks the level at install: Basic (one main session in a numbered notes folder, a work list Claude keeps, evidence-before-done checks and safety hooks) or Full (Basic + only the topic sessions, reminders or other-tool guide your answers and history call for). A weekly check offers more parts when measured numbers show they would help, only with your yes. One Claude account is enough.",
+  "version": "0.2.2",
+  "description": "Notes and a work list for Claude Code, set up by Claude (not an official Anthropic plugin). Basic: one main session in a numbered notes folder, a work list Claude keeps, a done-check that logs and safety hooks that ask before deleting or uploading. Claude suggests extra parts (topic sessions, reminders, another-AI split) one by one from where you get stuck, and you confirm; a weekly check offers more on pain signals, only with your yes. Needs a Claude plan that includes Claude Code.",
   "author": {"name": "second-brain-kit contributors"},
   "license": "MIT"
 }

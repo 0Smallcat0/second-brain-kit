@@ -79,7 +79,7 @@ def level_tests(tmp, cfg):
         h.mkdir()
         c.mkdir()
         if config:
-            (h / "config.json").write_text(json.dumps(dict(cfg, vault=str(vault), **(extra_cfg or {}))), encoding="utf-8")
+            (h / "config.json").write_text(json.dumps(dict(dict(cfg, vault=str(vault), read_history=True), **(extra_cfg or {}))), encoding="utf-8")  # read_history: a user who said yes
         if ledger:
             (h / "ledger.md").write_text("# Ledger\n\n" + "".join(ledger), encoding="utf-8")
         for rel, text in (files or {}).items():
@@ -125,79 +125,87 @@ def level_tests(tmp, cfg):
     rc, r = check_now(h, c)
     check("level: fresh Basic install -> no trigger", rc == 0 and r.get("triggers") == [], r)
 
-    # multi_session: open items >= 10 on two checks a week apart
+    # multi_session: pain = the user said twice in 7 days that things got mixed up; volume only supports
     many = [item(i, "thing %d" % i) for i in range(1, 13)]
     h, c = setup(many)
     check_now(h, c, ago(8))
     rc, r = check_now(h, c)
-    check("level: 12 open items on two checks 8 days apart -> multi_session",
-          "multi_session" in (r.get("triggers") or []) and r["numbers"]["prev_open_items"] == 12, r)
-    h, c = setup(many)
-    rc, r = check_now(h, c)
-    check("level: 12 open items on one check only -> no trigger", r.get("triggers") == [], r)
-    h, c = setup(many)
-    check_now(h, c, ago(3))
-    rc, r = check_now(h, c)
-    check("level: two checks only 3 days apart -> no trigger (one busy week)", r.get("triggers") == [], r)
-    h, c = setup([item(i, "thing %d" % i) for i in range(1, 10)])
-    check_now(h, c, ago(8))
-    rc, r = check_now(h, c)
-    check("level: 9 open items -> no trigger", r.get("triggers") == [], r)
-
-    # multi_session: items in >= 3 topics
+    check("level: 12 open items on two checks 8 days apart, no complaint -> no trigger (volume only supports)",
+          r.get("triggers") == [] and r["numbers"]["prev_open_items"] == 12, r)
     three = [item(1, "[study] read ch 3"), item(2, "[job] shift swap"), item(3, "poster", "dispatched:club")]
     h, c = setup(three)
     check_now(h, c, ago(9))
     rc, r = check_now(h, c)
-    check("level: open items in 3 topics on two checks -> multi_session",
-          "multi_session" in (r.get("triggers") or []) and r["numbers"]["open_topics"] == 3, r)
-    h, c = setup(three[:2] + [item(3, "[study] ch 4")])
-    check_now(h, c, ago(9))
-    rc, r = check_now(h, c)
-    check("level: open items in 2 topics -> no trigger", r.get("triggers") == [], r)
-
-    # multi_session: compactions of the notes-folder session
+    check("level: open items in 3 topics, no complaint -> no trigger, topics counted",
+          r.get("triggers") == [] and r["numbers"]["open_topics"] == 3, r)
     h, c = setup()
     transcript(c, [human("hi", 3), compact(3), compact(1)])
     rc, r = check_now(h, c)
-    check("level: notes session compacted 2 times in 7 days -> multi_session",
-          "multi_session" in (r.get("triggers") or []) and r["numbers"]["compactions_7d"] == 2, r)
-    h, c = setup()
-    transcript(c, [human("hi", 3), compact(2)])
+    check("level: compacted 2 times in 7 days, no complaint -> no trigger, counted",
+          r.get("triggers") == [] and r["numbers"]["compactions_7d"] == 2, r)
+    h, c = setup(three)
+    transcript(c, [human("你把兩個作業搞混了", 3), human("not that project, the poster one", 1)])
     rc, r = check_now(h, c)
-    check("level: compacted once -> no trigger", r.get("triggers") == [], r)
+    check("level: mixed up twice in 7 days -> multi_session",
+          "multi_session" in (r.get("triggers") or []) and r["numbers"]["mixups_7d"] == 2, r)
     h, c = setup()
-    transcript(c, [human("hi", 12), compact(12), compact(10)])
+    transcript(c, [human("you mixed up the two reports", 2)])
     rc, r = check_now(h, c)
-    check("level: 2 compactions but 10+ days old -> no trigger", r.get("triggers") == [], r)
+    check("level: mixed up once -> no trigger", r.get("triggers") == [], r)
+    h, c = setup()
+    transcript(c, [human("報告搞混了", 10), human("專案又弄錯了", 9)])
+    rc, r = check_now(h, c)
+    check("level: two mix-ups but 9+ days old -> no trigger", r.get("triggers") == [], r)
+    h, c = setup()
+    transcript(c, [human("我搞混了這兩個公式", 2), human("I mixed up sine and cosine", 1)])
+    rc, r = check_now(h, c)
+    check("level: confused about study content (not tasks) -> no trigger", r.get("triggers") == [], r)
     h, c = setup()
     other = tmp / "elsewhere"
-    transcript(c, [compact(2, other), compact(1, other)], folder=re.sub(r"[^A-Za-z0-9]", "-", str(other)))
+    transcript(c, [human("作業搞混了", 2), human("wrong project again", 1)],
+               folder=re.sub(r"[^A-Za-z0-9]", "-", str(other)))
     rc, r = check_now(h, c)
-    check("level: compactions in another project folder -> no trigger", r.get("triggers") == [], r)
+    check("level: mix-ups in a session outside the notes folder -> no trigger", r.get("triggers") == [], r)
+    h, c = setup(extra_cfg={"read_history": False})
+    transcript(c, [human("你把兩個作業搞混了", 3), human("wrong project again", 1)])
+    rc, r = check_now(h, c)
+    check("level: read_history false -> conversations not read, no trigger",
+          r.get("triggers") == [] and r["numbers"]["mixups_7d"] == 0 and r["numbers"]["read_history"] is False, r)
 
-    # alarms
+    # alarms: overdue only after 3 days; reminder requests twice in 7 days
+    h, c = setup([item(1, "[study] report due %s" % ago(4, "%Y-%m-%d"))])
+    rc, r = check_now(h, c)
+    check("level: open item 4 days past its due date -> alarms", "alarms" in (r.get("triggers") or []), r)
     h, c = setup([item(1, "[study] report due %s" % ago(2, "%Y-%m-%d"))])
     rc, r = check_now(h, c)
-    check("level: open item past its due date -> alarms", "alarms" in (r.get("triggers") or []), r)
-    h, c = setup([item(1, "[study] report due %s" % ago(2, "%Y-%m-%d"), "done")])
+    check("level: only 2 days past due -> no trigger (grace 3 days)", r.get("triggers") == [], r)
+    h, c = setup([item(1, "[study] report due %s" % ago(4, "%Y-%m-%d"), "done")])
     rc, r = check_now(h, c)
     check("level: past due date but item closed -> no trigger", r.get("triggers") == [], r)
     h, c = setup([item(1, "[study] report due %s" % ago(-5, "%Y-%m-%d"))])
     rc, r = check_now(h, c)
     check("level: due date still ahead -> no trigger", r.get("triggers") == [], r)
     h, c = setup()
+    transcript(c, [human("週五要交報告，到時候提醒我", 2), human("remind me to email the TA", 1)])
+    rc, r = check_now(h, c)
+    check("level: asked to be reminded twice in 7 days -> alarms",
+          "alarms" in (r.get("triggers") or []) and r["numbers"]["remind_requests_7d"] == 2, r)
+    h, c = setup()
     transcript(c, [human("週五要交報告，到時候提醒我", 2)])
     rc, r = check_now(h, c)
-    check("level: user asked to be reminded -> alarms", "alarms" in (r.get("triggers") or []), r)
+    check("level: asked to be reminded once -> no trigger", r.get("triggers") == [], r)
+    h, c = setup()
+    transcript(c, [human("提醒我交報告", 12), human("remind me on Friday", 10)])
+    rc, r = check_now(h, c)
+    check("level: two reminder requests but 10+ days old -> no trigger", r.get("triggers") == [], r)
     h, c = setup(files={"alarms.md": "| id | when | to | text |\n"})
-    transcript(c, [human("remind me on Friday", 2)])
+    transcript(c, [human("remind me on Friday", 2), human("提醒我交報告", 1)])
     rc, r = check_now(h, c)
     check("level: reminders already on -> not offered again", r.get("triggers") == [], r)
 
-    # block_mode: stop_evidence log for 2+ weeks, < 25% false alarms
-    def flagged(next_msgs, days_old):
-        hh, cc = setup()
+    # block_mode: stop_evidence log for 2+ weeks, >= 20 judged flags, < 25% false alarms
+    def flagged(next_msgs, days_old, extra_cfg=None):
+        hh, cc = setup(extra_cfg=extra_cfg)
         recs = [user("task 0")]
         for m in next_msgs:
             recs += [tool("Write", {"file_path": "a.txt", "content": "x"}), result(), say("Done."), user(m)]
@@ -208,28 +216,37 @@ def level_tests(tmp, cfg):
         (hh / "logs").mkdir()
         (hh / "logs" / "stop_evidence.log").write_text(log, encoding="utf-8")
         return hh, cc
-    h, c = flagged(["還是不行，沒改到", "it still fails", "wrong file", "沒有改"], 20)
+    bad = ["還是不行，沒改到", "it still fails", "wrong file", "沒有改"] * 5
+    h, c = flagged(bad, 20)
     rc, r = check_now(h, c)
-    check("level: 4 flags, all followed by a complaint, 20 days of log -> block_mode",
-          "block_mode" in (r.get("triggers") or []) and r["numbers"]["stop_false_alarm_pct"] == 0, r)
-    h, c = flagged(["thanks", "great", "next please", "還是不行"], 20)
+    check("level: 20 flags, all followed by a complaint, 20 days of log -> block_mode",
+          "block_mode" in (r.get("triggers") or []) and r["numbers"]["stop_flags_judged"] == 20
+          and r["numbers"]["stop_false_alarm_pct"] == 0, r)
+    h, c = flagged(["thanks", "great", "next please", "還是不行"] * 5, 20)
     rc, r = check_now(h, c)
     check("level: 75% false alarms -> no trigger", r.get("triggers") == [], r)
-    h, c = flagged(["還是不行，沒改到", "it still fails", "wrong file", "沒有改"], 3)
+    h, c = flagged(bad, 3)
     rc, r = check_now(h, c)
     check("level: good flags but only 3 days of log -> no trigger", r.get("triggers") == [], r)
-    h, c = flagged(["還是不行", "wrong file"], 20)
+    h, c = flagged(bad[:19], 20)
     rc, r = check_now(h, c)
-    check("level: only 2 judged flags -> no trigger", r.get("triggers") == [], r)
+    check("level: only 19 judged flags -> no trigger (small sample)", r.get("triggers") == [], r)
+    h, c = flagged(bad, 20, {"read_history": False})
+    rc, r = check_now(h, c)
+    check("level: read_history false -> flags not judged, no trigger",
+          r.get("triggers") == [] and r["numbers"]["stop_flags_judged"] == 0, r)
 
-    # multi_tool
-    h, c = setup(extra_cfg={"other_tools": "I also use ChatGPT"})
+    # multi_tool: only when the user said they have the tool
+    h, c = setup(extra_cfg={"other_tools": "I also have a ChatGPT account"})
     rc, r = check_now(h, c)
-    check("level: other tool named at setup -> multi_tool", r.get("triggers") == ["multi_tool"], r)
+    check("level: user said they have another tool -> multi_tool", r.get("triggers") == ["multi_tool"], r)
     h, c = setup()
-    transcript(c, [human("Gemini 可以幫忙讀這份 PDF 嗎", 4)])
+    transcript(c, [human("Gemini 可以幫忙讀這份 PDF 嗎", 4), human("my report compares ChatGPT and Gemini", 2)])
     rc, r = check_now(h, c)
-    check("level: other tool mentioned in a notes session -> multi_tool", "multi_tool" in (r.get("triggers") or []), r)
+    check("level: tool only mentioned in a conversation -> no trigger", r.get("triggers") == [], r)
+    h, c = setup(extra_cfg={"other_tools": "沒有"})
+    rc, r = check_now(h, c)
+    check("level: other_tools says 'none' -> no trigger", r.get("triggers") == [], r)
     h, c = setup(extra_cfg={"other_tools": "ChatGPT"}, files={"channels.md": "| tool |\n"})
     rc, r = check_now(h, c)
     check("level: tool guide already on -> no trigger", r.get("triggers") == [], r)
@@ -279,12 +296,12 @@ def level_tests(tmp, cfg):
         transcript(c, [human("hi", 1)], folder="proj%d" % i)
     rc, out, _ = run([LC, "--install", "--now", N], None, env(h, c))
     inst = json.loads(out)["install"] if out.strip() else {}
-    check("level --install: 3 active project folders -> evidence for Full",
+    check("level --install: 3 active project folders -> supporting evidence for topic sessions",
           inst.get("active_projects_14d") == 3 and inst.get("multi_session_evidence") is True, out)
     h, c = setup()
     rc, out, _ = run([LC, "--install", "--now", N], None, env(h, c))
     inst = json.loads(out)["install"] if out.strip() else {}
-    check("level --install: no history -> no evidence (Basic)",
+    check("level --install: no history -> no evidence (answer alone, default Basic)",
           inst.get("active_projects_14d") == 0 and inst.get("multi_session_evidence") is False, out)
 
 
@@ -438,7 +455,7 @@ def main():
 
         # ---- the Basic config that setup writes (templates/config.json) ----
         cfg = json.loads((KIT / "templates" / "config.json").read_text(encoding="utf-8"))
-        check("config template: Basic level and modes", cfg.get("level") == "basic" and cfg["modes"] == {
+        check("config template: Basic level, history not read until the user says yes, modes", cfg.get("level") == "basic" and cfg.get("read_history") is False and cfg["modes"] == {
             "vault_guard": "ask", "read_whole": "deny", "requests_reinject": "warn",
             "stop_evidence": "log", "usage_warn": "off", "inbox_notice": "off", "level_notice": "warn"}, cfg)
         home2 = tmp / "home2"

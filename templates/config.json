@@ -5,6 +5,7 @@
   "language": "",
   "uses": "",
   "other_tools": "",
+  "read_history": false,
   "modes": {
     "vault_guard": "ask",
     "read_whole": "deny",

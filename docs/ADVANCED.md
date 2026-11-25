@@ -2,21 +2,20 @@
 
 [繁體中文](zh-TW/進階功能.md) · [Back to the README](../README.md)
 
-Basic is one main Claude session in your notes folder, a work list Claude keeps for you, and safety checks. Everything on this page is already in the kit but **does nothing until it is switched on**. At install ([SETUP.md](SETUP.md)) Claude switches on only the parts your answers and your earlier Claude use call for (that is Full); the rest waits until the numbers below show it would help.
+Basic is one main Claude session in your notes folder, a work list Claude keeps for you, and safety checks. Everything on this page is already in the kit but **does nothing until it is switched on**. At install ([SETUP.md](SETUP.md)) Claude suggests each part from your answer and switches on only the ones you confirm (any extra part = Full); the rest waits until what happens to you shows it would help (table below).
 
 To switch something on, tell Claude, for example: "Turn on topic sessions", "Remind me every Sunday to review", "Make the done-check stricter". Claude does it with the steps at the end of this page.
 
 ## When Claude suggests it
 
-At install Claude already switched on the parts your answers and your earlier Claude use called for (Full), or none (Basic). After that, a small script, `scripts/level_check.py`, measures the rows below on your computer. It runs at most once a week when you open Claude in your notes folder (the `level_notice` check) and every time you run `/sbk-status`. It never changes a setting. When a row holds, Claude asks you **one yes/no question** with the numbers and switches the part on only after a yes. After a no it does not ask about that part again for four weeks. A part that is already on is never offered.
+At install Claude suggested each part from your answer to "where do you get stuck?" and you confirmed which to switch on (maybe none). After that, a small script, `scripts/level_check.py`, measures the rows below on your computer. The rows look at **what actually happened to you** (asking for reminders, saying things got mixed up), not at how busy you are: the number of open items, topics and summarised conversations is quoted in the question as support and never triggers anything on its own. If you said no to reading your conversations at install, it reads only the work list and the log, not your conversations. It runs at most once a week when you open Claude in your notes folder (the `level_notice` check) and every time you run `/sbk-status`. It never changes a setting. When a row holds, Claude asks you **one yes/no question** with the numbers and switches the part on only after a yes. After a no it does not ask about that part again for four weeks. A part that is already on is never offered.
 
 | Trigger (measured; id in the script's output) | What gets switched on | What Claude does to switch it on |
 |---|---|---|
-| 10 or more open work-list items, or open items in 3 or more topics, on two checks 7 to 21 days apart, so one busy day does not count (`multi_session`) | Entry session + topic sessions (A1) | A1 below: entry and one session per topic (topics = the `[topic]` tags of the open items), `routes.md`, `inbox_notice` -> warn, one launcher each |
-| The session in your notes folder was compacted (summarised because it got too long) 2 or more times in the last 7 days (`multi_session`) | Entry session + topic sessions (A1) | Same as the row above |
-| An open item with `due YYYY-MM-DD` passed that date, or you asked Claude to remind you in the last 14 days (`alarms`) | Reminders (A2) | A2 below: `alarms.md` with a row for that date; the computer's scheduler only after a separate yes |
-| The done-check has been logging for 14 days or more, at least 4 flagged replies could be judged, and fewer than 25% were false alarms; a false alarm is a flagged reply after which your next message did not report a problem (`block_mode`) | Stricter done-check (A4) | A4 below: `stop_evidence` -> block |
-| You named another AI tool, at setup or in a notes-folder conversation in the last 14 days (`multi_tool`) | The guide for splitting work with that tool (A5), only tools you have | A5 below: a row in `channels.md` and one tiny real job |
+| In notes-folder conversations in the last 7 days you said 2 or more times that things got mixed up (for example "you mixed up the two reports", "not that project"); open items, topics and summarised conversations are quoted as support (`multi_session`) | Entry session + topic sessions (A1) | A1 below: entry and one session per topic (topics = the `[topic]` tags of the open items), `routes.md`, `inbox_notice` -> warn, one launcher each |
+| You asked Claude to remind you 2 or more times in the last 7 days, or an open item with `due YYYY-MM-DD` is still open 3 or more days after that date (`alarms`) | Reminders (A2) | A2 below: `alarms.md` with a row for that date; the computer's scheduler only after a separate yes |
+| The done-check has been logging for 14 days or more, at least 20 flagged replies could be judged (small samples mislead), and fewer than 25% were false alarms; a false alarm is a flagged reply after which your next message did not report a problem (`block_mode`) | Stricter done-check (A4) | A4 below: `stop_evidence` -> block |
+| You said you have an account for another AI tool (at setup, or by telling Claude later); just naming a tool in a conversation does not count (`multi_tool`) | The guide for splitting work with that tool (A5), only tools you have | A5 below: a row in `channels.md` and one tiny real job |
 | You ask for any part yourself, including the usage warning (A3) | That part | Its steps below |
 
 Saying no is recorded with `level_check.py --decline <id>`; the script writes only its own file `~/.claude/sbk/state/level_check.json`.
@@ -235,7 +234,7 @@ Written for the Claude that switches a part on. Words (`KIT`, `SBK_HOME`, `VAULT
 
 ### A4 - Stricter done-check
 
-1. Replay first (with consent, as in SETUP Step 4): `python KIT/hooks/stop_evidence.py --replay <file>` on the five newest transcripts, and `SBK_HOME/logs/stop_evidence.log` if Basic has run for a while.
+1. Replay first (with consent: `read_history` is true in `config.json`, or ask now): `python KIT/hooks/stop_evidence.py --replay <file>` on the five newest transcripts, and `SBK_HOME/logs/stop_evidence.log` if Basic has run for a while.
 2. If the weekly check brought you here, its numbers already show fewer than 25% false alarms: set block. If the user asked without that, and about one turn in four or more would be flagged in the replay, tell the user it would interrupt too often and keep `log`. Otherwise set `config.json` -> `"modes": {"stop_evidence": "block"}`. It stops Claude at most once per reply.
 
 **Check:** the replay ran on at least one transcript (or the log), and `config.json` shows the mode you chose.
