@@ -340,8 +340,9 @@ def listing(now):
     lim = c.get("wake_limits") or {}
     print("routing: %s  sessions at once: %s  wake limits: %s/day, %s min apart" % (
         c.get("routing", "inbox"), c.get("max_sessions", 2), lim.get("per_day", 4), lim.get("min_gap_min", 120)))
-    if len(rows) > MAX_ROWS:
-        print("WARNING: more than %d rows" % MAX_ROWS)
+    warn = int(c.get("alarm_rows_warn", MAX_ROWS))  # the same number the tick warns at
+    if len(rows) > warn:
+        print("WARNING: more than %d rows" % warn)
 
 
 def prune(now):
