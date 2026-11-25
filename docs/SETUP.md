@@ -12,6 +12,17 @@ Rules while you work: ask before anything that edits `~/.claude/settings.json`, 
 
 ---
 
+## Step 00 - Get the kit (skip if `KIT` already exists on disk)
+
+The user may have pasted only: "Install the Claude Code plugin from https://github.com/0Smallcat0/second-brain-kit and set me up by its docs/SETUP.md." If `KIT` (the folder with `.claude-plugin/plugin.json`) is not on this computer yet:
+1. Ask once: "OK to add the second-brain-kit plugin from github.com/0Smallcat0/second-brain-kit? It changes your Claude Code plugin list." After a yes, run `claude plugin marketplace add 0Smallcat0/second-brain-kit` and then `claude plugin install second-brain-kit@second-brain-kit` (the command-line twins of `/plugin marketplace add ...` and `/plugin install ...`).
+2. If the `claude` command cannot be run from here, or the install fails, clone `https://github.com/0Smallcat0/second-brain-kit` into a new folder (for example `~/second-brain-kit-src`) and use that folder as `KIT`; the hooks are then installed by Step 4's manual route.
+3. Read `docs/SETUP.md` from `KIT` again (it is this file) and continue with Step 0.
+
+**Check:** `KIT/.claude-plugin/plugin.json` exists and `claude plugin list` shows second-brain-kit (or, for the clone route, the folder exists and you said so).
+
+---
+
 ## Step 0 - Preflight and the questions
 
 1. Run `python --version`, `git --version`, `claude --version`. Python 3.8+ and git are required. If one is missing, tell the user exactly what to install (only they can) and stop here.

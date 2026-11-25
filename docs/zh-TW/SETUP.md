@@ -12,6 +12,17 @@
 
 ---
 
+## 步驟 00：取得套件（`KIT` 已經在電腦上就跳過）
+
+使用者可能只貼了這一句：「Install the Claude Code plugin from https://github.com/0Smallcat0/second-brain-kit and set me up by its docs/SETUP.md.」如果這台電腦上還沒有 `KIT`（裡面有 `.claude-plugin/plugin.json` 的資料夾）：
+1. 先問一次：「同意我從 github.com/0Smallcat0/second-brain-kit 加入 second-brain-kit 外掛嗎？這會改你的 Claude Code 外掛清單。」同意後執行 `claude plugin marketplace add 0Smallcat0/second-brain-kit`，再執行 `claude plugin install second-brain-kit@second-brain-kit`（就是 `/plugin marketplace add ...` 和 `/plugin install ...` 的命令列版本）。
+2. 如果這裡跑不了 `claude` 指令、或安裝失敗，就把 `https://github.com/0Smallcat0/second-brain-kit` clone 到一個新資料夾（例如 `~/second-brain-kit-src`），拿它當 `KIT`；hook 改走步驟 4 的手動安裝。
+3. 從 `KIT` 重新讀一次 `docs/zh-TW/SETUP.md`（就是這份），接著做步驟 0。
+
+**檢查：** `KIT/.claude-plugin/plugin.json` 存在，而且 `claude plugin list` 看得到 second-brain-kit（clone 路線則是資料夾存在，並且你說了用的是這條路線）。
+
+---
+
 ## 步驟 0：環境檢查與提問
 
 1. 執行 `python --version`、`git --version`、`claude --version`。需要 Python 3.8 以上和 git。缺哪個，就明確告訴使用者要裝什麼（只有他能裝），然後在這裡停下。
